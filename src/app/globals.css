@@ -474,6 +474,12 @@ a[href*="/courses?topic="] {
 [data-scroller]::-webkit-scrollbar {
   display: none !important;
 }
-
-
-
+/* Suppress marketing navbar, progress bar and footer on student and admin routes */
+body:has(.student-shell) > header,
+body:has(.student-shell) > #contact,
+body:has(.student-shell) > [data-scroll-progress],
+body:has(.admin-shell) > header,
+body:has(.admin-shell) > #contact,
+body:has(.admin-shell) > [data-scroll-progress] {
+  display: none !important;
+}
