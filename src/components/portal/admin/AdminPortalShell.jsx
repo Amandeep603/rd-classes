@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import AdminSidebar from "./AdminSidebar";
 import AdminTopbar from "./AdminTopbar";
 import { X } from "lucide-react";
@@ -14,12 +14,14 @@ export default function AdminPortalShell({
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-[#FBF8F1] text-[#111827] antialiased">
+    <div className="admin-shell flex min-h-screen bg-[#FBF8F1] text-[#111827] antialiased">
       {/* Desktop Persistent Sidebar */}
-      <AdminSidebar
-        initialPendingCount={initialPendingCount}
-        adminUser={adminUser}
-      />
+      <Suspense fallback={<div className="hidden lg:block w-[279px] shrink-0 bg-[#0F1B2D]" />}>
+        <AdminSidebar
+          initialPendingCount={initialPendingCount}
+          adminUser={adminUser}
+        />
+      </Suspense>
 
       {/* Mobile Drawer Backdrop + Sidebar */}
       {mobileDrawerOpen && (
@@ -37,10 +39,12 @@ export default function AdminPortalShell({
             >
               <X className="h-5 w-5" />
             </button>
-            <AdminSidebar
-              initialPendingCount={initialPendingCount}
-              adminUser={adminUser}
-            />
+            <Suspense fallback={null}>
+              <AdminSidebar
+                initialPendingCount={initialPendingCount}
+                adminUser={adminUser}
+              />
+            </Suspense>
           </div>
         </div>
       )}

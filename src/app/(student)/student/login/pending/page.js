@@ -1,12 +1,17 @@
 import { connection } from "next/server";
 import connectDB from "@/server/db/connect.js";
 import { DeviceRequest } from "@/server/db/models/DeviceRequest.js";
-import PendingDeviceCard from "@/components/student/PendingDeviceCard";
+import { User } from "@/server/db/models/User.js";
+import PendingDeviceView from "@/components/portal/auth/PendingDeviceView";
 
 export const instant = false;
 
 export const metadata = {
   title: "Device Pending Approval | RD Classes",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default async function PendingPage({ searchParams }) {
@@ -15,19 +20,28 @@ export default async function PendingPage({ searchParams }) {
   const deviceId = params?.deviceId;
 
   let request = null;
+  let student = null;
+
   if (deviceId) {
     await connectDB();
-    request = await DeviceRequest.findOne({ deviceId, status: "pending" })
+    const rawReq = await DeviceRequest.findOne({ deviceId })
       .sort({ createdAt: -1 })
       .lean();
+
+    if (rawReq) {
+      request = JSON.parse(JSON.stringify(rawReq));
+      const rawUser = await User.findById(rawReq.userId).lean();
+      if (rawUser) {
+        student = JSON.parse(JSON.stringify(rawUser));
+      }
+    }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#0A0A0C]">
-      <PendingDeviceCard
-        deviceLabel={request?.label || "This Browser Device"}
-        requestTime={request?.createdAt || new Date()}
-      />
-    </div>
+    <PendingDeviceView
+      initialRequest={request}
+      studentName={student?.name || "Student"}
+      studentCode={student?.studentCode || ""}
+    />
   );
 }

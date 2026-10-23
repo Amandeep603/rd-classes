@@ -10,3 +10,8 @@ export { Lecture } from "./Lecture.js";
 export { Enrollment } from "./Enrollment.js";
 export { Progress } from "./Progress.js";
 export { AuditLog } from "./AuditLog.js";
+export { Counter } from "./Counter.js";
+export { Announcement } from "./Announcement.js";
+export { Test } from "./Test.js";
+export { TestResult } from "./TestResult.js";
+export { Settings } from "./Settings.js";

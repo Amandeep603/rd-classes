@@ -17,10 +17,26 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/^[a-z0-9._-]{4,30}$/, "Invalid login ID format"],
     },
+    studentCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
     name: {
       type: String,
       required: true,
       trim: true,
+    },
+    className: {
+      type: String,
+      enum: ["11", "12", null],
+      default: null,
+    },
+    school: {
+      type: String,
+      trim: true,
+      default: "",
     },
     phone: {
       type: String,
@@ -58,6 +74,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -65,6 +86,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1, status: 1 });
+userSchema.index({ studentCode: 1 }, { unique: true, sparse: true });
 
 export const User = mongoose.models.User || mongoose.model("User", userSchema);
 export default User;

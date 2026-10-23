@@ -82,3 +82,22 @@ export async function logoutAdminAction() {
   await logoutUser("admin");
   redirect("/admin/login");
 }
+
+export async function updateStudentDeviceNoteAction(requestId, note) {
+  if (!requestId || typeof note !== "string") {
+    return { success: false, error: "Invalid parameters" };
+  }
+  const cleanNote = note.trim().slice(0, 140);
+  try {
+    const connectDB = (await import("../db/connect.js")).default;
+    const { DeviceRequest } = await import("../db/models/DeviceRequest.js");
+    await connectDB();
+    await DeviceRequest.findByIdAndUpdate(requestId, {
+      studentNote: cleanNote,
+    });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+

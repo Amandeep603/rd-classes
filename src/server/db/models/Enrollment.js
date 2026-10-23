@@ -30,6 +30,15 @@ const enrollmentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    assignedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    paymentNote: {
+      amount: { type: Number, default: null },
+      mode: { type: String, trim: true, default: "" },
+      remark: { type: String, trim: true, default: "" },
+    },
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

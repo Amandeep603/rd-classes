@@ -26,3 +26,16 @@
 - **Phase B**: Part 2 (Auth pages) + Part 3 (Student portal complete).
 - **Phase C**: Part 5 (Data additions, models, indexes, backfill) + Part 4 (Admin portal complete).
 - **Phase D**: Part 6 (Responsive, motion, a11y) + Part 7 (Vitest tests, visual comparison, E2E check, reports).
+
+---
+
+## 3. Phase Log
+
+- **2026-10-23 Phase A Completed**:
+  - Measured 1536px reference designs, produced `docs/PORTAL_SPEC.md`, cropped decorative asset `public/images/admin/banner-desk.webp`.
+  - Created `src/styles/portal.css` design system with CSS tokens, tones (`[data-tone]`), card lifts, and shimmer effects.
+  - Built reusable primitives in `src/components/portal/ui/` (`Button`, `IconButton`, `Badge`, `Avatar`, `Card`, `ProgressRing`, `ProgressBar`, `StatCard`, `StatTile`, `SearchInput`, `CopyButton`, `Skeleton`, `FormField`, `Dialog`, `Tabs`, `DataTable`, `EmptyState`) and inline illustrations (`src/components/portal/illustrations/PortalIllustrations.jsx`).
+  - Restructured layouts into route groups: `src/app/admin/(portal)/layout.js` and `src/app/(student)/student/(portal)/layout.js` render static shells instantly and stream `<AdminGate>` / `<StudentGate>` inside `<Suspense fallback={<DashboardSkeleton />}>`.
+  - Prerendering error resolved: `○ /` static, `◐ /admin` and `◐ /student` partial prerendering, zero console errors, `npm run lint` and `npm run build` green.
+  - Committed as `portal: phase A` (commit `66e0cf5`).
+

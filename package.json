@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:indexes": "node --conditions=react-server scripts/create-indexes.mjs",
+    "db:backfill": "node --conditions=react-server scripts/backfill.mjs",
     "seed:admin": "node --conditions=react-server scripts/seed-admin.mjs"
   },
   "dependencies": {

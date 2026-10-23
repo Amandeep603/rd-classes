@@ -1,0 +1,39 @@
+import "server-only";
+import mongoose from "mongoose";
+
+const settingsSchema = new mongoose.Schema(
+  {
+    workspaceName: {
+      type: String,
+      default: "Ronak Sir Workspace",
+      trim: true,
+    },
+    whatsappNumber: {
+      type: String,
+      default: "+91 99999 99999",
+      trim: true,
+    },
+    defaultDeviceLimit: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 3,
+    },
+    watermarkEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    rewardTargetText: {
+      type: String,
+      default: "₹5,100 Cash Reward Target",
+      trim: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export const Settings =
+  mongoose.models.Settings || mongoose.model("Settings", settingsSchema);
+export default Settings;

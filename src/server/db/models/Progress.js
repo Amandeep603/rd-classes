@@ -36,6 +36,10 @@ const progressSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    bookmarked: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

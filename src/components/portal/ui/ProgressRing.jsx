@@ -1,50 +1,22 @@
 import React from "react";
 
-export function ProgressBar({
-  value = 0,
-  max = 100,
-  color = "#FFC21A",
-  trackColor = "#F1F3F5",
-  height = 8,
-  className = "",
-}) {
-  const percentage = Math.min(100, Math.max(0, Math.round((value / max) * 100)));
-
-  return (
-    <div
-      style={{
-        height: `${height}px`,
-        backgroundColor: trackColor,
-      }}
-      className={`w-full rounded-full overflow-hidden ${className}`}
-      role="progressbar"
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={max}
-    >
-      <div
-        style={{
-          width: `${percentage}%`,
-          backgroundColor: color,
-        }}
-        className="h-full rounded-full transition-all duration-700 ease-out"
-      />
-    </div>
-  );
-}
-
 export function ProgressRing({
-  percentage = 0,
+  percent = 0,
+  percentage,
   size = 130,
   strokeWidth = 14,
-  ringColor = "#FFC21A",
+  ringColor,
+  color,
   trackColor = "rgba(255, 255, 255, 0.12)",
   textColor = "#FFFFFF",
+  textSize,
   className = "",
 }) {
+  const actualPercent = percentage !== undefined ? percentage : percent;
+  const actualColor = color || ringColor || "#FFC21A";
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const validPercentage = Math.min(100, Math.max(0, Math.round(percentage)));
+  const validPercentage = Math.min(100, Math.max(0, Math.round(actualPercent)));
   const offset = circumference - (validPercentage / 100) * circumference;
 
   return (
@@ -67,7 +39,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={ringColor}
+          stroke={actualColor}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
@@ -78,7 +50,7 @@ export function ProgressRing({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <span
-          style={{ color: textColor }}
+          style={{ color: textColor, fontSize: textSize }}
           className="text-2xl font-extrabold tracking-tight"
         >
           {validPercentage}%
@@ -87,3 +59,5 @@ export function ProgressRing({
     </div>
   );
 }
+
+export default ProgressRing;

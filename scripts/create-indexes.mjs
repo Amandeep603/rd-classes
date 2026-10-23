@@ -30,7 +30,6 @@ if (!uri) {
   process.exit(1);
 }
 
-// Dynamically import models
 async function run() {
   console.log("Connecting to MongoDB to sync indexes...");
   await mongoose.connect(uri, {
@@ -49,6 +48,11 @@ async function run() {
     Enrollment,
     Progress,
     AuditLog,
+    Counter,
+    Announcement,
+    Test,
+    TestResult,
+    Settings,
   } = await import("../src/server/db/models/index.js");
 
   const models = [
@@ -62,6 +66,11 @@ async function run() {
     Enrollment,
     Progress,
     AuditLog,
+    Counter,
+    Announcement,
+    Test,
+    TestResult,
+    Settings,
   ];
 
   for (const model of models) {

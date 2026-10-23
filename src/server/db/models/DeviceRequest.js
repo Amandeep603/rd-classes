@@ -34,6 +34,12 @@ const deviceRequestSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    studentNote: {
+      type: String,
+      maxlength: 140,
+      default: "",
+      trim: true,
+    },
     resolvedAt: {
       type: Date,
       default: null,
@@ -53,7 +59,6 @@ const deviceRequestSchema = new mongoose.Schema(
   }
 );
 
-// Partial unique index so a user only has at most one pending request per deviceId
 deviceRequestSchema.index(
   { userId: 1, deviceId: 1 },
   {
