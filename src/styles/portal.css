@@ -1,0 +1,176 @@
+/* RD Classes Portal Design System Styles */
+
+:root {
+  /* Student Theme Tokens */
+  --student-page-bg: #FDF9F0;
+  --student-page-wash: #EBF5FD;
+  --student-sidebar-top: #E6F3FD;
+  --student-sidebar-bottom: #FBF8EF;
+  --student-sidebar-border: rgba(0, 0, 0, 0.06);
+
+  /* Admin Theme Tokens */
+  --admin-page-bg: #FBF8F1;
+  --admin-sidebar-top: #0F1B2D;
+  --admin-sidebar-bottom: #0B1424;
+  --admin-topbar-bg: #FFFFFF;
+  --admin-topbar-border: #E8ECEF;
+
+  /* Accent & Shared Tokens */
+  --portal-yellow-start: #FFD54A;
+  --portal-yellow: #FFC21A;
+  --portal-yellow-hover: #F0B30E;
+  --portal-yellow-dark: #784D00;
+  --portal-yellow-chip: #FFE8A3;
+  --portal-gold-start: #B7791F;
+  --portal-gold-end: #E8A317;
+  --portal-red-badge: #E5432D;
+
+  /* Card and Surface Tokens */
+  --portal-card-bg: #FFFFFF;
+  --portal-card-border: rgba(0, 0, 0, 0.05);
+  --portal-card-radius: 22px;
+  --portal-card-shadow: 0 10px 30px -18px rgba(120, 90, 20, 0.16);
+  --portal-card-shadow-hover: 0 18px 40px -16px rgba(120, 90, 20, 0.22);
+}
+
+/* Base Body Styles for Portals */
+.portal-student-body {
+  background-color: var(--student-page-bg);
+  background-image: radial-gradient(at 0% 0%, var(--student-page-wash) 0px, transparent 50%);
+  color: #111827;
+  min-height: 100vh;
+}
+
+.portal-admin-body {
+  background-color: var(--admin-page-bg);
+  color: #111827;
+  min-height: 100vh;
+}
+
+/* Dynamic Tone Theming via [data-tone] */
+[data-tone="blue"] {
+  --tone-bg: #E7F3FD;
+  --tone-border: #CFE7FA;
+  --tone-text: #0369A1;
+  --tone-icon-bg: #D4ECFD;
+}
+
+[data-tone="yellow"] {
+  --tone-bg: #FFF5D6;
+  --tone-border: #FCE7A5;
+  --tone-text: #B45309;
+  --tone-icon-bg: #FEEDBE;
+}
+
+[data-tone="peach"] {
+  --tone-bg: #FFEBDD;
+  --tone-border: #FDCBAF;
+  --tone-text: #C2410C;
+  --tone-icon-bg: #FEDDC5;
+}
+
+[data-tone="red"] {
+  --tone-bg: #FEE2E2;
+  --tone-border: #FECACA;
+  --tone-text: #B91C1C;
+  --tone-icon-bg: #FCA5A5;
+}
+
+[data-tone="indigo"] {
+  --tone-bg: #EEF2FF;
+  --tone-border: #D9E2FE;
+  --tone-text: #4338CA;
+  --tone-icon-bg: #E0E7FF;
+}
+
+[data-tone="green"] {
+  --tone-bg: #ECFDF5;
+  --tone-border: #C6F6D5;
+  --tone-text: #047857;
+  --tone-icon-bg: #D1FAE5;
+}
+
+[data-tone="purple"] {
+  --tone-bg: #FAF5FF;
+  --tone-border: #E9D5FF;
+  --tone-text: #7E22CE;
+  --tone-icon-bg: #F3E8FF;
+}
+
+/* Applied Tone Classes */
+.portal-tone-box {
+  background-color: var(--tone-bg);
+  border: 1px solid var(--tone-border);
+  color: var(--tone-text);
+}
+
+.portal-tone-icon {
+  background-color: var(--tone-icon-bg);
+  color: var(--tone-text);
+}
+
+/* Shimmer Loading Skeleton */
+.portal-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(229, 231, 235, 0.5) 0%,
+    rgba(243, 244, 246, 0.8) 50%,
+    rgba(229, 231, 235, 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: portal-shimmer-anim 1.5s infinite;
+}
+
+.portal-shimmer-dark {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.6) 0%,
+    rgba(51, 65, 85, 0.8) 50%,
+    rgba(30, 41, 59, 0.6) 100%
+  );
+  background-size: 200% 100%;
+  animation: portal-shimmer-anim 1.5s infinite;
+}
+
+@keyframes portal-shimmer-anim {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Motion Gate Animations */
+html[data-motion="full"] .portal-card-lift {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) {
+  html[data-motion="full"] .portal-card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--portal-card-shadow-hover);
+  }
+}
+
+html[data-motion="full"] .portal-fade-up {
+  animation: portalFadeUp 0.35s ease-out forwards;
+}
+
+@keyframes portalFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Gold Heading Gradient */
+.portal-text-gold {
+  background: linear-gradient(135deg, var(--portal-gold-start) 0%, var(--portal-gold-end) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
