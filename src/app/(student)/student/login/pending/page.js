@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import connectDB from "@/server/db/connect.js";
 import { DeviceRequest } from "@/server/db/models/DeviceRequest.js";
 import PendingDeviceCard from "@/components/student/PendingDeviceCard";
@@ -9,6 +10,7 @@ export const metadata = {
 };
 
 export default async function PendingPage({ searchParams }) {
+  await connection();
   const params = await searchParams;
   const deviceId = params?.deviceId;
 

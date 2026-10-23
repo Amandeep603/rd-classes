@@ -22,23 +22,24 @@ export async function loginStudentAction(prevState, formData) {
     };
   }
 
+  let result;
   try {
-    const result = await studentLogin(parsed.data);
-    if (!result.success) {
-      if (result.redirectTo) {
-        redirect(result.redirectTo);
-      }
-      return { success: false, error: result.error };
-    }
-
-    redirect(result.redirectTo || "/student");
+    result = await studentLogin(parsed.data);
   } catch (err) {
-    if (err?.message === "NEXT_REDIRECT") throw err;
     return {
       success: false,
       error: err.message || "An unexpected error occurred during login.",
     };
   }
+
+  if (!result.success) {
+    if (result.redirectTo) {
+      redirect(result.redirectTo);
+    }
+    return { success: false, error: result.error };
+  }
+
+  redirect(result.redirectTo || "/student");
 }
 
 export async function loginAdminAction(prevState, formData) {
@@ -55,20 +56,21 @@ export async function loginAdminAction(prevState, formData) {
     };
   }
 
+  let result;
   try {
-    const result = await adminLogin(parsed.data);
-    if (!result.success) {
-      return { success: false, error: result.error };
-    }
-
-    redirect(result.redirectTo || "/admin");
+    result = await adminLogin(parsed.data);
   } catch (err) {
-    if (err?.message === "NEXT_REDIRECT") throw err;
     return {
       success: false,
       error: err.message || "An unexpected error occurred during admin login.",
     };
   }
+
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+
+  redirect(result.redirectTo || "/admin");
 }
 
 export async function logoutStudentAction() {

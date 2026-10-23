@@ -136,6 +136,8 @@ export default function ApproveDialog({ request, activeDevices = [], onClose }) 
                 {mode === "replace" && (
                   <div className="mt-2.5">
                     <select
+                      name="replaceDeviceId"
+                      id="replaceDeviceId"
                       value={replaceDeviceId}
                       onChange={(e) => setReplaceDeviceId(e.target.value)}
                       className="w-full bg-[#111114] border border-[#33333F] rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"

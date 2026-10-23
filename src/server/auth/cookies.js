@@ -33,12 +33,17 @@ export async function setCookie(name, value, maxAgeSeconds) {
 }
 
 export async function deleteCookie(name) {
-  const cookieStore = await cookies();
-  cookieStore.set(name, "", {
-    httpOnly: true,
-    secure: IS_PROD,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set(name, "", {
+      httpOnly: true,
+      secure: IS_PROD,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  } catch {
+    // In Server Components, the cookie store is read-only.
+    // The session is already revoked in the database; cookie will be cleared on action or client navigation.
+  }
 }

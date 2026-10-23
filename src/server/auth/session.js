@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { connection } from "next/server";
 import connectDB from "../db/connect.js";
 import { Session } from "../db/models/Session.js";
 import { User } from "../db/models/User.js";
@@ -14,6 +15,7 @@ const TEN_MINUTES_MS = 10 * 60 * 1000;
  * Memoized per request using React cache.
  */
 export const getCurrentUser = cache(async () => {
+  await connection();
   const studentToken = await getCookie(COOKIE_NAMES.SESSION);
   const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
 

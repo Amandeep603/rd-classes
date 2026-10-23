@@ -174,22 +174,7 @@ export async function studentLogin({ loginId, password }) {
   }
 
   // 3c. Otherwise: new device with no free slot -> NO session
-  // Rate limit: at most 5 new requests per user in 24 hours
-  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const recentRequestsCount = await DeviceRequest.countDocuments({
-    userId: user._id,
-    createdAt: { $gte: twentyFourHoursAgo },
-  });
-
-  if (recentRequestsCount >= 5) {
-    return {
-      success: false,
-      error:
-        "Too many pending device requests within 24 hours. Please contact RD Classes support.",
-    };
-  }
-
-  // Upsert pending DeviceRequest
+  // Check if a pending request already exists for this device (reuse)
   let deviceRequest = await DeviceRequest.findOne({
     userId: user._id,
     deviceId,
@@ -197,6 +182,21 @@ export async function studentLogin({ loginId, password }) {
   });
 
   if (!deviceRequest) {
+    // Rate limit: at most 5 new requests per user in 24 hours
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const recentRequestsCount = await DeviceRequest.countDocuments({
+      userId: user._id,
+      createdAt: { $gte: twentyFourHoursAgo },
+    });
+
+    if (recentRequestsCount >= 5) {
+      return {
+        success: false,
+        error:
+          "Too many pending device requests within 24 hours. Please contact RD Classes support.",
+      };
+    }
+
     deviceRequest = await DeviceRequest.create({
       userId: user._id,
       deviceId,

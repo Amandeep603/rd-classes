@@ -28,6 +28,10 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
+vi.mock("next/server", () => ({
+  connection: async () => {},
+}));
+
 let mongod = null;
 
 describe("RD Classes Backend Foundation Test Suite", () => {
@@ -241,6 +245,39 @@ describe("RD Classes Backend Foundation Test Suite", () => {
 
     const requestsCount2 = await DeviceRequest.countDocuments({ userId: student._id });
     expect(requestsCount2).toBe(1); // Still exactly 1
+  });
+
+  it("4b. The 6th new device request in 24 hours is refused", async () => {
+    const hash = await hashPassword("password123");
+    const student = await User.create({
+      role: "student",
+      name: "Multi Device Student",
+      loginId: "multidev",
+      passwordHash: hash,
+      status: "active",
+      deviceLimit: 1,
+      deviceCount: 1,
+    });
+
+    // Populate 5 existing requests in the last 24h
+    for (let i = 1; i <= 5; i++) {
+      await DeviceRequest.create({
+        userId: student._id,
+        deviceId: `device-uuid-${i}`,
+        label: `Device ${i}`,
+        status: "rejected",
+        createdAt: new Date(),
+      });
+    }
+
+    // Attempting login with a 6th unique new device
+    cookieJar.delete("rd_session");
+    cookieJar.delete("rd_device");
+    requestHeaders.set("user-agent", "UniqueBrowser/1.0");
+
+    const res6 = await studentLogin({ loginId: "multidev", password: "password123" });
+    expect(res6.success).toBe(false);
+    expect(res6.error).toContain("Too many pending device requests within 24 hours");
   });
 
   it("5. Approve 'add' fails when limit is full, and succeeds after raising the limit", async () => {
