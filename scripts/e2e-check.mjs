@@ -25,6 +25,9 @@ if (fs.existsSync(envPath)) {
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const MONGODB_URI = process.env.MONGODB_URI;
 
+const adminLoginId = (process.env.ADMIN_LOGIN_ID || "admin").trim().toLowerCase();
+const adminPassword = process.env.ADMIN_PASSWORD || "password123";
+
 async function runE2E() {
   console.log("=== Starting RD Classes Complete E2E Verification ===");
   console.log(`Target: ${BASE_URL}`);
@@ -51,12 +54,12 @@ async function runE2E() {
   };
 
   // Seed Admin & Enrolled Course with Lectures
-  const adminPwdHash = await bcrypt.hash("password123", 10);
+  const adminPwdHash = await bcrypt.hash(adminPassword, 10);
   await User.findOneAndUpdate(
-    { loginId: "admin" },
+    { loginId: adminLoginId },
     {
       role: "admin",
-      loginId: "admin",
+      loginId: adminLoginId,
       name: "Ronak Sir",
       passwordHash: adminPwdHash,
       status: "active",
@@ -121,8 +124,8 @@ async function runE2E() {
   const adminPage = await adminContext.newPage();
 
   await adminPage.goto(`${BASE_URL}/admin/login`, { waitUntil: "networkidle" });
-  await adminPage.fill('input[name="loginId"]', "admin");
-  await adminPage.fill('input[name="password"]', "password123");
+  await adminPage.fill('input[name="loginId"]', adminLoginId);
+  await adminPage.fill('input[name="password"]', adminPassword);
   await adminPage.click('button[type="submit"]');
   await adminPage.waitForURL((u) => u.pathname === "/admin", { timeout: 20000 });
 

@@ -11,6 +11,7 @@
     "db:indexes": "node --conditions=react-server scripts/create-indexes.mjs",
     "db:backfill": "node --conditions=react-server scripts/backfill.mjs",
     "seed:admin": "node --conditions=react-server scripts/seed-admin.mjs",
+    "admin:unlock": "node --conditions=react-server scripts/admin-unlock.mjs",
     "seed:demo": "node --conditions=react-server scripts/seed-demo.mjs",
     "seed:demo:clean": "node --conditions=react-server scripts/seed-demo-clean.mjs"
   },

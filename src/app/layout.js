@@ -1,11 +1,6 @@
 import { Plus_Jakarta_Sans, Caveat } from "next/font/google";
 import "@/styles/themes.css";
 import "./globals.css";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer/Footer";
-import ScrollProgressBar from "@/components/ui/ScrollProgressBar";
-import { SITE_CONFIG } from "@/constants/site";
-import { FOOTER_CONTACT } from "@/constants/footer";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
@@ -43,7 +38,7 @@ export const metadata = {
   openGraph: {
     title: "RD Classes | Accountancy Classes for Class 11 & 12 in Sector 9, Faridabad",
     description:
-      "Faridabad's premier Accountancy coaching institute for CBSE Class 11 & 12, founded and personally taught by Ronak Dugar in Sector 9.",
+      "Faridabad's premier Accountancy coaching institute for CBSE Class 11 & 12, taught by Ronak Dugar in Sector 9.",
     url: siteUrl,
     siteName: "RD Classes",
     images: [
@@ -86,35 +81,6 @@ const motionInitScript = `
 `;
 
 export default function RootLayout({ children }) {
-  const orgJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "EducationalOrganization",
-    name: "RD Classes for Accountancy",
-    description:
-      "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad.",
-    url: siteUrl,
-    logo: `${siteUrl}/images/logo-rd.png`,
-    telephone: FOOTER_CONTACT.phoneTel,
-    email: FOOTER_CONTACT.email,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: "SCF 59-60, 2nd Floor, Sector 9 Market",
-      addressLocality: "Faridabad",
-      addressRegion: "Haryana",
-      postalCode: "121006",
-      addressCountry: "IN",
-    },
-    areaServed: {
-      "@type": "City",
-      name: "Faridabad",
-    },
-    founder: {
-      "@type": "Person",
-      name: "Ronak Dugar",
-      jobTitle: "Lead Accountancy Faculty",
-    },
-  };
-
   return (
     <html
       lang="en"
@@ -123,19 +89,12 @@ export default function RootLayout({ children }) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: motionInitScript }} />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
-        />
       </head>
       <body
         id="top"
         className="min-h-screen flex flex-col bg-[#0A0A0B] text-white selection:bg-[#FFB800] selection:text-[#0A0A0B] overflow-x-clip"
       >
-        <ScrollProgressBar />
-        <Navbar />
-        <div className="flex-1 w-full flex flex-col">{children}</div>
-        <Footer />
+        {children}
       </body>
     </html>
   );

@@ -174,3 +174,32 @@ html[data-motion="full"] .portal-fade-up {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* ========================================================
+   Autofill Override Styling
+   Prevents browser default grey-blue wash on credential autofill
+   ======================================================== */
+.student-auth-input:-webkit-autofill,
+.student-auth-input:-webkit-autofill:hover,
+.student-auth-input:-webkit-autofill:focus,
+.student-auth-input:-webkit-autofill:active,
+.student-auth-input:autofill {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  caret-color: #111827 !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
+.admin-auth-input:-webkit-autofill,
+.admin-auth-input:-webkit-autofill:hover,
+.admin-auth-input:-webkit-autofill:focus,
+.admin-auth-input:-webkit-autofill:active,
+.admin-auth-input:autofill {
+  -webkit-box-shadow: 0 0 0 1000px #0b1524 inset !important;
+  box-shadow: 0 0 0 1000px #0b1524 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+

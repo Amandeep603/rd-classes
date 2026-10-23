@@ -48,7 +48,10 @@ async function run() {
     serverSelectionTimeoutMS: 8000,
   });
 
-  const { User } = await import("../src/server/db/models/index.js");
+  const dbName = mongoose.connection.name;
+  console.log(`Connected to database: ${dbName}`);
+
+  const { User, LoginAttempt } = await import("../src/server/db/models/index.js");
 
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
@@ -59,7 +62,7 @@ async function run() {
     existing.status = "active";
     existing.deviceLimit = 3;
     await existing.save();
-    console.log(`✓ Admin user "${adminLoginId}" updated successfully.`);
+    console.log(`✓ Admin user "${adminLoginId}" updated successfully in database "${dbName}".`);
   } else {
     await User.create({
       role: "admin",
@@ -71,8 +74,16 @@ async function run() {
       deviceCount: 0,
       mustChangePassword: false,
     });
-    console.log(`✓ Admin user "${adminLoginId}" created successfully.`);
+    console.log(`✓ Admin user "${adminLoginId}" created successfully in database "${dbName}".`);
   }
+
+  // Clear any existing failed login attempts for this admin to ensure immediate access
+  await LoginAttempt.deleteMany({
+    $or: [
+      { key: `admin:u:${adminLoginId}` },
+      { key: { $regex: /^admin:ip:/ } },
+    ],
+  });
 
   await mongoose.disconnect();
   process.exit(0);
