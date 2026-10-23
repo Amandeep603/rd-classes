@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { getStudentDetail } from "@/server/services/studentService.js";
-import StudentDetailView from "@/components/admin/StudentDetailView";
+import PortalStudentDetailView from "@/components/portal/admin/PortalStudentDetailView.jsx";
 
 export const instant = false;
 
@@ -36,7 +36,7 @@ export default async function AdminStudentDetailPage({ params }) {
   const serializedCourses = JSON.parse(JSON.stringify(allCourses));
 
   return (
-    <StudentDetailView
+    <PortalStudentDetailView
       student={serializedDetail.student}
       devices={serializedDetail.devices}
       sessions={serializedDetail.sessions}
@@ -46,3 +46,4 @@ export default async function AdminStudentDetailPage({ params }) {
     />
   );
 }
+

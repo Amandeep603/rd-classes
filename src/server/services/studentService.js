@@ -126,22 +126,30 @@ export async function getStudentDetail(studentId) {
 }
 
 /**
- * Creates a new student record with optional course enrollments.
+ * Creates a new student record with optional course enrollments and payment notes.
  */
 export async function createStudent(
   {
     name,
-    phone,
+    phone = "",
+    className = "12",
+    school = "",
     loginId,
     password,
     deviceLimit = 1,
     mustChangePassword = false,
     courseIds = [],
+    courseAssignments = [], // array of { courseId, expiresAt, paymentNote: { amount, mode, remark } }
   },
   adminId
 ) {
   await connectDB();
-  const normalizedLoginId = (loginId || "").trim().toLowerCase();
+  const { getNextStudentCode } = await import("./studentCodeService.js");
+  const { Course } = await import("../db/models/Course.js");
+
+  const studentCode = await getNextStudentCode();
+  const defaultLoginId = studentCode.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalizedLoginId = (loginId || defaultLoginId).trim().toLowerCase();
 
   const existing = await User.findOne({ loginId: normalizedLoginId });
   if (existing) {
@@ -152,7 +160,10 @@ export async function createStudent(
 
   const student = await User.create({
     role: "student",
+    studentCode,
     name: name.trim(),
+    className: className || "12",
+    school: (school || "").trim(),
     phone: phone ? phone.trim() : "",
     loginId: normalizedLoginId,
     passwordHash,
@@ -160,19 +171,64 @@ export async function createStudent(
     deviceCount: 0,
     mustChangePassword: !!mustChangePassword,
     status: "active",
+    createdBy: adminId,
   });
 
-  // Enroll in courses if provided
-  if (Array.isArray(courseIds) && courseIds.length > 0) {
-    const enrollDocs = courseIds.map((cId) => ({
-      userId: student._id,
-      courseId: cId,
-      status: "active",
-      startsAt: new Date(),
-      assignedBy: adminId,
-    }));
-    await Enrollment.insertMany(enrollDocs);
+  // Default validity date: 31 March of next academic year
+  const currentYear = new Date().getFullYear();
+  const defaultValidity = new Date(currentYear + 1, 2, 31, 23, 59, 59); // 31 March
+
+  // Collect course enrollment details
+  const assignments = [];
+  if (Array.isArray(courseAssignments) && courseAssignments.length > 0) {
+    courseAssignments.forEach((ca) => {
+      if (ca.courseId) {
+        assignments.push({
+          userId: student._id,
+          courseId: ca.courseId,
+          status: "active",
+          startsAt: new Date(),
+          expiresAt: ca.expiresAt ? new Date(ca.expiresAt) : defaultValidity,
+          paymentNote: ca.paymentNote || {},
+          assignedBy: adminId,
+        });
+      }
+    });
+  } else if (Array.isArray(courseIds) && courseIds.length > 0) {
+    courseIds.forEach((cId) => {
+      assignments.push({
+        userId: student._id,
+        courseId: cId,
+        status: "active",
+        startsAt: new Date(),
+        expiresAt: defaultValidity,
+        assignedBy: adminId,
+      });
+    });
   }
+
+  if (assignments.length > 0) {
+    await Enrollment.insertMany(assignments);
+  }
+
+  // Fetch course titles for welcome WhatsApp message
+  const assignedCourseIds = assignments.map((a) => a.courseId);
+  const enrolledCourses = await Course.find({ _id: { $in: assignedCourseIds } })
+    .select("title")
+    .lean();
+
+  const courseTitles = enrolledCourses.map((c) => c.title).join(", ") || "Enrolled Course(s)";
+  const earliestExpiryStr = assignments[0]?.expiresAt
+    ? new Date(assignments[0].expiresAt).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      })
+    : "31 March";
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+  const whatsappMessage = `Hello ${student.name}, welcome to RD Classes! Login ID: ${student.loginId} | Password: ${password} | Portal: ${siteUrl}/student/login | Courses: ${courseTitles} (valid until ${earliestExpiryStr}). Note: your account works on one approved device. To use another device, please ask Sir for approval.`;
 
   await logAuditEvent({
     actorId: adminId,
@@ -180,21 +236,27 @@ export async function createStudent(
     targetType: "student",
     targetId: student._id.toString(),
     meta: {
+      studentCode: student.studentCode,
       loginId: student.loginId,
       name: student.name,
       deviceLimit: student.deviceLimit,
-      enrollmentCount: courseIds.length,
+      enrollmentCount: assignments.length,
     },
   });
 
   return {
     student: {
       _id: student._id.toString(),
+      studentCode: student.studentCode,
       name: student.name,
       loginId: student.loginId,
+      className: student.className,
       phone: student.phone,
     },
     rawPassword: password,
+    courseTitles,
+    validUntil: earliestExpiryStr,
+    whatsappMessage,
   };
 }
 
