@@ -23,8 +23,10 @@ export async function getStudentDashboardData(userId) {
     status: "active",
     $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
   })
+    .select("-paymentNote")
     .populate("courseId", "title slug published thumbnail")
     .lean();
+
 
   const activeCourses = enrollments
     .map((e) => e.courseId)
@@ -56,14 +58,19 @@ export async function getStudentDashboardData(userId) {
   const announcement = await Announcement.findOne({
     active: true,
     startsAt: { $lte: now },
-    $or: [{ endsAt: null }, { endsAt: { $gt: now } }],
-    $or: [
-      { "audience.all": true },
-      { "audience.courseIds": { $in: activeCourseIds } },
+    $and: [
+      { $or: [{ endsAt: null }, { endsAt: { $gt: now } }] },
+      {
+        $or: [
+          { "audience.all": true },
+          { "audience.courseIds": { $in: activeCourseIds } },
+        ],
+      },
     ],
   })
     .sort({ startsAt: -1 })
     .lean();
+
 
   // 4. Resume Revision (Latest progress on unfinished lecture or latest watched)
   let resume = null;

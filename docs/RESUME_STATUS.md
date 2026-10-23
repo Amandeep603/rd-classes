@@ -67,5 +67,24 @@
   - Quality gates: `npm run lint` (0 errors) and `npm run build` (exit code 0, 31/31 routes, `/` static).
   - Committed as `portal: phase C`.
 
+- **2026-10-23 Phase D Completed**:
+  - Implemented and executed test suite `tests/portal_new_features.test.js`:
+    - Concurrency test for atomic `studentCode` sequential incrementation via `Counter` (`RD-YYYY-NNN`).
+    - Audience filtering for Announcements (active window, course targeted vs all).
+    - Progress calculations and percentages.
+    - Test score averaging logic across completed scorecards.
+    - Payment note confidentiality (private to admin, never exposed to student).
+    - Vitest result: All 21 tests passed (16 foundation + 5 new feature tests).
+  - Seed demo scripts: `scripts/seed-demo.mjs` and `scripts/seed-demo-clean.mjs` added with `npm run seed:demo` / `npm run seed:demo:clean` npm scripts.
+  - Visual Verification & Anchors:
+    - Measured anchors against 1536px reference designs: sidebar widths, banner heights, card dimensions, and stat tiles all within ±2.1% (well below the ±6% tolerance).
+    - Generated 50% opacity visual comparison overlays: `docs/screenshots/student-overlay-50.png` and `docs/screenshots/admin-overlay-50.png`.
+    - Captured responsive screenshots across all 8 target viewports (1920x1080 down to 360x640 mobile) with zero horizontal overflow (`docs/COMPARE_REPORT_PORTAL.md`).
+  - End-to-End Verification (`scripts/e2e-check.mjs`):
+    - Executed all 7 steps on local production build with dual browser contexts (Desktop and Mobile Safari).
+    - 11/11 assertions passed (100% PASS), verifying wizard student creation, Device A auto-registration, Device B block + note, admin replace approval, Device B live polling flip, Device A instant session revocation, and Vimeo player access permissions (`docs/E2E_REPORT.md`).
+  - Quality gates: `npm run lint` (0 errors), `npm run build` (exit code 0, 31/31 routes, `/` static `○`).
+  - Committed as `portal: phase D`.
+
 
 

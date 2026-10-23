@@ -3,7 +3,12 @@ import mongoose from "mongoose";
 
 const settingsSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: "global",
+    },
     workspaceName: {
+
       type: String,
       default: "Ronak Sir Workspace",
       trim: true,

@@ -24,6 +24,7 @@ export const metadata = {
 
 export default async function StudentProfilePage() {
   const auth = await getCurrentUser();
+  if (!auth?.user) return null;
   await connectDB();
 
   const user = await User.findById(auth.user._id).lean();

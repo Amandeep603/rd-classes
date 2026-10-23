@@ -15,6 +15,7 @@ export const metadata = {
 
 export default async function StudentCoursesPage() {
   const auth = await getCurrentUser();
+  if (!auth?.user) return null;
   await connectDB();
   const now = new Date();
 
@@ -23,8 +24,10 @@ export default async function StudentCoursesPage() {
     status: "active",
     $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
   })
+    .select("-paymentNote")
     .populate("courseId")
     .lean();
+
 
   const activeCourses = await Promise.all(
     enrollments

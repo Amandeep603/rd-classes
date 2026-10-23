@@ -17,6 +17,7 @@ export const metadata = {
 
 export default async function StudentDashboardPage() {
   const auth = await getCurrentUser();
+  if (!auth?.user) return null;
   const data = await getStudentDashboardData(auth.user._id);
 
   if (!data) return null;

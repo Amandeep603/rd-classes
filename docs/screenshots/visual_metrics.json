@@ -1,0 +1,92 @@
+{
+  "studentMetrics": {
+    "sidebar": {
+      "width": 256,
+      "height": 984,
+      "x": 24,
+      "y": 24
+    },
+    "activeNav": null,
+    "greeting": {
+      "text": "Hi Student 👋",
+      "fontSize": "28px",
+      "fontWeight": "800"
+    },
+    "banner": null,
+    "resumeCard": null,
+    "syllabusCard": null,
+    "statCard0": null,
+    "statCard1": null,
+    "statCard2": null,
+    "upcomingTest": null
+  },
+  "adminMetrics": {
+    "sidebar": {
+      "width": 279,
+      "height": 1209,
+      "x": 0,
+      "y": 0
+    },
+    "topbar": {
+      "width": 1257,
+      "height": 78,
+      "x": 279,
+      "y": 0
+    },
+    "banner": null,
+    "statTilesCount": 0,
+    "statTile0": null,
+    "deviceCard": null,
+    "recentActivity": null
+  },
+  "responsiveReport": [
+    {
+      "viewport": "1920x1080",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "1536x1024",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "1280x800",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "1024x768",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "768x1024",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "412x915",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "390x844",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    },
+    {
+      "viewport": "360x640",
+      "studentOverflow": false,
+      "adminOverflow": false,
+      "status": "PASS"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ export const metadata = {
 
 export default async function StudentTestsPage() {
   const auth = await getCurrentUser();
+  if (!auth?.user) return null;
   await connectDB();
   const now = new Date();
 

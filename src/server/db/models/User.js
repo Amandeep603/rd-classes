@@ -86,7 +86,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1, status: 1 });
-userSchema.index({ studentCode: 1 }, { unique: true, sparse: true });
 
 export const User = mongoose.models.User || mongoose.model("User", userSchema);
+
 export default User;

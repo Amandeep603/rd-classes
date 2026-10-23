@@ -10,8 +10,11 @@
     "test": "vitest run",
     "db:indexes": "node --conditions=react-server scripts/create-indexes.mjs",
     "db:backfill": "node --conditions=react-server scripts/backfill.mjs",
-    "seed:admin": "node --conditions=react-server scripts/seed-admin.mjs"
+    "seed:admin": "node --conditions=react-server scripts/seed-admin.mjs",
+    "seed:demo": "node --conditions=react-server scripts/seed-demo.mjs",
+    "seed:demo:clean": "node --conditions=react-server scripts/seed-demo-clean.mjs"
   },
+
   "dependencies": {
     "@vimeo/player": "^2.30.4",
     "bcryptjs": "^3.0.3",

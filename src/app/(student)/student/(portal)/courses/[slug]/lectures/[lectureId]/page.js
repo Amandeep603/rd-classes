@@ -27,6 +27,7 @@ export async function generateMetadata({ params }) {
 
 export default async function StudentLecturePlayerPage({ params }) {
   const auth = await getCurrentUser();
+  if (!auth?.user) return null;
   const { slug, lectureId } = await params;
 
   const data = await getAuthorizedLecture({

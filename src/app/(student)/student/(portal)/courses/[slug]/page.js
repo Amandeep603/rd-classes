@@ -31,6 +31,7 @@ export async function generateMetadata({ params }) {
 
 export default async function StudentCoursePage({ params }) {
   const auth = await getCurrentUser();
+  if (!auth?.user) return null;
   const { slug } = await params;
   await connectDB();
 
