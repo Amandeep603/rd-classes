@@ -374,3 +374,209 @@ export async function sendTestEmailAction(toEmail) {
   }
 }
 
+/**
+ * Bulk imports students from parsed CSV rows.
+ */
+export async function importStudentsFromCSVAction({ rows }) {
+  const admin = await requireAdmin();
+  const { importStudentsFromCSV } = await import("../services/studentService.js");
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { success: false, error: "No rows provided for import." };
+  }
+
+  if (rows.length > 500) {
+    return { success: false, error: "Maximum 500 rows allowed per import." };
+  }
+
+  try {
+    const result = await importStudentsFromCSV({ rows, adminId: admin.user._id });
+    revalidatePath("/admin/students");
+    revalidatePath("/admin");
+    return result;
+  } catch (err) {
+    return { success: false, error: err.message || "Bulk import failed." };
+  }
+}
+
+/**
+ * Sends credentials email to a chunk of up to 10 newly imported students.
+ * Plaintext passwords are provided from client memory (returned once from import).
+ */
+export async function sendBulkImportCredentialsChunkAction({ items, batchId }) {
+  const admin = await requireAdmin();
+  const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
+  const { sendEmail } = await import("../email/emailService.js");
+  const { renderCredentialsTemplate } = await import("../email/templates/credentials.js");
+  const { Enrollment } = await import("../db/models/Enrollment.js");
+
+  if (!isEmailConfigured()) {
+    return { success: false, error: "Email delivery is not configured on this server." };
+  }
+
+  const quota = await checkDailyQuota();
+  if (quota.remaining <= 0) {
+    return {
+      success: false,
+      error: `Daily email quota of ${quota.dailyLimit} has been reached for today.`,
+      quotaExhausted: true,
+    };
+  }
+
+  const chunk = (items || []).slice(0, 10);
+  const results = [];
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+
+  for (const item of chunk) {
+    if (!item.email || !item.email.trim()) {
+      results.push({
+        studentId: item.studentId,
+        name: item.name,
+        email: "",
+        status: "skipped",
+        reason: "no_email",
+      });
+      continue;
+    }
+
+    try {
+      const enrollments = await Enrollment.find({
+        userId: item.studentId,
+        status: "active",
+      })
+        .populate("courseId", "title")
+        .lean();
+
+      const coursesWithDates = enrollments.map((e) => ({
+        title: e.courseId?.title || "Enrolled Course",
+        expiresAt: e.expiresAt,
+      }));
+
+      const { subject, html, text } = renderCredentialsTemplate({
+        studentName: item.name,
+        loginId: item.loginId,
+        password: item.password,
+        loginUrl: `${siteUrl}/student/login`,
+        courses: coursesWithDates,
+      });
+
+      const emailRes = await sendEmail({
+        to: item.email,
+        subject,
+        html,
+        text,
+        kind: "credentials",
+        studentId: item.studentId,
+        createdBy: admin.user._id,
+        batchId: batchId || null,
+      });
+
+      results.push({
+        studentId: item.studentId,
+        name: item.name,
+        email: item.email,
+        status: emailRes.success ? "sent" : "failed",
+        error: emailRes.error || null,
+      });
+    } catch (err) {
+      results.push({
+        studentId: item.studentId,
+        name: item.name,
+        email: item.email,
+        status: "failed",
+        error: err.message,
+      });
+    }
+  }
+
+  const updatedQuota = await checkDailyQuota();
+
+  return {
+    success: true,
+    results,
+    remainingToday: updatedQuota.remaining,
+  };
+}
+
+/**
+ * Resets passwords and emails new credentials to a chunk of up to 10 existing students.
+ */
+export async function bulkResetAndEmailCredentialsChunkAction({
+  studentIds,
+  revokeSessions = true,
+  batchId,
+}) {
+  const admin = await requireAdmin();
+  const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
+  const { resetStudentPasswordAndEmail } = await import("../services/studentService.js");
+  const { User } = await import("../db/models/User.js");
+
+  if (!isEmailConfigured()) {
+    return { success: false, error: "Email delivery is not configured on this server." };
+  }
+
+  const quota = await checkDailyQuota();
+  if (quota.remaining <= 0) {
+    return {
+      success: false,
+      error: `Daily email quota of ${quota.dailyLimit} has been reached for today.`,
+      quotaExhausted: true,
+    };
+  }
+
+  const chunkIds = (studentIds || []).slice(0, 10);
+  const results = [];
+
+  for (const sId of chunkIds) {
+    try {
+      const student = await User.findById(sId).lean();
+      if (!student) {
+        results.push({ studentId: sId, status: "skipped", reason: "not_found" });
+        continue;
+      }
+
+      if (!student.email) {
+        results.push({
+          studentId: sId,
+          name: student.name,
+          email: "",
+          status: "skipped",
+          reason: "no_email",
+        });
+        continue;
+      }
+
+      const res = await resetStudentPasswordAndEmail(
+        sId,
+        revokeSessions,
+        admin.user._id,
+        batchId
+      );
+
+      results.push({
+        studentId: sId,
+        name: student.name,
+        email: student.email,
+        loginId: student.loginId,
+        newPassword: res.newPassword,
+        status: res.emailResult?.success ? "sent" : "failed",
+        error: res.emailResult?.error || null,
+      });
+    } catch (err) {
+      results.push({
+        studentId: sId,
+        status: "failed",
+        error: err.message,
+      });
+    }
+  }
+
+  const updatedQuota = await checkDailyQuota();
+
+  return {
+    success: true,
+    results,
+    remainingToday: updatedQuota.remaining,
+  };
+}
+

@@ -14,8 +14,14 @@ import {
   ShieldCheck,
   ShieldAlert,
   ArrowRight,
+  UploadCloud,
+  Mail,
+  CheckCircle2,
+  XCircle,
+  X,
 } from "lucide-react";
 import AddStudentWizard from "./AddStudentWizard";
+import BulkEmailProgressModal from "./BulkEmailProgressModal";
 
 export default function PortalStudentsView({
   students = [],
@@ -27,6 +33,8 @@ export default function PortalStudentsView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [status, setStatus] = useState(searchParams.get("status") || "");
@@ -61,6 +69,22 @@ export default function PortalStudentsView({
       .toUpperCase();
   };
 
+  const toggleSelectAll = () => {
+    if (selectedIds.length === students.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(students.map((s) => s._id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const selectedStudents = students.filter((s) => selectedIds.includes(s._id));
+
   return (
     <div className="space-y-6">
       {/* Header and Toolbar */}
@@ -74,15 +98,56 @@ export default function PortalStudentsView({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setWizardOpen(true)}
-          className="flex h-[44px] items-center justify-center gap-2 rounded-2xl bg-[#FFC21A] px-5 text-sm font-extrabold text-neutral-950 shadow-[0_4px_14px_rgba(255,194,26,0.35)] hover:bg-[#ffd54a] transition-all cursor-pointer self-start sm:self-center"
-        >
-          <Plus className="h-4 w-4 stroke-[2.5]" />
-          <span>Add Student</span>
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-center">
+          <Link
+            href="/admin/students/import"
+            className="flex h-[44px] items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-4 text-sm font-bold text-neutral-800 shadow-2xs hover:bg-neutral-50 transition-all cursor-pointer"
+          >
+            <UploadCloud className="h-4 w-4 text-amber-600" />
+            <span>Import CSV</span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setWizardOpen(true)}
+            className="flex h-[44px] items-center justify-center gap-2 rounded-2xl bg-[#FFC21A] px-5 text-sm font-extrabold text-neutral-950 shadow-[0_4px_14px_rgba(255,194,26,0.35)] hover:bg-[#ffd54a] transition-all cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[2.5]" />
+            <span>Add Student</span>
+          </button>
+        </div>
       </div>
+
+      {/* Bulk Action Bar (Docked when >= 1 selected) */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-neutral-900 px-5 py-3 text-white shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3 text-xs font-bold">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FFC21A] text-neutral-950 font-mono">
+              {selectedIds.length}
+            </span>
+            <span>Students Selected</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setBulkEmailModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-[#FFC21A] px-4 py-2 text-xs font-extrabold text-neutral-950 hover:bg-[#ffd54a] transition-colors cursor-pointer"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              <span>Email Credentials</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="flex items-center gap-1 text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+              <span>Clear</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toolbar: Search and Filter */}
       <div className="rounded-[22px] border border-black/5 bg-white p-4 shadow-xs">
@@ -114,9 +179,12 @@ export default function PortalStudentsView({
           <select
             value={emailFilter}
             onChange={(e) => setEmailFilter(e.target.value)}
-            className="w-full sm:w-36 rounded-xl border border-black/10 py-2.5 px-3 text-sm text-[#111827] bg-white"
+            className="w-full sm:w-44 rounded-xl border border-black/10 py-2.5 px-3 text-sm text-[#111827] bg-white"
           >
             <option value="">All Emails</option>
+            <option value="emailed">Emailed (Sent)</option>
+            <option value="failed">Email Failed</option>
+            <option value="not-emailed">Not Emailed</option>
             <option value="no-email">No Email</option>
           </select>
 
@@ -138,12 +206,21 @@ export default function PortalStudentsView({
               <table className="w-full text-left text-sm">
                 <thead className="bg-neutral-50/80 border-b border-black/5 text-xs uppercase font-extrabold text-[#6B7280]">
                   <tr>
-                    <th className="px-6 py-4">Student</th>
-                    <th className="px-6 py-4">Class</th>
-                    <th className="px-6 py-4">Email</th>
-                    <th className="px-6 py-4">Devices Used</th>
-                    <th className="px-6 py-4">Last Login</th>
-                    <th className="px-6 py-4">Status</th>
+                    <th className="px-4 py-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={students.length > 0 && selectedIds.length === students.length}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                        title="Select all on page"
+                      />
+                    </th>
+                    <th className="px-5 py-4">Student</th>
+                    <th className="px-4 py-4">Class</th>
+                    <th className="px-4 py-4">Email & Status</th>
+                    <th className="px-4 py-4">Devices Used</th>
+                    <th className="px-4 py-4">Last Login</th>
+                    <th className="px-4 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -166,9 +243,20 @@ export default function PortalStudentsView({
                     return (
                       <tr
                         key={student._id}
-                        className="hover:bg-neutral-50/50 transition-colors"
+                        className={`hover:bg-neutral-50/50 transition-colors ${
+                          selectedIds.includes(student._id) ? "bg-amber-50/30" : ""
+                        }`}
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(student._id)}
+                            onChange={() => toggleSelectOne(student._id)}
+                            className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          />
+                        </td>
+
+                        <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-[#78350F] font-bold text-xs shrink-0 shadow-2xs">
                               {initials}
@@ -191,15 +279,38 @@ export default function PortalStudentsView({
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 font-semibold text-[#111827]">
+                        <td className="px-4 py-4 font-semibold text-[#111827]">
                           Class {student.className || "12"}
                         </td>
 
-                        <td className="px-6 py-4 text-xs">
+                        <td className="px-4 py-4 text-xs">
                           {student.email ? (
-                            <span className="font-mono text-[#111827] truncate max-w-[180px] block" title={student.email}>
-                              {student.email}
-                            </span>
+                            <div className="space-y-1">
+                              <span
+                                className="font-mono text-[#111827] truncate max-w-[180px] block"
+                                title={student.email}
+                              >
+                                {student.email}
+                              </span>
+                              {student.emailStatus === "sent" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                  <span>Emailed</span>
+                                </span>
+                              ) : student.emailStatus === "failed" ? (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-800 border border-red-200"
+                                  title={student.emailError || "Failed"}
+                                >
+                                  <XCircle className="h-3 w-3 text-red-600" />
+                                  <span>Failed</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600 border border-neutral-200">
+                                  Not emailed
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
                               No email
@@ -207,7 +318,7 @@ export default function PortalStudentsView({
                           )}
                         </td>
 
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-1.5 text-xs text-[#374151]">
                             <Smartphone className="h-3.5 w-3.5 text-[#9CA3AF]" />
                             <span className="font-bold">
@@ -216,11 +327,11 @@ export default function PortalStudentsView({
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 text-xs text-[#6B7280]">
+                        <td className="px-4 py-4 text-xs text-[#6B7280]">
                           {lastLoginStr}
                         </td>
 
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
                               student.status === "active"
@@ -253,9 +364,17 @@ export default function PortalStudentsView({
               {students.map((student) => (
                 <div key={student._id} className="pt-3 first:pt-0 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-[#111827]">
-                      {student.name}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(student._id)}
+                        onChange={() => toggleSelectOne(student._id)}
+                        className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                      />
+                      <span className="font-bold text-sm text-[#111827]">
+                        {student.name}
+                      </span>
+                    </div>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                         student.status === "active"
@@ -274,6 +393,29 @@ export default function PortalStudentsView({
                       Devices: {student.deviceCount}/{student.deviceLimit}
                     </span>
                   </div>
+
+                  {student.email && (
+                    <div className="text-xs flex items-center justify-between">
+                      <span className="font-mono text-neutral-600 truncate max-w-[200px]">
+                        {student.email}
+                      </span>
+                      {student.emailStatus === "sent" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          <span>Emailed</span>
+                        </span>
+                      ) : student.emailStatus === "failed" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-800 border border-red-200">
+                          <XCircle className="h-3 w-3 text-red-600" />
+                          <span>Failed</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-neutral-400 font-bold">
+                          Not emailed
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="pt-1">
                     <Link
@@ -327,6 +469,18 @@ export default function PortalStudentsView({
         isOpen={wizardOpen}
         onClose={() => setWizardOpen(false)}
         courses={availableCourses}
+      />
+
+      {/* Bulk Email Modal */}
+      <BulkEmailProgressModal
+        isOpen={bulkEmailModalOpen}
+        onClose={() => setBulkEmailModalOpen(false)}
+        mode="reset"
+        items={selectedStudents}
+        onCompleted={() => {
+          setSelectedIds([]);
+          router.refresh();
+        }}
       />
     </div>
   );

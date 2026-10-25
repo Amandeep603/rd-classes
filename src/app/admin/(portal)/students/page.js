@@ -15,13 +15,13 @@ export default async function AdminStudentsPage({ searchParams }) {
   const params = await searchParams;
   const search = params?.search || "";
   const status = params?.status || "";
-  const noEmail = params?.noEmail === "true" || params?.emailFilter === "no-email";
+  const emailFilter = params?.emailFilter || (params?.noEmail === "true" ? "no-email" : "");
   const page = parseInt(params?.page || "1", 10) || 1;
 
   await connectDB();
 
   const [{ students, total, totalPages }, availableCourses] = await Promise.all([
-    getStudentsList({ search, status, noEmail, page, limit: 20 }),
+    getStudentsList({ search, status, emailFilter, page, limit: 20 }),
     Course.find({ published: true }).select("_id title slug").lean(),
   ]);
 

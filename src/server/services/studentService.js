@@ -52,19 +52,47 @@ export function generateReadablePassword() {
 export async function getStudentsList({
   search = "",
   status = "",
+  emailFilter = "",
   noEmail = false,
   page = 1,
   limit = 20,
 } = {}) {
   await connectDB();
+  const { EmailLog } = await import("../db/models/EmailLog.js");
   const query = { role: "student" };
 
   if (status && (status === "active" || status === "blocked")) {
     query.status = status;
   }
 
-  if (noEmail) {
+  const effectiveEmailFilter = emailFilter || (noEmail ? "no-email" : "");
+
+  if (effectiveEmailFilter === "no-email") {
     query.$or = [{ email: { $exists: false } }, { email: "" }, { email: null }];
+  } else if (effectiveEmailFilter === "emailed") {
+    const sentStudentIds = await EmailLog.distinct("studentId", {
+      kind: "credentials",
+      status: "sent",
+    });
+    query._id = { $in: sentStudentIds };
+  } else if (effectiveEmailFilter === "failed") {
+    const failedStudentIds = await EmailLog.distinct("studentId", {
+      kind: "credentials",
+      status: "failed",
+    });
+    const sentStudentIds = await EmailLog.distinct("studentId", {
+      kind: "credentials",
+      status: "sent",
+    });
+    const sentSet = new Set(sentStudentIds.map((id) => id.toString()));
+    const onlyFailed = failedStudentIds.filter((id) => !sentSet.has(id.toString()));
+    query._id = { $in: onlyFailed };
+  } else if (effectiveEmailFilter === "not-emailed") {
+    const anyEmailLogs = await EmailLog.distinct("studentId", {
+      kind: "credentials",
+    });
+    query.email = { $nin: ["", null], $exists: true };
+    query._id = { $nin: anyEmailLogs };
   }
 
   if (search && search.trim()) {
@@ -95,8 +123,43 @@ export async function getStudentsList({
     User.countDocuments(query),
   ]);
 
+  // Enrich with latest email credential status
+  const studentIds = students.map((s) => s._id);
+  const emailLogs = studentIds.length > 0
+    ? await EmailLog.aggregate([
+        { $match: { studentId: { $in: studentIds }, kind: "credentials" } },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: "$studentId",
+            latestStatus: { $first: "$status" },
+            latestSentAt: { $first: "$sentAt" },
+            latestError: { $first: "$error" },
+          },
+        },
+      ])
+    : [];
+
+  const logMap = new Map(emailLogs.map((l) => [l._id.toString(), l]));
+
+  const enrichedStudents = students.map((s) => {
+    const log = logMap.get(s._id.toString());
+    let emailStatus = "not-emailed";
+    if (!s.email) {
+      emailStatus = "no-email";
+    } else if (log) {
+      emailStatus = log.latestStatus; // "sent" | "failed" | "queued"
+    }
+    return {
+      ...s,
+      emailStatus,
+      emailSentAt: log?.latestSentAt ? log.latestSentAt.toISOString() : null,
+      emailError: log?.latestError || null,
+    };
+  });
+
   return {
-    students,
+    students: enrichedStudents,
     total,
     page,
     totalPages: Math.ceil(total / limit) || 1,
@@ -395,7 +458,8 @@ export async function adminResetPassword(
 export async function resetStudentPasswordAndEmail(
   studentId,
   revokeSessions = true,
-  adminId
+  adminId = null,
+  batchId = null
 ) {
   await connectDB();
   const student = await User.findById(studentId);
@@ -456,6 +520,7 @@ export async function resetStudentPasswordAndEmail(
     kind: "credentials",
     studentId: student._id,
     createdBy: adminId,
+    batchId: batchId || null,
   });
 
   await logAuditEvent({
@@ -467,6 +532,7 @@ export async function resetStudentPasswordAndEmail(
       sessionsRevoked: revokeSessions,
       emailSent: sendResult.success,
       toEmail: student.email,
+      batchId: batchId || null,
     },
   });
 
@@ -474,6 +540,202 @@ export async function resetStudentPasswordAndEmail(
     success: true,
     newPassword,
     emailResult: sendResult,
+  };
+}
+
+/**
+ * Imports multiple students from parsed CSV rows.
+ * Validates each row, generates student code and credentials if omitted,
+ * creates users and enrollments, and returns created and skipped rows.
+ * Plaintext passwords are ONLY returned in this response payload for one-time display.
+ */
+export async function importStudentsFromCSV({ rows = [], adminId }) {
+  await connectDB();
+  const { Course } = await import("../db/models/Course.js");
+  const { getNextStudentCode } = await import("./studentCodeService.js");
+
+  const availableCourses = await Course.find({ published: true })
+    .select("_id title slug")
+    .lean();
+
+  const courseMap = new Map();
+  availableCourses.forEach((c) => {
+    courseMap.set(c.slug.toLowerCase(), c);
+    courseMap.set(c._id.toString(), c);
+    courseMap.set(c.title.toLowerCase().trim(), c);
+  });
+
+  const created = [];
+  const skipped = [];
+  const seenLoginIdsInBatch = new Set();
+
+  // Academic year default validity: 31 March of next year
+  const currentYear = new Date().getFullYear();
+  const defaultValidity = new Date(currentYear + 1, 2, 31, 23, 59, 59);
+
+  for (let idx = 0; idx < rows.length; idx++) {
+    const row = rows[idx];
+    const rowNum = idx + 1;
+    const name = (row.name || "").toString().trim();
+
+    if (!name) {
+      skipped.push({ rowNumber: rowNum, name: "Unknown", error: "Student name is required." });
+      continue;
+    }
+
+    const email = (row.email || "").toString().trim().toLowerCase();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      skipped.push({ rowNumber: rowNum, name, error: `Invalid email address "${email}".` });
+      continue;
+    }
+
+    let phone = (row.phone || "").toString().replace(/[^0-9]/g, "");
+    if (phone && phone.length > 15) {
+      phone = phone.slice(0, 15);
+    }
+
+    const className = (row.class || row.className || "12").toString().trim();
+    const school = (row.school || "").toString().trim();
+
+    let deviceLimit = parseInt(row.deviceLimit, 10);
+    if (isNaN(deviceLimit) || deviceLimit < 1) deviceLimit = 1;
+    if (deviceLimit > 3) deviceLimit = 3;
+
+    // Parse validUntil
+    let expiresAt = defaultValidity;
+    if (row.validUntil) {
+      const parsedDate = new Date(row.validUntil);
+      if (isNaN(parsedDate.getTime())) {
+        skipped.push({ rowNumber: rowNum, name, error: `Invalid validity date "${row.validUntil}". Use YYYY-MM-DD.` });
+        continue;
+      }
+      if (parsedDate < new Date()) {
+        skipped.push({ rowNumber: rowNum, name, error: `Validity date "${row.validUntil}" cannot be in the past.` });
+        continue;
+      }
+      expiresAt = parsedDate;
+    }
+
+    // Parse courses
+    const assignedCourses = [];
+    if (row.courses) {
+      const tokens = row.courses
+        .toString()
+        .split(/[,;]/)
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
+
+      let courseError = null;
+      for (const token of tokens) {
+        const found = courseMap.get(token);
+        if (!found) {
+          courseError = `Unknown course "${token}".`;
+          break;
+        }
+        if (!assignedCourses.some((c) => c._id.toString() === found._id.toString())) {
+          assignedCourses.push(found);
+        }
+      }
+      if (courseError) {
+        skipped.push({ rowNumber: rowNum, name, error: courseError });
+        continue;
+      }
+    }
+
+    // Login ID
+    let rawLoginId = (row.loginId || "").toString().trim().toLowerCase();
+    const studentCode = await getNextStudentCode();
+    let loginId = rawLoginId;
+
+    if (!loginId) {
+      loginId = studentCode.toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    if (seenLoginIdsInBatch.has(loginId)) {
+      skipped.push({ rowNumber: rowNum, name, error: `Duplicate login ID "${loginId}" within CSV.` });
+      continue;
+    }
+
+    const existingUser = await User.findOne({ loginId }).lean();
+    if (existingUser) {
+      skipped.push({ rowNumber: rowNum, name, error: `Login ID "${loginId}" is already registered in the system.` });
+      continue;
+    }
+
+    seenLoginIdsInBatch.add(loginId);
+
+    // Password
+    let rawPassword = (row.password || "").toString().trim();
+    if (!rawPassword) {
+      rawPassword = generateReadablePassword();
+    } else if (rawPassword.length < 6) {
+      skipped.push({ rowNumber: rowNum, name, error: "Password must be at least 6 characters." });
+      continue;
+    }
+
+    try {
+      const passwordHash = await hashPassword(rawPassword);
+      const student = await User.create({
+        role: "student",
+        studentCode,
+        name,
+        className,
+        school,
+        phone,
+        email,
+        loginId,
+        passwordHash,
+        deviceLimit,
+        deviceCount: 0,
+        mustChangePassword: false,
+        status: "active",
+        createdBy: adminId,
+      });
+
+      if (assignedCourses.length > 0) {
+        const enrollments = assignedCourses.map((c) => ({
+          userId: student._id,
+          courseId: c._id,
+          status: "active",
+          startsAt: new Date(),
+          expiresAt,
+          assignedBy: adminId,
+        }));
+        await Enrollment.insertMany(enrollments);
+      }
+
+      created.push({
+        studentId: student._id.toString(),
+        name: student.name,
+        email: student.email,
+        phone: student.phone,
+        loginId: student.loginId,
+        rawPassword,
+        className: student.className,
+        courses: assignedCourses.map((c) => c.title),
+        deviceLimit: student.deviceLimit,
+      });
+    } catch (err) {
+      skipped.push({ rowNumber: rowNum, name, error: err.message || "Failed to create student." });
+    }
+  }
+
+  await logAuditEvent({
+    actorId: adminId,
+    action: "students.bulk_imported",
+    targetType: "student",
+    targetId: "bulk",
+    meta: {
+      totalRows: rows.length,
+      createdCount: created.length,
+      skippedCount: skipped.length,
+    },
+  });
+
+  return {
+    success: true,
+    created,
+    skipped,
   };
 }
 
