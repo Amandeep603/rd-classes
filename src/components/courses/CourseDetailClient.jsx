@@ -28,6 +28,7 @@ import {
   ChevronLeft,
   Infinity as InfinityIcon,
   BookOpen,
+  Download,
 } from "lucide-react";
 
 const SECTION_TONE_CYCLE = [
@@ -96,6 +97,7 @@ function getServerHashSnapshot() {
 export default function CourseDetailClient({
   course,
   lectures = [],
+  initialNotes = [],
   relatedCourses = [],
   siteWhatsapp = "+919876543210",
 }) {
@@ -120,6 +122,17 @@ export default function CourseDetailClient({
   const [userData, setUserData] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
   const [isSavedForLater, setIsSavedForLater] = useState(false);
+  const [noteKindFilter, setNoteKindFilter] = useState("all");
+
+  const effectiveNotes =
+    userData?.enrolledNotes && userData.enrolledNotes.length > 0
+      ? userData.enrolledNotes
+      : initialNotes;
+
+  const filteredNotes =
+    noteKindFilter === "all"
+      ? effectiveNotes
+      : effectiveNotes.filter((n) => n.kind === noteKindFilter);
 
   // Group lectures by section
   const sectionsList = useMemo(() => {
@@ -524,29 +537,134 @@ export default function CourseDetailClient({
 
           {/* TAB 4: NOTES PANEL */}
           {activeTab === "notes" && (
-            <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" className="space-y-4">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-8 text-center space-y-2">
-                <FileText className="w-10 h-10 text-[#94A3B8] mx-auto mb-2" />
-                <h3 className="text-base font-bold text-[#0B1B3D]">Chapter Notes & Practice Formula Sheets</h3>
-                <p className="text-xs text-[#64748B] max-w-md mx-auto">
-                  Enrolled students get instant access to printable chapter PDFs, board question sheets, and quick revision notes.
-                </p>
-                {userData?.enrolled ? (
-                  <Link
-                    href={`/student/courses/${course.slug}`}
-                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-xl bg-[#0066FF] text-white text-xs font-semibold hover:bg-[#0052CC] transition-colors"
-                  >
-                    <span>Open in Student Portal</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                ) : (
-                  <div className="pt-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-[#475569] text-xs font-medium">
-                      <Lock className="w-3 h-3" /> Enroll to download study notes
-                    </span>
-                  </div>
-                )}
+            <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" className="space-y-6">
+              {/* Kind Filter Chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { id: "all", label: "All Materials" },
+                  { id: "notes", label: "Concept Notes" },
+                  { id: "practice", label: "Practice Sheets" },
+                  { id: "formula", label: "Formula Cards" },
+                  { id: "paper", label: "Board Papers" },
+                ].map((chip) => {
+                  const count =
+                    chip.id === "all"
+                      ? effectiveNotes.length
+                      : effectiveNotes.filter((n) => n.kind === chip.id).length;
+                  const isSelected = noteKindFilter === chip.id;
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      onClick={() => setNoteKindFilter(chip.id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-[#0B2545] text-white shadow-2xs"
+                          : "bg-white border border-[#E2E8F0] text-[#556987] hover:border-[#CBD5E1]"
+                      }`}
+                    >
+                      <span>{chip.label}</span>
+                      <span
+                        className={`text-[10px] rounded-full px-1.5 py-0.2 font-mono ${
+                          isSelected ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-600"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+
+              {/* Notes List */}
+              {filteredNotes.length === 0 ? (
+                <div className="rounded-2xl border border-[#E2E8F0] bg-white p-8 text-center space-y-2">
+                  <FileText className="w-10 h-10 text-[#94A3B8] mx-auto mb-2" />
+                  <h3 className="text-base font-bold text-[#0B1B3D]">No Notes Available</h3>
+                  <p className="text-xs text-[#64748B] max-w-md mx-auto">
+                    Study materials for this category will be uploaded here soon.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {filteredNotes.map((note) => {
+                    const isEnrolled = !!userData?.enrolled;
+                    const kindBadgeColors = {
+                      notes: "bg-blue-50 text-blue-700 border-blue-200",
+                      practice: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                      formula: "bg-amber-50 text-amber-800 border-amber-200",
+                      paper: "bg-purple-50 text-purple-700 border-purple-200",
+                    }[note.kind] || "bg-neutral-50 text-neutral-700 border-neutral-200";
+
+                    return (
+                      <div
+                        key={note._id}
+                        className="flex flex-col justify-between rounded-2xl border border-[#E2E8F0] bg-white p-4 hover:border-[#CBD5E1] transition-all shadow-2xs space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className={`text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-md border ${kindBadgeColors}`}
+                            >
+                              {note.kind}
+                            </span>
+                            {note.pageCount > 0 && (
+                              <span className="text-[11px] font-mono text-neutral-400">
+                                {note.pageCount} page{note.pageCount !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            {note.source === "link" && (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 rounded px-1.5 py-0.2">
+                                External Link
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-bold text-[#0B1B3D] line-clamp-2">
+                            {note.title}
+                          </h4>
+                          {note.section && (
+                            <p className="text-xs text-[#64748B]">
+                              Section: {note.section}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="pt-2 border-t border-neutral-100 flex items-center justify-between">
+                          {isEnrolled && note.accessUrl ? (
+                            note.source === "link" ? (
+                              <a
+                                href={note.accessUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 transition-colors"
+                              >
+                                <span>Open Resource</span>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            ) : (
+                              <a
+                                href={note.accessUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0066FF] hover:text-[#0052CC] transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>View / Download</span>
+                              </a>
+                            )
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-semibold">
+                              <Lock className="w-3.5 h-3.5 text-neutral-400" />
+                              <span>Enrolled students only</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

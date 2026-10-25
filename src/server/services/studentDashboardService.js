@@ -8,6 +8,7 @@ import { Announcement } from "../db/models/Announcement.js";
 import { Test } from "../db/models/Test.js";
 import { TestResult } from "../db/models/TestResult.js";
 import { Settings } from "../db/models/Settings.js";
+import { Note } from "../db/models/Note.js";
 import { User } from "../db/models/User.js";
 
 export async function getStudentDashboardData(userId) {
@@ -170,6 +171,37 @@ export async function getStudentDashboardData(userId) {
     .sort({ startsAt: 1 })
     .lean();
 
+  // 8. Recent Notes / Handouts
+  let recentNotes = [];
+  let totalNotesCount = 0;
+  if (activeCourseIds.length > 0) {
+    totalNotesCount = await Note.countDocuments({
+      courseIds: { $in: activeCourseIds },
+      published: true,
+    });
+
+    const notesDocs = await Note.find({
+      courseIds: { $in: activeCourseIds },
+      published: true,
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    recentNotes = notesDocs.map((n) => ({
+      _id: n._id.toString(),
+      title: n.title,
+      kind: n.kind,
+      source: n.source,
+      section: n.section || "Chapter Handout",
+      pageCount: n.pageCount,
+      fileSize: n.fileSize,
+      url: n.source === "link" ? n.externalUrl : `/api/notes/${n._id}/stream`,
+      externalUrl: n.externalUrl || null,
+      size: n.fileSize ? `${(n.fileSize / (1024 * 1024)).toFixed(1)} MB` : "PDF Handout",
+    }));
+  }
+
   return {
     student: {
       _id: user._id.toString(),
@@ -210,7 +242,11 @@ export async function getStudentDashboardData(userId) {
         count: testsCount,
         avgScore: avgTestScore,
       },
+      notes: {
+        count: totalNotesCount,
+      },
     },
+    recentNotes,
     upcomingTest: upcomingTest
       ? {
           _id: upcomingTest._id.toString(),

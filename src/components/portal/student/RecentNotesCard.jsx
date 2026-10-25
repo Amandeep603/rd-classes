@@ -60,20 +60,37 @@ export default function RecentNotesCard({ notes = [] }) {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-lg bg-white border border-black/8 px-2.5 py-1 text-xs font-bold text-[#374151] hover:bg-neutral-50 shadow-2xs"
-              >
-                <Eye className="h-3 w-3" />
-                <span>View</span>
-              </button>
-              <button
-                type="button"
-                aria-label="Download note"
-                className="rounded-lg bg-white border border-black/8 p-1 text-[#4B5563] hover:text-[#111827] shadow-2xs"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
+              {note.source === "link" || note.externalUrl ? (
+                <a
+                  href={note.externalUrl || note.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-white border border-black/8 px-2.5 py-1 text-xs font-bold text-[#374151] hover:bg-neutral-50 shadow-2xs"
+                >
+                  <Eye className="h-3 w-3" />
+                  <span>Open</span>
+                </a>
+              ) : (
+                <>
+                  <a
+                    href={`/api/notes/${note._id}/stream`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg bg-white border border-black/8 px-2.5 py-1 text-xs font-bold text-[#374151] hover:bg-neutral-50 shadow-2xs"
+                  >
+                    <Eye className="h-3 w-3" />
+                    <span>View</span>
+                  </a>
+                  <a
+                    href={`/api/notes/${note._id}/stream?download=1`}
+                    download
+                    aria-label="Download note"
+                    className="rounded-lg bg-white border border-black/8 p-1 text-[#4B5563] hover:text-[#111827] shadow-2xs inline-flex items-center justify-center"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </a>
+                </>
+              )}
             </div>
           </div>
         ))}

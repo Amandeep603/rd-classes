@@ -218,3 +218,63 @@ export const progressSaveSchema = z.object({
   durationSec: z.coerce.number().min(0),
   forceCompleted: z.boolean().optional().default(false),
 });
+
+export const noteCreateSchema = z
+  .object({
+    title: z.string().min(1, "Title is required").max(200),
+    kind: z.enum(["notes", "practice", "formula", "paper"]).default("notes"),
+    source: z.enum(["file", "link"]).default("file"),
+    externalUrl: z.string().optional().default(""),
+    fileUrl: z.string().optional().default(""),
+    fileKey: z.string().optional().default(""),
+    fileSize: z.coerce.number().min(0).default(0),
+    pageCount: z.coerce.number().min(0).default(0),
+    section: z.string().optional().default("General"),
+    courseIds: z.array(z.string()).optional().default([]),
+    published: z.boolean().optional().default(true),
+  })
+  .superRefine((data, ctx) => {
+    if (data.source === "link") {
+      const url = (data.externalUrl || "").trim();
+      if (!url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "External link URL is required for link notes",
+          path: ["externalUrl"],
+        });
+      } else if (!/^https?:\/\/.+/i.test(url)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "External URL must begin with http:// or https://",
+          path: ["externalUrl"],
+        });
+      }
+    } else {
+      if (!data.fileUrl && !data.fileKey) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "A file must be uploaded for file-based notes",
+          path: ["fileUrl"],
+        });
+      }
+    }
+  });
+
+export const noteUpdateSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  kind: z.enum(["notes", "practice", "formula", "paper"]).optional(),
+  source: z.enum(["file", "link"]).optional(),
+  externalUrl: z
+    .string()
+    .optional()
+    .refine((val) => !val || /^https?:\/\/.+/i.test(val), {
+      message: "External URL must begin with http:// or https://",
+    }),
+  fileUrl: z.string().optional(),
+  fileKey: z.string().optional(),
+  fileSize: z.coerce.number().min(0).optional(),
+  pageCount: z.coerce.number().min(0).optional(),
+  section: z.string().optional(),
+  courseIds: z.array(z.string()).optional(),
+  published: z.boolean().optional(),
+});

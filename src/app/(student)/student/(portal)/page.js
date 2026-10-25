@@ -141,6 +141,9 @@ export default async function StudentDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* 5. Recently Uploaded Handouts & Revision Notes */}
+      <RecentNotesCard notes={data.recentNotes} />
     </div>
   );
 }

@@ -23,7 +23,7 @@ export const studentNavItems = [
     label: "Notes",
     href: "/student/notes",
     icon: "notes",
-    enabled: false, // Feature-gated: kept hidden until next prompt, no dead links
+    enabled: true,
   },
   {
     id: "tests",

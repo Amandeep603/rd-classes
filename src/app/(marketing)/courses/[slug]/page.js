@@ -88,6 +88,18 @@ export default async function CourseDetailPage({ params }) {
   // Published lectures with sanitized fields (vimeoId only present for preview lectures)
   const lectures = await getCachedCourseLectures(course._id);
 
+  // Published notes for this course (sanitized metadata for public shell)
+  const { getCachedNotesForCourse } = await import("@/server/services/noteService");
+  const rawNotes = await getCachedNotesForCourse(course._id);
+  const notes = (rawNotes || []).map((n) => ({
+    _id: n._id.toString(),
+    title: n.title,
+    kind: n.kind,
+    source: n.source,
+    pageCount: n.pageCount,
+    section: n.section,
+  }));
+
   // Up to 3 related courses (same category first, then others)
   const relatedCourses = await getCachedRelatedCourses(course._id, course.category);
 
@@ -242,6 +254,7 @@ export default async function CourseDetailPage({ params }) {
         <CourseDetailClient
           course={course}
           lectures={lectures}
+          initialNotes={notes}
           relatedCourses={relatedCourses}
           siteWhatsapp={phone}
         />

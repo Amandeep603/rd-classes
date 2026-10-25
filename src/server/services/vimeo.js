@@ -21,14 +21,14 @@ export function parseVimeoUrl(input) {
     return { vimeoId: trimmed, vimeoHash: "" };
   }
 
-  // player.vimeo.com/video/:id?h=:hash
+  // player.vimeo.com/video/:id?h=:hash or player.vimeo.com/video/:id/:hash
   const playerMatch = trimmed.match(
-    /player\.vimeo\.com\/video\/(\d+)(?:\?[^#]*h=([a-zA-Z0-9]+))?/
+    /player\.vimeo\.com\/video\/(\d+)(?:\/([a-zA-Z0-9]+)|\?[^#]*h=([a-zA-Z0-9]+))?/
   );
   if (playerMatch) {
     return {
       vimeoId: playerMatch[1],
-      vimeoHash: playerMatch[2] || "",
+      vimeoHash: playerMatch[2] || playerMatch[3] || "",
     };
   }
 
@@ -43,7 +43,7 @@ export function parseVimeoUrl(input) {
     };
   }
 
-  return { vimeoId: trimmed, vimeoHash: "" };
+  return { vimeoId: "", vimeoHash: "" };
 }
 
 /**

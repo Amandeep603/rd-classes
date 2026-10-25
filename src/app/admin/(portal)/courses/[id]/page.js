@@ -26,12 +26,15 @@ export default async function AdminCourseLecturesPage({ params }) {
   const { id } = await params;
   await connectDB();
 
-  const [course, lectures, enrollments] = await Promise.all([
+  const { getNotesForCourse } = await import("@/server/services/noteService.js");
+
+  const [course, lectures, enrollments, notes] = await Promise.all([
     Course.findById(id).lean(),
     getAdminLecturesByCourse(id),
     Enrollment.find({ courseId: id })
       .populate("userId", "name studentCode loginId phone")
       .lean(),
+    getNotesForCourse(id),
   ]);
 
   if (!course) {
@@ -41,12 +44,14 @@ export default async function AdminCourseLecturesPage({ params }) {
   const serializedCourse = JSON.parse(JSON.stringify(course));
   const serializedLectures = JSON.parse(JSON.stringify(lectures));
   const serializedEnrollments = JSON.parse(JSON.stringify(enrollments));
+  const serializedNotes = JSON.parse(JSON.stringify(notes || []));
 
   return (
     <PortalCourseDetailView
       course={serializedCourse}
       lectures={serializedLectures}
       enrolledStudents={serializedEnrollments}
+      courseNotes={serializedNotes}
     />
   );
 }

@@ -74,7 +74,7 @@ export const adminNavItems = [
     label: "Notes",
     href: "/admin/notes",
     icon: "notes",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "toppers",

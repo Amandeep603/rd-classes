@@ -55,10 +55,14 @@ export async function GET(request) {
     });
   }
 
-  // Enrolled student: fetch progress
-  const [totalLectures, progressRecords] = await Promise.all([
+  // Enrolled student: fetch progress and course notes
+  const { Note } = await import("@/server/db/models/Note.js");
+  const [totalLectures, progressRecords, courseNotes] = await Promise.all([
     Lecture.countDocuments({ courseId: course._id, published: true }),
     Progress.find({ userId: auth.user._id, courseId: course._id }).lean(),
+    Note.find({ courseIds: course._id, published: true })
+      .sort({ order: 1, createdAt: -1 })
+      .lean(),
   ]);
 
   const completedRecords = progressRecords.filter((p) => p.completed);
@@ -70,6 +74,16 @@ export async function GET(request) {
     (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
   )[0];
 
+  const enrolledNotes = (courseNotes || []).map((n) => ({
+    _id: n._id.toString(),
+    title: n.title,
+    kind: n.kind,
+    source: n.source,
+    section: n.section,
+    pageCount: n.pageCount,
+    accessUrl: n.source === "link" ? n.externalUrl : `/api/notes/${n._id}/stream`,
+  }));
+
   return NextResponse.json({
     authenticated: true,
     enrolled: true,
@@ -79,6 +93,7 @@ export async function GET(request) {
     progressPercent: percent,
     completedLectureIds: completedIds,
     lastWatchedLectureId: lastProgress ? lastProgress.lectureId.toString() : null,
+    enrolledNotes,
   }, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });

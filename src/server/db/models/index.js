@@ -16,3 +16,5 @@ export { Test } from "./Test.js";
 export { TestResult } from "./TestResult.js";
 export { Settings } from "./Settings.js";
 export { MediaAsset } from "./MediaAsset.js";
+export { EmailLog } from "./EmailLog.js";
+export { Note } from "./Note.js";

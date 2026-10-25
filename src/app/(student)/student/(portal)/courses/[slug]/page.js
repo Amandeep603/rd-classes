@@ -5,6 +5,7 @@ import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { getCourseSyllabusForStudent } from "@/server/services/lectureService.js";
+import { getNotesForCourse } from "@/server/services/noteService.js";
 import ProgressBar from "@/components/portal/ui/ProgressBar";
 import {
   PlayCircle,
@@ -14,6 +15,10 @@ import {
   Clock,
   Sparkles,
   BookOpen,
+  FileText,
+  Eye,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 
 export const instant = false;
@@ -50,6 +55,7 @@ export default async function StudentCoursePage({ params }) {
   }).lean();
 
   const sections = await getCourseSyllabusForStudent(course._id, auth.user._id);
+  const courseNotes = await getNotesForCourse(course._id, { publishedOnly: true });
 
   // Calculate totals
   let totalLectures = 0;
@@ -203,6 +209,102 @@ export default async function StudentCoursePage({ params }) {
           </div>
         ))}
       </div>
+
+      {/* Course Notes & Handouts */}
+      {courseNotes.length > 0 && (
+        <div className="overflow-hidden rounded-[22px] border border-black/5 bg-white shadow-xs">
+          <div className="border-b border-black/5 bg-neutral-50/70 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-neutral-900 font-bold text-xs">
+                <FileText className="h-4 w-4" />
+              </div>
+              <h2 className="text-base font-bold text-[#111827]">
+                Course Notes & Handouts
+              </h2>
+            </div>
+            <span className="text-xs font-semibold text-[#6B7280]">
+              {courseNotes.length} {courseNotes.length === 1 ? "Resource" : "Resources"}
+            </span>
+          </div>
+
+          <div className="divide-y divide-black/5">
+            {courseNotes.map((note) => {
+              const isLink = note.source === "link";
+              const canAccess = Boolean(enrollment);
+
+              return (
+                <div
+                  key={note._id}
+                  className="flex items-center justify-between gap-4 p-4 sm:px-6 hover:bg-neutral-50/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700 shrink-0">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-[#111827] truncate">
+                        {note.title}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[#6B7280] mt-0.5">
+                        <span>{note.section || "Chapter Handout"}</span>
+                        <span>•</span>
+                        <span>
+                          {isLink
+                            ? "External Link"
+                            : note.pageCount
+                            ? `${note.pageCount} pages`
+                            : "PDF File"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    {canAccess ? (
+                      isLink ? (
+                        <a
+                          href={note.externalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-[#FFC21A] px-3.5 py-1.5 text-xs font-bold text-neutral-900 shadow-2xs hover:bg-[#ffd54a] transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          <span>Open</span>
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`/api/notes/${note._id}/stream`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-xl bg-[#FFC21A] px-3 py-1.5 text-xs font-bold text-neutral-900 shadow-2xs hover:bg-[#ffd54a] transition-colors"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>View</span>
+                          </a>
+                          <a
+                            href={`/api/notes/${note._id}/stream?download=1`}
+                            download
+                            title="Download PDF"
+                            className="rounded-xl border border-black/10 bg-white p-1.5 text-[#374151] hover:bg-neutral-50 shadow-2xs"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-400">
+                        <Lock className="h-3.5 w-3.5" />
+                        <span>Enroll to Access</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
