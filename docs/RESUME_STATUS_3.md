@@ -11,9 +11,9 @@
 |---|---|:---:|---|
 | **Phase 1** | Remove fake/demo data from admin & student portals, database guards, login helper & password flow cleanup | **DONE** | `3014c22` |
 | **Phase 2** | Course Model single source of truth, migration, indexes, zod validation, admin form with live preview, seed:courses | **DONE** | `f331a96` |
-| **Phase 3** | CourseCard component (home & catalog variants, tone tokens, illustrations, responsive hover, Home featured section) | **DONE** | Pending commit |
-| **Phase 4** | Public `/courses` page (exact to reference, Caveat font hero, chips, search/sort URL params), `/courses/[slug]`, Navbar & footer updates | **IN PROGRESS** | Pending |
-| **Phase 5** | Complete portal routes (`/student/lectures`, etc.), hidden flags for unready features, Settings fields, stats band, Playwright crawl | **PENDING** | Pending |
+| **Phase 3** | CourseCard component (home & catalog variants, tone tokens, illustrations, responsive hover, Home featured section) | **DONE** | `5310d25` |
+| **Phase 4** | Public `/courses` page (exact to reference, Caveat font hero, chips, search/sort URL params), `/courses/[slug]`, Navbar & footer updates | **DONE** | Pending commit |
+| **Phase 5** | Complete portal routes (`/student/lectures`, etc.), hidden flags for unready features, Settings fields, stats band, Playwright crawl | **IN PROGRESS** | Pending |
 | **Phase 6** | Visual comparison overlay tests, multi-viewport checks, vitest & Playwright E2E suites, static build verification | **PENDING** | Pending |
 
 ---
@@ -38,11 +38,18 @@
   - Built Next 16 cached server functions (`getCachedPublicCourses`, `getCachedFeaturedCourses`, `getCachedCourseBySlug`) with `cacheTag("courses")` and invalidation.
   - Created `CourseForm.jsx` with live preview of both card variants and category suggestion defaults.
   - Wired `/admin/courses/new`, `/admin/courses/[id]`, `PortalCoursesView`, and connected student portal courses.
-- [x] Phase 3 completed:
+- [x] Phase 3 completed (`5310d25`):
   - Connected Home `FeaturedCoursesSection` to `getCachedFeaturedCourses()` (published && featured, ordered).
   - Hides whole section when no featured courses exist.
   - Replaced legacy `CourseCard` with unified `CourseCard` variant `"home"`.
   - Added centered "View all courses ->" link to `/courses`.
   - Deleted legacy constants-based course file (`src/constants/courses.js`) and legacy card component.
   - Updated footer course links in `src/constants/footer.js` to `/courses/[slug]`.
-- [ ] Phase 4: Build `/courses` page exact to reference (1536px), Caveat font hero, URL params filtering/sorting, `/courses/[slug]` detail page, Navbar & mobile menu updates.
+- [x] Phase 4 completed:
+  - Built public `/courses` page exact to `reference/courses-page.png` (1536px canvas width).
+  - Built `CoursesHeroCluster` with SVG potted plant, 3 stacked books (ACCOUNTS / PRACTICE / RESULTS), pen cup, and Caveat font handwritten note ("Learn / Practice / Score Higher") rotated -12deg with yellow swoosh.
+  - Built `CoursesCatalogClient` with filter chips (All Courses, Class 12 CBSE, Class 11 Foundation, Recorded Portal, Test Series, Crash Courses), debounced search, and sort select, syncing state cleanly to URL search params.
+  - Built `/courses/[slug]` detail page with tone-tinted hero, curriculum preview by section (titles and durations only, zero exposed video IDs), "What's Included", and related courses.
+  - Updated Navbar & MobileMenu: removed "Lectures", active underline on "Courses" using `usePathname()`.
+  - Updated `sitemap.js` with dynamic published courses.
+- [ ] Phase 5: Build `/student/lectures`, hide unready portal nav items behind flags, expand Settings fields and connect Website Numbers to Home Stats band, Playwright crawl.

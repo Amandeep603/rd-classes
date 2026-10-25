@@ -164,7 +164,10 @@ export default function Navbar() {
                 );
               }
 
-              const isActive = pathname === link.href;
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(link.href);
               return (
                 <Link
                   key={link.href}
@@ -174,6 +177,7 @@ export default function Navbar() {
                       ? "text-white"
                       : "text-white/90 hover:text-[#FFB800]"
                   }`}
+
                   style={{
                     fontSize: "max(13px, calc(var(--u) * 16))",
                   }}

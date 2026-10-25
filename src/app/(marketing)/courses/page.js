@@ -1,130 +1,98 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { programs } from "@/data/programs";
-import { terms } from "@/data/terms";
+import { getCachedPublicCourses } from "@/server/services/courseService";
+import CoursesHeroCluster from "@/components/courses/CoursesHeroCluster";
+import CoursesCatalogClient from "@/components/courses/CoursesCatalogClient";
 
-async function CoursesContent({ searchParams }) {
-  const params = await searchParams;
-  const selectedType = params?.type || "all";
-  const selectedTopic = params?.topic || null;
+export const metadata = {
+  title: "Structured Courses for Class 11 & 12 Accountancy | RD Classes",
+  description:
+    "Explore comprehensive CBSE Accountancy courses for Class 11 & 12 by Ronak Dugar in Sector 9, Faridabad. Full year batches, recorded lectures, test series and crash courses.",
+  alternates: {
+    canonical: "/courses",
+  },
+  openGraph: {
+    title: "Structured Courses for Class 11 & 12 Accountancy | RD Classes",
+    description:
+      "Learn Accountancy with concept clarity, practice, and personalised guidance from Ronak Sir.",
+    url: "/courses",
+  },
+};
 
-  const activeProgram = programs.find((p) => p.link.includes(`type=${selectedType}`));
-  const activeTerm = terms.find((t) => t.slug === selectedTopic);
+export default async function CoursesPage() {
+  const courses = await getCachedPublicCourses();
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: courses.map((course, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "Course",
+        name: course.title,
+        description: course.description,
+        provider: {
+          "@type": "EducationalOrganization",
+          name: "RD Classes",
+        },
+      },
+    })),
+  };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white pt-[112px] pb-24 px-6 sm:px-12 max-w-[1400px] mx-auto">
-      <div className="mb-8">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Home
-        </Link>
-      </div>
+    <div className="min-h-screen w-full bg-[#FAF6EE] text-[#0F172A] pt-24 sm:pt-28 pb-24 overflow-x-clip">
+      {/* JSON-LD Catalog Schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
-      <header className="mb-12">
-        <span className="text-[#FFB800] text-xs font-bold uppercase tracking-widest block mb-2">
-          Course Offerings
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
-          Explore All Accountancy Courses
-        </h1>
-        {activeProgram && (
-          <p className="mt-4 text-lg text-neutral-300">
-            Filtered by format: <span className="text-[#FFB800] font-semibold">{activeProgram.title}</span> ({activeProgram.eyebrow})
-          </p>
-        )}
-        {activeTerm && (
-          <p className="mt-4 text-lg text-neutral-300">
-            Filtered by topic: <span className="text-[#FFB800] font-semibold">{activeTerm.name}</span>
-          </p>
-        )}
-      </header>
-
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-3 mb-10">
-        <Link
-          href="/courses"
-          className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-            selectedType === "all" && !selectedTopic
-              ? "bg-[#FFB800] text-[#0A0A0A]"
-              : "bg-white/10 text-white hover:bg-white/20"
-          }`}
-        >
-          All Programs
-        </Link>
-        {programs.map((prog) => {
-          const typeVal = prog.link.replace("/courses?type=", "");
-          const isActive = selectedType === typeVal;
-          return (
-            <Link
-              key={prog.id}
-              href={prog.link}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                isActive
-                  ? "bg-[#FFB800] text-[#0A0A0A]"
-                  : "bg-white/10 text-white hover:bg-white/20"
-              }`}
-            >
-              {prog.title}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Course Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {programs
-          .filter((prog) => {
-            if (selectedType === "all" && !selectedTopic) return true;
-            if (selectedType !== "all") {
-              const typeVal = prog.link.replace("/courses?type=", "");
-              return typeVal === selectedType;
-            }
-            return true;
-          })
-          .map((prog) => (
-            <div
-              key={prog.id}
-              className="rounded-2xl p-6 border border-white/10 bg-white/5 hover:border-[#FFB800]/50 transition-all flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs uppercase tracking-wider font-bold text-[#FFB800]">
-                    {prog.eyebrow}
-                  </span>
-                  <span className="text-xs font-mono text-neutral-400">
-                    BATCH {prog.number}
-                  </span>
-                </div>
-                <h2 className="text-2xl font-bold mb-2 text-white">
-                  {prog.title}
-                </h2>
-                <p className="text-neutral-400 text-sm whitespace-pre-line leading-relaxed mb-6">
-                  {prog.description}
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                <span className="text-sm font-semibold text-white">
-                  Enroll Now
-                </span>
-                <span className="w-8 h-8 rounded-full bg-[#FFB800] text-[#0A0A0A] flex items-center justify-center font-bold">
-                  →
-                </span>
-              </div>
+      <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-12">
+        {/* HERO SECTION */}
+        <section className="relative pt-6 sm:pt-10 pb-12 lg:pb-16 flex flex-col lg:flex-row lg:items-center justify-between gap-8 lg:gap-12">
+          {/* Left Column: Eyebrow + H1 + Subtitle */}
+          <div className="max-w-2xl flex-1 z-10">
+            {/* Eyebrow */}
+            <div className="flex items-center gap-2.5 mb-4">
+              <span className="w-6 h-0.5 rounded-full bg-[#FFC21A]" />
+              <span className="text-[12px] sm:text-[13px] font-extrabold uppercase tracking-widest text-[#64748B]">
+                OUR COURSES
+              </span>
             </div>
-          ))}
+
+            {/* H1 Headline */}
+            <h1 className="text-[34px] sm:text-[46px] lg:text-[54px] font-extrabold tracking-tight text-[#0F172A] leading-[1.12]">
+              Structured Courses for{" "}
+              <span className="text-[#FFB800]">Class 11 & 12</span>{" "}
+              Accountancy.
+            </h1>
+
+            {/* Subtitle */}
+            <p className="mt-5 text-base sm:text-[18px] text-[#5B6676] leading-relaxed max-w-xl">
+              Learn with concept clarity, practice, and personalised guidance from Ronak Sir.
+              Choose the course that fits your preparation goals.
+            </p>
+          </div>
+
+          {/* Right Column: Hero Illustration Cluster */}
+          <div className="w-full lg:w-auto lg:shrink-0 flex justify-center lg:justify-end z-10">
+            <CoursesHeroCluster />
+          </div>
+        </section>
+
+        {/* CATALOG TOOLBAR & GRID */}
+        <section className="pt-4">
+          <Suspense
+            fallback={
+              <div className="w-full py-16 text-center text-sm font-semibold text-slate-400">
+                Loading courses...
+              </div>
+            }
+          >
+            <CoursesCatalogClient initialCourses={courses} />
+          </Suspense>
+        </section>
       </div>
     </div>
-  );
-}
-
-export default function CoursesPage({ searchParams }) {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0A0A0A] text-white pt-[112px] p-8">Loading courses...</div>}>
-      <CoursesContent searchParams={searchParams} />
-    </Suspense>
   );
 }

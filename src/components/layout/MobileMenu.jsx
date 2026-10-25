@@ -59,7 +59,10 @@ export default function MobileMenu({ isOpen, onClose, currentPath }) {
     >
       <nav aria-label="Mobile Nav" className="flex flex-col gap-1.5 pt-2">
         {flattenedLinks.map((link) => {
-          const isActive = currentPath === link.href;
+          const isActive =
+            link.href === "/"
+              ? currentPath === "/"
+              : currentPath?.startsWith(link.href);
           return (
             <Link
               key={link.href}
