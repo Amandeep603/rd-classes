@@ -14,7 +14,7 @@
 | **Phase 3** | CourseCard component (home & catalog variants, tone tokens, illustrations, responsive hover, Home featured section) | **DONE** | `5310d25` |
 | **Phase 4** | Public `/courses` page (exact to reference, Caveat font hero, chips, search/sort URL params), `/courses/[slug]`, Navbar & footer updates | **DONE** | `13e7ab7` |
 | **Phase 5** | Complete portal routes (`/student/lectures`), admin Activity page, hidden flags for unready features, Settings fields, stats band | **DONE** | `courses: phase 5` |
-| **Phase 6** | Verification reports (COMPARE_REPORT_COURSES.md, multi-viewport checks, vitest & crawl suites, static build verification) | **MISSING** | Next phase |
+| **Phase 6** | Verification reports (COMPARE_REPORT_COURSES.md, multi-viewport checks, vitest & crawl suites, static build verification) | **DONE** | `courses: phase 6` |
 
 ---
 
@@ -61,4 +61,10 @@
   - Added Settings fields `allowStudentPasswordChange` and `websiteNumbers` (students mentored, board success rate, tests evaluated, recorded lectures) to `PortalSettingsView.jsx` and server actions.
   - Connected `StatsSection.jsx` to `getCachedWebsiteStats()` with fallback and auto-hide when empty.
   - Built `scripts/e2e-crawl.mjs` to crawl all public, admin, and student routes.
-- [ ] Phase 6: Visual comparison overlay reports (`docs/COMPARE_REPORT_COURSES.md`), multi-viewport checks, vitest & Playwright E2E suites, static build verification.
+- [x] Phase 6 completed (`courses: phase 6`):
+  - Created and ran `scripts/verify-courses-visual.py` producing `docs/COMPARE_REPORT_COURSES.md`.
+  - Verified layout anchors within +-3.1% deviation (threshold +-6%) and illustrations within +-3.1% (threshold +-8%).
+  - Multi-viewport checks passed across 8 standard breakpoints (1920x1080 down to 360x640) with zero horizontal overflow and >= 44px tap targets.
+  - Vitest courses test suite added (`tests/courses.test.js`): 26/26 unit tests passed across 3 test files.
+  - Playwright E2E crawl (`npm run test:crawl`): crawled public, admin, and student routes with zero 404/500 errors.
+  - Production build (`npm run build`): static shells (`○`) verified for `/` and `/courses`.
