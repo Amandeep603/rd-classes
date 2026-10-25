@@ -26,6 +26,9 @@ export async function updateSettingsAction(payload) {
   if (typeof payload.allowStudentPasswordChange === "boolean") {
     settings.allowStudentPasswordChange = payload.allowStudentPasswordChange;
   }
+  if (typeof payload.emailOnDeviceApproved === "boolean") {
+    settings.emailOnDeviceApproved = payload.emailOnDeviceApproved;
+  }
   if (payload.websiteNumbers && typeof payload.websiteNumbers === "object") {
     settings.websiteNumbers = {
       studentsMentored: payload.websiteNumbers.studentsMentored?.toString().trim() || "",

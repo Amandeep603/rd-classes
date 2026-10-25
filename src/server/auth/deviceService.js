@@ -97,6 +97,42 @@ export async function approveDeviceRequest(
     },
   });
 
+  // Optional email notification when user has email and setting is ON
+  if (user.email) {
+    try {
+      const { Settings } = await import("../db/models/Settings.js");
+      const { isEmailConfigured } = await import("../email/emailConfig.js");
+      const { sendEmail } = await import("../email/emailService.js");
+      const { renderDeviceApprovedTemplate } = await import("../email/templates/deviceApproved.js");
+
+      if (isEmailConfigured()) {
+        const settings = await Settings.findById("global").lean();
+        if (settings?.emailOnDeviceApproved !== false) {
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+          const { subject, html, text } = renderDeviceApprovedTemplate({
+            studentName: user.name,
+            loginId: user.loginId,
+            deviceLabel: request.label,
+            loginUrl: `${siteUrl}/student/login`,
+            whatsappPhone: settings?.whatsappNumber || "918368545620",
+          });
+
+          await sendEmail({
+            to: user.email,
+            subject,
+            html,
+            text,
+            kind: "device-approved",
+            studentId: user._id,
+            createdBy: adminId,
+          });
+        }
+      }
+    } catch {
+      // Email failure should never roll back device approval
+    }
+  }
+
   return { success: true };
 }
 

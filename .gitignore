@@ -44,5 +44,7 @@ next-env.d.ts
 /reference/
 /docs/compare/
 /.local-uploads/
+/.local-emails/
+/backups/
 
 

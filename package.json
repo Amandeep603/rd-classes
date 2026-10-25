@@ -25,6 +25,7 @@
     "lucide-react": "^1.60.0",
     "mongoose": "^9.11.3",
     "next": "16.4.2",
+    "nodemailer": "^10.2.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",

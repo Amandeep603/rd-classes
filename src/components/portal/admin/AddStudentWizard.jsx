@@ -18,8 +18,14 @@ import {
   ArrowRight,
   ArrowLeft,
   Loader2,
+  Mail,
+  Send,
 } from "lucide-react";
-import { createStudentWizardAction } from "@/server/actions/admin.students.actions.js";
+import {
+  createStudentWizardAction,
+  sendCredentialsEmailAction,
+  checkEmailConfigAction,
+} from "@/server/actions/admin.students.actions.js";
 
 function generatePassword() {
   const chars = "23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ";
@@ -42,6 +48,7 @@ export default function AddStudentWizard({
   // Step 1: Details
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [className, setClassName] = useState("12");
   const [school, setSchool] = useState("");
 
@@ -62,11 +69,14 @@ export default function AddStudentWizard({
 
   // Result state
   const [resultData, setResultData] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailMessage, setEmailMessage] = useState("");
 
   const resetForm = () => {
     setStep(1);
     setName("");
     setPhone("");
+    setEmail("");
     setClassName("12");
     setSchool("");
     setSelectedCourses([]);
@@ -79,6 +89,8 @@ export default function AddStudentWizard({
     setMustChangePassword(false);
     setError("");
     setResultData(null);
+    setSendingEmail(false);
+    setEmailMessage("");
   };
 
   const handleClose = () => {
@@ -135,6 +147,7 @@ export default function AddStudentWizard({
       const res = await createStudentWizardAction({
         name,
         phone,
+        email: email.trim(),
         className,
         school,
         loginId: loginId || undefined,
@@ -254,6 +267,22 @@ export default function AddStudentWizard({
                 <option value="12">Class 12 (Board Prep)</option>
                 <option value="11">Class 11 (Foundation)</option>
               </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#374151] mb-1">
+              Email Address (Optional)
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. student@gmail.com"
+                className="w-full rounded-xl border border-black/10 py-2.5 pl-10 pr-4 text-sm text-[#111827] focus:border-[#FFC21A] focus:outline-none focus:ring-2 focus:ring-[#FFC21A]/20"
+              />
             </div>
           </div>
 
@@ -558,20 +587,83 @@ export default function AddStudentWizard({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 px-4 font-bold text-white shadow-md hover:bg-emerald-700 transition-colors text-sm"
-            >
-              <MessageCircle className="h-4 w-4" />
-              <span>Send WhatsApp Message to Student</span>
-            </a>
+          {/* WhatsApp & Email Actions */}
+          <div className="space-y-3 pt-2">
+            {emailMessage && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  emailMessage.startsWith("✓")
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}
+              >
+                {emailMessage}
+              </div>
+            )}
 
-            <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
-              Done & Close
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 px-4 font-bold text-white shadow-md hover:bg-emerald-700 transition-colors text-xs sm:text-sm min-h-[44px]"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span>WhatsApp Credentials</span>
+              </a>
+
+              <button
+                type="button"
+                disabled={sendingEmail}
+                onClick={async () => {
+                  setSendingEmail(true);
+                  setEmailMessage("");
+                  try {
+                    const status = await checkEmailConfigAction();
+                    if (!status.isConfigured) {
+                      setEmailMessage("Email is not configured in this environment.");
+                      return;
+                    }
+                    if (!resultData?.student?.email) {
+                      setEmailMessage("No email address provided for this student.");
+                      return;
+                    }
+                    const res = await sendCredentialsEmailAction(
+                      resultData.student._id,
+                      { password: resultData.rawPassword }
+                    );
+                    if (res?.success) {
+                      setEmailMessage(`✓ Credentials successfully emailed to ${resultData.student.email}`);
+                    } else {
+                      setEmailMessage(res?.error || "Failed to deliver email.");
+                    }
+                  } catch (err) {
+                    setEmailMessage(err?.message || "Error sending email.");
+                  } finally {
+                    setSendingEmail(false);
+                  }
+                }}
+                className="flex w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0B2545] py-3.5 px-4 font-bold text-white shadow-md hover:bg-[#143565] transition-colors text-xs sm:text-sm min-h-[44px] cursor-pointer disabled:opacity-60"
+              >
+                {sendingEmail ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Sending Mail...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4 text-[#FFC21A]" />
+                    <span>Email Credentials</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
+                Done & Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

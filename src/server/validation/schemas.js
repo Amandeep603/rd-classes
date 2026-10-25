@@ -12,6 +12,15 @@ export const loginSchema = z.object({
 export const studentCreateSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   phone: z.string().max(20).optional().default(""),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .refine((val) => val === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
+      message: "Invalid email format",
+    })
+    .optional()
+    .default(""),
   loginId: z
     .string()
     .min(4, "Login ID must be at least 4 characters")
@@ -27,6 +36,15 @@ export const studentCreateSchema = z.object({
 export const studentUpdateSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   phone: z.string().max(20).optional().default(""),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .refine((val) => val === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
+      message: "Invalid email format",
+    })
+    .optional()
+    .default(""),
 });
 
 export const studentPasswordChangeSchema = z.object({

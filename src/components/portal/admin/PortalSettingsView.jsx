@@ -11,6 +11,9 @@ import {
   Save,
   MessageCircle,
   BarChart3,
+  Mail,
+  Send,
+  Loader2,
 } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
@@ -19,6 +22,7 @@ import {
   updateSettingsAction,
   updateAdminPasswordAction,
 } from "@/server/actions/admin.settings.actions.js";
+import { sendTestEmailAction } from "@/server/actions/admin.students.actions.js";
 
 export default function PortalSettingsView({
   settings = {},
@@ -43,6 +47,14 @@ export default function PortalSettingsView({
   const [allowStudentPasswordChange, setAllowStudentPasswordChange] = useState(
     settings.allowStudentPasswordChange !== false
   );
+  const [emailOnDeviceApproved, setEmailOnDeviceApproved] = useState(
+    settings.emailOnDeviceApproved !== false
+  );
+
+  // Email test state
+  const [testEmailAddress, setTestEmailAddress] = useState(admin.email || "");
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailMsg, setTestEmailMsg] = useState("");
 
   // Website numbers state
   const [studentsMentored, setStudentsMentored] = useState(
@@ -82,6 +94,7 @@ export default function PortalSettingsView({
         watermarkEnabled,
         rewardTargetText,
         allowStudentPasswordChange,
+        emailOnDeviceApproved,
         websiteNumbers: {
           studentsMentored,
           boardSuccessRate,
@@ -216,6 +229,16 @@ export default function PortalSettingsView({
                   className="rounded accent-[var(--portal-accent-yellow)]"
                 />
                 <span>Allow students to change password from their Profile page</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
+                <input
+                  type="checkbox"
+                  checked={emailOnDeviceApproved}
+                  onChange={(e) => setEmailOnDeviceApproved(e.target.checked)}
+                  className="rounded accent-[var(--portal-accent-yellow)]"
+                />
+                <span>Email student automatically when their new device request is approved</span>
               </label>
             </div>
 
@@ -361,6 +384,80 @@ export default function PortalSettingsView({
               </Button>
             </div>
           </form>
+        </Card>
+
+        {/* Email Driver & Delivery Test Card */}
+        <Card className="p-6 md:col-span-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Mail className="w-5 h-5 text-amber-500" />
+            <h2 className="text-base font-bold text-[var(--portal-text-main)]">
+              Email System &amp; Test Delivery
+            </h2>
+          </div>
+          <p className="text-xs text-[var(--portal-text-muted)] mb-5">
+            Test outbound email delivery for credentials and device approvals.
+          </p>
+
+          <div className="space-y-4 max-w-xl">
+            {testEmailMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  testEmailMsg.startsWith("✓")
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
+              >
+                {testEmailMsg}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <input
+                  type="email"
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  placeholder="admin@example.com"
+                  className="portal-input text-xs"
+                />
+              </div>
+
+              <Button
+                type="button"
+                variant="yellow"
+                size="sm"
+                disabled={sendingTestEmail}
+                onClick={async () => {
+                  setSendingTestEmail(true);
+                  setTestEmailMsg("");
+                  try {
+                    const res = await sendTestEmailAction(testEmailAddress);
+                    if (res?.success) {
+                      setTestEmailMsg(`✓ Test email sent successfully to ${testEmailAddress}`);
+                    } else {
+                      setTestEmailMsg(res?.error || "Failed to send test email.");
+                    }
+                  } catch (err) {
+                    setTestEmailMsg(err?.message || "Error sending test email.");
+                  } finally {
+                    setSendingTestEmail(false);
+                  }
+                }}
+              >
+                {sendingTestEmail ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending Test...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Test Email</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </Card>
       </div>
     </div>

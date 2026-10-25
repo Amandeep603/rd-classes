@@ -30,6 +30,7 @@ export default function PortalStudentsView({
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [status, setStatus] = useState(searchParams.get("status") || "");
+  const [emailFilter, setEmailFilter] = useState(searchParams.get("emailFilter") || "");
 
   const handleFilterSubmit = (e) => {
     e.preventDefault();
@@ -38,6 +39,8 @@ export default function PortalStudentsView({
     else params.delete("search");
     if (status) params.set("status", status);
     else params.delete("status");
+    if (emailFilter) params.set("emailFilter", emailFilter);
+    else params.delete("emailFilter");
     params.set("page", "1");
     router.push(`/admin/students?${params.toString()}`);
   };
@@ -101,11 +104,20 @@ export default function PortalStudentsView({
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="w-full sm:w-44 rounded-xl border border-black/10 py-2.5 px-3 text-sm text-[#111827] bg-white"
+            className="w-full sm:w-36 rounded-xl border border-black/10 py-2.5 px-3 text-sm text-[#111827] bg-white"
           >
             <option value="">All Statuses</option>
             <option value="active">Active Only</option>
             <option value="blocked">Blocked Only</option>
+          </select>
+
+          <select
+            value={emailFilter}
+            onChange={(e) => setEmailFilter(e.target.value)}
+            className="w-full sm:w-36 rounded-xl border border-black/10 py-2.5 px-3 text-sm text-[#111827] bg-white"
+          >
+            <option value="">All Emails</option>
+            <option value="no-email">No Email</option>
           </select>
 
           <button
@@ -128,6 +140,7 @@ export default function PortalStudentsView({
                   <tr>
                     <th className="px-6 py-4">Student</th>
                     <th className="px-6 py-4">Class</th>
+                    <th className="px-6 py-4">Email</th>
                     <th className="px-6 py-4">Devices Used</th>
                     <th className="px-6 py-4">Last Login</th>
                     <th className="px-6 py-4">Status</th>
@@ -180,6 +193,18 @@ export default function PortalStudentsView({
 
                         <td className="px-6 py-4 font-semibold text-[#111827]">
                           Class {student.className || "12"}
+                        </td>
+
+                        <td className="px-6 py-4 text-xs">
+                          {student.email ? (
+                            <span className="font-mono text-[#111827] truncate max-w-[180px] block" title={student.email}>
+                              {student.email}
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                              No email
+                            </span>
+                          )}
                         </td>
 
                         <td className="px-6 py-4">

@@ -37,6 +37,10 @@ const settingsSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    emailOnDeviceApproved: {
+      type: Boolean,
+      default: true,
+    },
     websiteNumbers: {
       studentsMentored: { type: String, default: "", trim: true },
       boardSuccessRate: { type: String, default: "", trim: true },

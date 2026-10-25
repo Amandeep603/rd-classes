@@ -19,6 +19,7 @@ import {
   Copy,
   ExternalLink,
   MessageCircle,
+  Mail,
 } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
@@ -33,6 +34,7 @@ import {
   blockStudentAction,
   unblockStudentAction,
   resetStudentPasswordAction,
+  resetStudentPasswordAndEmailAction,
   enrollStudentAction,
   revokeEnrollmentAction,
 } from "@/server/actions/admin.students.actions.js";
@@ -56,6 +58,7 @@ export default function PortalStudentDetailView({
   // Profile edit
   const [name, setName] = useState(student.name || "");
   const [phone, setPhone] = useState(student.phone || "");
+  const [email, setEmail] = useState(student.email || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
 
@@ -89,6 +92,7 @@ export default function PortalStudentDetailView({
     const fd = new FormData();
     fd.append("name", name);
     fd.append("phone", phone);
+    fd.append("email", email);
     try {
       const res = await updateStudentProfileAction(student._id, null, fd);
       if (res?.success) {
@@ -129,6 +133,37 @@ export default function PortalStudentDetailView({
           whatsappMsg: waMsg,
         });
       }
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
+  const handleResetPasswordAndEmail = async () => {
+    const studentEmail = email || student.email;
+    if (!studentEmail) {
+      alert("Student does not have an email address configured. Please enter an email in Edit Profile.");
+      return;
+    }
+    if (!confirm(`Generate a new password and email credentials directly to ${studentEmail}?`)) {
+      return;
+    }
+    setResetSubmitting(true);
+    try {
+      const res = await resetStudentPasswordAndEmailAction(student._id, revokeSessions);
+      if (res?.success) {
+        const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://rd-classes.in";
+        const waMsg = `Hello ${student.name}, your RD Classes password has been updated. Login ID: ${student.loginId} | New Password: ${res.newPassword} | Portal: ${siteUrl}/student/login`;
+        setResetResult({
+          password: res.newPassword,
+          whatsappMsg: waMsg,
+          emailedTo: studentEmail,
+        });
+        setShowPasswordModal(true);
+      } else {
+        alert(res?.error || "Failed to reset password and email.");
+      }
+    } catch (err) {
+      alert(err?.message || "An unexpected error occurred.");
     } finally {
       setResetSubmitting(false);
     }
@@ -264,6 +299,16 @@ export default function PortalStudentDetailView({
             </Button>
 
             <Button
+              variant="yellow"
+              size="sm"
+              onClick={handleResetPasswordAndEmail}
+              disabled={resetSubmitting}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Reset password &amp; email</span>
+            </Button>
+
+            <Button
               variant="outline"
               size="sm"
               onClick={handleLogoutAll}
@@ -314,6 +359,16 @@ export default function PortalStudentDetailView({
                   onChange={(e) => setPhone(e.target.value)}
                   className="portal-input"
                   placeholder="9876543210"
+                />
+              </FormField>
+
+              <FormField label="Email Address">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="portal-input"
+                  placeholder="student@example.com"
                 />
               </FormField>
 
@@ -543,12 +598,19 @@ export default function PortalStudentDetailView({
         {resetResult ? (
           <div className="space-y-4 pt-2">
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
-              <div className="flex items-center gap-2 font-bold text-sm text-emerald-800 mb-1">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Password Reset Successfully</span>
+              <div className="flex items-center justify-between font-bold text-sm text-emerald-800 mb-1">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Password Reset Successfully</span>
+                </div>
+                {resetResult.emailedTo && (
+                  <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                    Emailed to {resetResult.emailedTo}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-emerald-700">
-                Provide these credentials to the student:
+                Shown once only. Provide these credentials to the student:
               </p>
               <div className="mt-3 flex items-center justify-between p-2.5 bg-white rounded-lg border border-emerald-200">
                 <span className="font-mono text-sm font-bold text-emerald-900">{resetResult.password}</span>

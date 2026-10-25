@@ -52,6 +52,7 @@ export function generateReadablePassword() {
 export async function getStudentsList({
   search = "",
   status = "",
+  noEmail = false,
   page = 1,
   limit = 20,
 } = {}) {
@@ -62,13 +63,24 @@ export async function getStudentsList({
     query.status = status;
   }
 
+  if (noEmail) {
+    query.$or = [{ email: { $exists: false } }, { email: "" }, { email: null }];
+  }
+
   if (search && search.trim()) {
     const s = search.trim();
-    query.$or = [
+    const searchFilter = [
       { name: { $regex: s, $options: "i" } },
       { loginId: { $regex: s, $options: "i" } },
       { phone: { $regex: s, $options: "i" } },
+      { email: { $regex: s, $options: "i" } },
     ];
+    if (query.$or) {
+      query.$and = [{ $or: query.$or }, { $or: searchFilter }];
+      delete query.$or;
+    } else {
+      query.$or = searchFilter;
+    }
   }
 
   const skip = (page - 1) * limit;
@@ -132,6 +144,7 @@ export async function createStudent(
   {
     name,
     phone = "",
+    email = "",
     className = "12",
     school = "",
     loginId,
@@ -165,6 +178,7 @@ export async function createStudent(
     className: className || "12",
     school: (school || "").trim(),
     phone: phone ? phone.trim() : "",
+    email: email ? email.trim().toLowerCase() : "",
     loginId: normalizedLoginId,
     passwordHash,
     deviceLimit: Math.min(Math.max(deviceLimit || 1, 1), 3),
@@ -252,6 +266,7 @@ export async function createStudent(
       loginId: student.loginId,
       className: student.className,
       phone: student.phone,
+      email: student.email,
     },
     rawPassword: password,
     courseTitles,
@@ -263,7 +278,7 @@ export async function createStudent(
 /**
  * Updates student profile details.
  */
-export async function updateStudentProfile(studentId, { name, phone }, adminId) {
+export async function updateStudentProfile(studentId, { name, phone, email }, adminId) {
   await connectDB();
   const student = await User.findById(studentId);
   if (!student || student.role !== "student") {
@@ -272,6 +287,9 @@ export async function updateStudentProfile(studentId, { name, phone }, adminId) 
 
   student.name = (name || "").trim();
   student.phone = (phone || "").trim();
+  if (data.email !== undefined) {
+    student.email = (data.email || "").trim().toLowerCase();
+  }
   await student.save();
 
   await logAuditEvent({
@@ -279,7 +297,7 @@ export async function updateStudentProfile(studentId, { name, phone }, adminId) 
     action: "student.profile_updated",
     targetType: "student",
     targetId: studentId.toString(),
-    meta: { name: student.name, phone: student.phone },
+    meta: { name: student.name, phone: student.phone, email: student.email },
   });
 
   return { success: true };
@@ -368,6 +386,95 @@ export async function adminResetPassword(
   });
 
   return { success: true };
+}
+
+/**
+ * Admin resets student's password and emails the new credentials.
+ * Shows the generated password once to the admin.
+ */
+export async function resetStudentPasswordAndEmail(
+  studentId,
+  revokeSessions = true,
+  adminId
+) {
+  await connectDB();
+  const student = await User.findById(studentId);
+  if (!student || student.role !== "student") {
+    throw new Error("Student not found.");
+  }
+
+  if (!student.email) {
+    throw new Error("Student does not have an email address configured.");
+  }
+
+  const { Course } = await import("../db/models/Course.js");
+  const { renderCredentialsTemplate } = await import("../email/templates/credentials.js");
+  const { sendEmail } = await import("../email/emailService.js");
+
+  const newPassword = generateReadablePassword();
+  const passwordHash = await hashPassword(newPassword);
+  student.passwordHash = passwordHash;
+  await student.save();
+
+  if (revokeSessions) {
+    await Session.deleteMany({ userId: studentId });
+  }
+
+  // Fetch active enrollments with course titles
+  const enrollments = await Enrollment.find({
+    userId: student._id,
+    status: "active",
+  }).lean();
+
+  const courseIds = enrollments.map((e) => e.courseId);
+  const courses = await Course.find({ _id: { $in: courseIds } })
+    .select("title")
+    .lean();
+
+  const coursesWithDates = enrollments.map((e) => {
+    const c = courses.find((x) => x._id.toString() === e.courseId.toString());
+    return {
+      title: c?.title || "Enrolled Course",
+      validUntil: e.expiresAt,
+    };
+  });
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+  const { subject, html, text } = renderCredentialsTemplate({
+    studentName: student.name,
+    loginId: student.loginId,
+    password: newPassword,
+    loginUrl: `${siteUrl}/student/login`,
+    courses: coursesWithDates,
+  });
+
+  const sendResult = await sendEmail({
+    to: student.email,
+    subject,
+    html,
+    text,
+    kind: "credentials",
+    studentId: student._id,
+    createdBy: adminId,
+  });
+
+  await logAuditEvent({
+    actorId: adminId,
+    action: "student.password_reset_and_emailed",
+    targetType: "student",
+    targetId: studentId.toString(),
+    meta: {
+      sessionsRevoked: revokeSessions,
+      emailSent: sendResult.success,
+      toEmail: student.email,
+    },
+  });
+
+  return {
+    success: true,
+    newPassword,
+    emailResult: sendResult,
+  };
 }
 
 /**
