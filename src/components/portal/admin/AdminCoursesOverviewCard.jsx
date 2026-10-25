@@ -69,7 +69,7 @@ export default function AdminCoursesOverviewCard({ courses = [] }) {
         </div>
       ) : (
         <div className="text-center py-6 text-xs text-[#6B7280]">
-          No courses created yet.
+          No courses yet - add your first course.
         </div>
       )}
     </div>

@@ -33,6 +33,16 @@ const settingsSchema = new mongoose.Schema(
       default: "₹5,100 Cash Reward Target",
       trim: true,
     },
+    allowStudentPasswordChange: {
+      type: Boolean,
+      default: true,
+    },
+    websiteNumbers: {
+      studentsMentored: { type: String, default: "", trim: true },
+      boardSuccessRate: { type: String, default: "", trim: true },
+      testsEvaluated: { type: String, default: "", trim: true },
+      recordedLectures: { type: String, default: "", trim: true },
+    },
   },
   {
     timestamps: true,

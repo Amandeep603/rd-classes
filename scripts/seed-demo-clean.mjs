@@ -27,8 +27,9 @@ if (!MONGODB_URI) {
 }
 
 async function cleanDemo() {
-  console.log("Connecting to MongoDB to clean demo data...");
   await mongoose.connect(MONGODB_URI);
+  const dbName = mongoose.connection.name;
+  console.log(`Connected database name: ${dbName}`);
 
   const {
     User,
@@ -43,24 +44,31 @@ async function cleanDemo() {
     DeviceRequest,
   } = await import("../src/server/db/models/index.js");
 
-  const demoLogins = [
-    "tanvi.agarwal",
-    "vardaan.agarwal",
-    "kunal.sethi",
-    "aditi.prakash",
-  ];
+  // seed:demo:clean deletes ONLY documents with demo: true
+  const resUsers = await User.deleteMany({ demo: true });
+  const resDevices = await Device.deleteMany({ demo: true });
+  const resRequests = await DeviceRequest.deleteMany({ demo: true });
+  const resEnrollments = await Enrollment.deleteMany({ demo: true });
+  const resProgress = await Progress.deleteMany({ demo: true });
+  const resAnnouncements = await Announcement.deleteMany({ demo: true });
+  const resTests = await Test.deleteMany({ demo: true });
+  const resTestResults = await TestResult.deleteMany({ demo: true });
+  const resLectures = await Lecture.deleteMany({ demo: true });
+  const resCourses = await Course.deleteMany({ demo: true });
 
-  const demoUsers = await User.find({ loginId: { $in: demoLogins } });
-  const demoUserIds = demoUsers.map((u) => u._id);
+  console.log("Demo documents deleted (demo: true):", {
+    users: resUsers.deletedCount,
+    devices: resDevices.deletedCount,
+    deviceRequests: resRequests.deletedCount,
+    enrollments: resEnrollments.deletedCount,
+    progress: resProgress.deletedCount,
+    announcements: resAnnouncements.deletedCount,
+    tests: resTests.deletedCount,
+    testResults: resTestResults.deletedCount,
+    lectures: resLectures.deletedCount,
+    courses: resCourses.deletedCount,
+  });
 
-  await Enrollment.deleteMany({ userId: { $in: demoUserIds } });
-  await Progress.deleteMany({ userId: { $in: demoUserIds } });
-  await Device.deleteMany({ userId: { $in: demoUserIds } });
-  await DeviceRequest.deleteMany({ userId: { $in: demoUserIds } });
-  await TestResult.deleteMany({ userId: { $in: demoUserIds } });
-  await User.deleteMany({ _id: { $in: demoUserIds } });
-
-  console.log("Demo data cleaned successfully.");
   await mongoose.disconnect();
 }
 

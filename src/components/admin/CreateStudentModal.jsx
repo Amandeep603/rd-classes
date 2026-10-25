@@ -186,7 +186,7 @@ export default function CreateStudentModal({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Vardaan Agarwal"
+                    placeholder="e.g. Student Name"
                     className="w-full bg-[#1A1A1E] border border-[#2D2D35] focus:border-[#FFB800] rounded-xl px-3.5 py-2 text-xs text-white outline-none"
                   />
                 </div>

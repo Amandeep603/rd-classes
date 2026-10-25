@@ -53,6 +53,11 @@ const testSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    demo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

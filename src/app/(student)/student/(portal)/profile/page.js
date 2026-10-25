@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Device } from "@/server/db/models/Device.js";
 import { User } from "@/server/db/models/User.js";
+import { Settings } from "@/server/db/models/Settings.js";
 import ChangePasswordCard from "@/components/portal/student/ChangePasswordCard";
 import {
   User as UserIcon,
@@ -13,6 +14,7 @@ import {
   School,
   MessageCircle,
   Clock,
+  ShieldAlert,
 } from "lucide-react";
 import { SITE_CONFIG } from "@/constants/site";
 
@@ -27,10 +29,13 @@ export default async function StudentProfilePage() {
   if (!auth?.user) return null;
   await connectDB();
 
-  const user = await User.findById(auth.user._id).lean();
-  const devices = await Device.find({ userId: auth.user._id })
-    .sort({ lastUsedAt: -1 })
-    .lean();
+  const [user, settings, devices] = await Promise.all([
+    User.findById(auth.user._id).lean(),
+    Settings.findOne().lean(),
+    Device.find({ userId: auth.user._id }).sort({ lastUsedAt: -1 }).lean(),
+  ]);
+
+  const allowChangePassword = settings?.allowStudentPasswordChange !== false;
 
   const currentDeviceId = auth.session.deviceId;
 
@@ -80,7 +85,7 @@ export default async function StudentProfilePage() {
                   Student Code
                 </span>
                 <span className="font-mono font-bold text-[#111827] bg-neutral-100 px-2.5 py-1 rounded-lg">
-                  {user.studentCode || "RD-2025-001"}
+                  {user.studentCode || "—"}
                 </span>
               </div>
 
@@ -136,7 +141,19 @@ export default async function StudentProfilePage() {
 
         {/* Right Column: Change Password */}
         <div className="lg:col-span-7">
-          <ChangePasswordCard />
+          {allowChangePassword ? (
+            <ChangePasswordCard />
+          ) : (
+            <div className="rounded-[22px] border border-black/5 bg-white p-6 sm:p-8 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)] space-y-3">
+              <div className="flex items-center gap-2.5 text-amber-700 font-extrabold text-sm">
+                <ShieldAlert className="h-5 w-5" />
+                <span>Password Change Managed by Admin</span>
+              </div>
+              <p className="text-xs text-[#6B7280] leading-relaxed">
+                Direct password changes for students are currently disabled by RD Classes management. If you need your password reset or updated, please request Ronak Sir or the administration directly.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

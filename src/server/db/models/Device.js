@@ -39,6 +39,11 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    demo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

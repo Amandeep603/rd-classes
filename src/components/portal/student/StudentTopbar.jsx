@@ -38,7 +38,7 @@ export default function StudentTopbar({ student, subtitle }) {
           </span>
         </div>
         <p className="mt-1 text-[15px] font-medium text-[#6B7280]">
-          {subtitle || "Comprehensive Accountancy (Full Syllabus)"}
+          {subtitle || (student?.className ? `Class ${student.className} Accountancy` : "Accountancy")}
         </p>
       </div>
 

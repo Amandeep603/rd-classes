@@ -40,6 +40,11 @@ const progressSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    demo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

@@ -380,6 +380,12 @@ export async function studentChangePassword({
   currentSessionId,
 }) {
   await connectDB();
+  const { Settings } = await import("../db/models/Settings.js");
+  const settings = await Settings.findOne().lean();
+  if (settings && settings.allowStudentPasswordChange === false) {
+    throw new Error("Password changes by students are disabled by the administrator.");
+  }
+
   const student = await User.findById(userId);
   if (!student) {
     throw new Error("User not found.");

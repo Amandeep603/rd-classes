@@ -242,7 +242,7 @@ export default function AdminDeviceApprovalCard({
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-black/10 p-8 text-center text-sm text-[#6B7280]">
-          No pending device requests at this time. All clear!
+          No device requests yet.
         </div>
       )}
 

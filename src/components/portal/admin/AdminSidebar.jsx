@@ -154,11 +154,11 @@ export default function AdminSidebar({ initialPendingCount = 0, adminUser }) {
       <div className="rounded-[18px] bg-white/6 p-3 border border-white/8 backdrop-blur-xs flex items-center justify-between">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#FFD54A] to-[#FFC21A] text-neutral-950 font-bold text-sm shrink-0">
-            RD
+            {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : "A"}
           </div>
           <div className="truncate">
             <div className="text-sm font-bold text-white truncate">
-              {adminUser?.name || "Ronak Dugar"}
+              {adminUser?.name || "Administrator"}
             </div>
             <div className="text-xs text-slate-400">
               Administrator

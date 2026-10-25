@@ -53,6 +53,11 @@ const deviceRequestSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    demo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

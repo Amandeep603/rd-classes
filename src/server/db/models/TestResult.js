@@ -26,6 +26,11 @@ const testResultSchema = new mongoose.Schema(
       min: 1,
       default: 100,
     },
+    demo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

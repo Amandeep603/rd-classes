@@ -113,7 +113,7 @@ export default function StudentLoginForm() {
                 Welcome back
               </h1>
               <p className="mt-1.5 text-sm text-[#6B7280]">
-                Login with the ID and password shared by RD Classes
+                Your login ID and password are provided by RD Classes
               </p>
             </div>
 
