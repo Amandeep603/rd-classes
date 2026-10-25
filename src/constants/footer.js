@@ -1,12 +1,12 @@
 import { getWhatsAppUrl } from "@/lib/whatsapp";
 
 export const FOOTER_COURSES = [
-  { label: "Class 12 Accountancy (Full Year)", href: "#programs" },
-  { label: "Class 11 Accountancy (Foundation)", href: "#programs" },
-  { label: "Class 12 Crash Course", href: "#programs" },
-  { label: "Class 11 Crash Course", href: "#programs" },
-  { label: "Online Course (136 Lectures)", href: "#portal" },
-  { label: "Board Mock Test Series", href: "#programs" },
+  { label: "Class 12 Accountancy (Full Year)", href: "/courses/class-12-accountancy-full-year" },
+  { label: "Class 11 Accountancy Foundation", href: "/courses/class-11-accountancy-foundation" },
+  { label: "Class 12 Crash Course", href: "/courses/class-12-accountancy-crash-course" },
+  { label: "Class 12 Recorded Portal", href: "/courses/class-12-accountancy-recorded-portal" },
+  { label: "Class 12 Mock Test Series", href: "/courses/class-12-mock-test-series" },
+  { label: "Class 11 Crash Course", href: "/courses/class-11-accountancy-crash-course" },
 ];
 
 export const FOOTER_QUICK_LINKS = [

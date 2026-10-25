@@ -5,21 +5,25 @@ import InViewSection from "@/components/ui/InViewSection";
 import CourseFilters, { CourseFilterProvider } from "./CourseFilters";
 import CourseGrid from "./CourseGrid";
 import { COURSE_FILTERS } from "@/constants/courseFilters";
-import { COURSES } from "@/constants/courses";
+import { getCachedFeaturedCourses } from "@/server/services/courseService";
 
 /**
- * Section B: Explore Popular Accountancy Courses
+ * Section B: Explore Popular Accountancy Courses (Featured Batches)
  * id="courses"
- * Seamless cream background.
- * Desktop: Padding top 72u, bottom 88u. Container padding-inline 70u.
- * Badge: "FEATURED BATCHES"
- * H2: "Explore Popular Accountancy Courses" (54u, highlighted Courses)
+ * Prerendered with "use cache" and cacheTag("courses") via getCachedFeaturedCourses().
+ * Hides completely when no published && featured courses exist.
  */
-export default function FeaturedCoursesSection() {
+export default async function FeaturedCoursesSection() {
+  const featuredCourses = await getCachedFeaturedCourses();
+
+  if (!featuredCourses || featuredCourses.length === 0) {
+    return null;
+  }
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    itemListElement: COURSES.map((course, index) => ({
+    itemListElement: featuredCourses.map((course, index) => ({
       "@type": "ListItem",
       position: index + 1,
       item: {
@@ -77,7 +81,7 @@ export default function FeaturedCoursesSection() {
         </Reveal>
 
         {/* Filter Tabs + Course Grid with Client Context */}
-        <CourseFilterProvider initialFilter="all" initialCount={COURSES.length}>
+        <CourseFilterProvider initialFilter="all" initialCount={featuredCourses.length}>
           {/* Filter Tabs: Gap H2 -> tabs: 34u */}
           <div
             className="w-full"
@@ -98,7 +102,7 @@ export default function FeaturedCoursesSection() {
             }}
           >
             <Reveal delay={200} className="w-full">
-              <CourseGrid courses={COURSES} />
+              <CourseGrid courses={featuredCourses} />
             </Reveal>
           </div>
         </CourseFilterProvider>
