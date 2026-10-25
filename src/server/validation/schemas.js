@@ -82,6 +82,39 @@ export const courseSchema = z
     published: z.boolean().optional().default(false),
     featured: z.boolean().optional().default(false),
     order: z.coerce.number().optional().default(0),
+    about: z.string().optional().default(""),
+    highlights: z
+      .array(
+        z.object({
+          icon: z.string().default("video"),
+          text: z.string().default(""),
+        })
+      )
+      .max(4)
+      .optional()
+      .default([]),
+    includes: z
+      .array(
+        z.object({
+          icon: z.string().default("check"),
+          text: z.string().default(""),
+        })
+      )
+      .max(8)
+      .optional()
+      .default([]),
+    faqs: z
+      .array(
+        z.object({
+          q: z.string().default(""),
+          a: z.string().default(""),
+        })
+      )
+      .optional()
+      .default([]),
+    facultyBullets: z.array(z.string()).max(4).optional().default([]),
+    facultyProfileUrl: z.string().optional().default(""),
+    heroIllustration: z.enum(["books-subjects", "books-light"]).optional().default("books-subjects"),
   })
   .superRefine((data, ctx) => {
     if (data.published) {

@@ -131,6 +131,45 @@ const courseSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    about: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    highlights: [
+      {
+        icon: { type: String, default: "video" },
+        text: { type: String, default: "" },
+      },
+    ],
+    includes: [
+      {
+        icon: { type: String, default: "check" },
+        text: { type: String, default: "" },
+      },
+    ],
+    faqs: [
+      {
+        q: { type: String, default: "" },
+        a: { type: String, default: "" },
+      },
+    ],
+    facultyBullets: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    facultyProfileUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    heroIllustration: {
+      type: String,
+      enum: ["books-subjects", "books-light"],
+      default: "books-subjects",
+    },
   },
   {
     timestamps: true,

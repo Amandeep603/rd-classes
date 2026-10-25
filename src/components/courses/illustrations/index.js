@@ -5,6 +5,8 @@ import TargetIllustration from "./TargetIllustration";
 import LaptopPlay from "./LaptopPlay";
 import ChecklistClock from "./ChecklistClock";
 import NotebookRed from "./NotebookRed";
+import BooksSubjects from "./BooksSubjects";
+import BooksLight from "./BooksLight";
 
 export {
   BooksBlue,
@@ -14,6 +16,8 @@ export {
   LaptopPlay,
   ChecklistClock,
   NotebookRed,
+  BooksSubjects,
+  BooksLight,
 };
 
 export const COURSE_ILLUSTRATIONS = {
@@ -24,6 +28,8 @@ export const COURSE_ILLUSTRATIONS = {
   "laptop-play": LaptopPlay,
   "checklist-clock": ChecklistClock,
   "notebook-red": NotebookRed,
+  "books-subjects": BooksSubjects,
+  "books-light": BooksLight,
 };
 
 export default function CourseIllustration({

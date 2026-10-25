@@ -271,4 +271,58 @@ describe("Courses Architecture, Validation & Isolation Test Suite", () => {
     const courses = await getStudentEnrolledCourses(student._id);
     expect(courses.length).toBe(0);
   });
+
+  it("6. getCachedCourseLectures scrubs vimeoId for non-preview lectures and retains for preview", async () => {
+    const course = await Course.create({
+      title: "Test Course Details",
+      slug: "test-course-details",
+      category: "class12",
+      tone: "sky",
+      published: true,
+      description: "Sample course description for testing",
+      about: "Deep dive accountancy curriculum",
+      heroIllustration: "books-subjects",
+      highlights: [{ icon: "video", text: "100 HD Lectures" }],
+      includes: [{ icon: "notes", text: "Revision PDF" }],
+      faqs: [{ q: "Is offline access supported?", a: "Yes, on any device." }],
+      facultyBullets: ["10+ years experience"],
+    });
+
+    // Create 2 lectures: 1 preview, 1 private
+    await Lecture.create({
+      courseId: course._id,
+      title: "Preview Chapter 1",
+      section: "Introduction",
+      durationSec: 1200,
+      order: 1,
+      published: true,
+      isPreview: true,
+      vimeoId: "vimeo_preview_12345",
+    });
+
+    await Lecture.create({
+      courseId: course._id,
+      title: "Private Chapter 2",
+      section: "Introduction",
+      durationSec: 1800,
+      order: 2,
+      published: true,
+      isPreview: false,
+      vimeoId: "vimeo_private_secret_99999",
+    });
+
+    const { getCachedCourseLectures } = await import("../src/server/services/courseService.js");
+    const lectures = await getCachedCourseLectures(course._id);
+
+    expect(lectures.length).toBe(2);
+
+    const previewLec = lectures.find((l) => l.title === "Preview Chapter 1");
+    expect(previewLec.isPreview).toBe(true);
+    expect(previewLec.vimeoId).toBe("vimeo_preview_12345");
+
+    const privateLec = lectures.find((l) => l.title === "Private Chapter 2");
+    expect(privateLec.isPreview).toBe(false);
+    expect(privateLec.vimeoId).toBeUndefined();
+  });
 });
+

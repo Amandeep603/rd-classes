@@ -137,6 +137,58 @@ async function migrateCourses() {
       changed = true;
     }
 
+    if (!c.about) {
+      c.about = c.description || "Comprehensive coaching program designed to master Accountancy with concept clarity and board-focused preparation.";
+      changed = true;
+    }
+
+    if (!c.highlights || c.highlights.length === 0) {
+      c.highlights = [
+        { icon: "video", text: c.metaText || "136 HD Lectures" },
+        { icon: "notes", text: "Chapter-wise Notes" },
+        { icon: "practice", text: "Practice Questions" },
+        { icon: "globe", text: "Bilingual (Hindi + English)" },
+      ];
+      changed = true;
+    }
+
+    if (!c.includes || c.includes.length === 0) {
+      c.includes = [
+        { icon: "video", text: "136 HD Video Lectures" },
+        { icon: "notes", text: "Chapter-wise Notes (PDF)" },
+        { icon: "practice", text: "Practice Questions with Solutions" },
+        { icon: "tests", text: "Board-style Mock Tests" },
+        { icon: "papers", text: "Previous Year Question Papers" },
+        { icon: "globe", text: "Bilingual (Hindi + English)" },
+        { icon: "infinity", text: "Lifetime Access" },
+      ];
+      changed = true;
+    }
+
+    if (!c.faqs || c.faqs.length === 0) {
+      c.faqs = [
+        { q: "Who is this course suitable for?", a: "Designed for CBSE students targeting 95+ in Accountancy." },
+        { q: "Can I watch lectures offline or on mobile?", a: "Yes, you can access all high-definition lectures on mobile or desktop anytime." },
+        { q: "Are tests evaluated personally by Ronak Sir?", a: "Yes, weekly mock tests include handwritten evaluation and doubt clearance." },
+      ];
+      changed = true;
+    }
+
+    if (!c.facultyBullets || c.facultyBullets.length === 0) {
+      c.facultyBullets = [
+        "10+ years of teaching experience",
+        "Specialized in Class 11 & 12 Accountancy",
+        "Concept-based and exam-oriented approach",
+        "Trusted by thousands of students",
+      ];
+      changed = true;
+    }
+
+    if (!c.heroIllustration) {
+      c.heroIllustration = "books-subjects";
+      changed = true;
+    }
+
     if (changed) {
       await c.save();
       updatedCount++;

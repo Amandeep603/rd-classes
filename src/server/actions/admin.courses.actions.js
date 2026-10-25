@@ -38,6 +38,41 @@ function parseCourseFormData(formData) {
     published: formData.get("published") === "true" || formData.get("published") === "on",
     featured: formData.get("featured") === "true" || formData.get("featured") === "on",
     order: formData.get("order") ? Number(formData.get("order")) : undefined,
+    about: formData.get("about")?.toString().trim() || "",
+    highlights: (() => {
+      try {
+        const val = formData.get("highlights");
+        return val ? JSON.parse(val.toString()) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    includes: (() => {
+      try {
+        const val = formData.get("includes");
+        return val ? JSON.parse(val.toString()) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    faqs: (() => {
+      try {
+        const val = formData.get("faqs");
+        return val ? JSON.parse(val.toString()) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    facultyBullets: (() => {
+      try {
+        const val = formData.get("facultyBullets");
+        return val ? JSON.parse(val.toString()) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    facultyProfileUrl: formData.get("facultyProfileUrl")?.toString().trim() || "",
+    heroIllustration: formData.get("heroIllustration")?.toString().trim() || "books-subjects",
   };
 }
 

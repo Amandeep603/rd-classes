@@ -95,9 +95,20 @@ export async function getCachedCourseLectures(courseId) {
     published: true,
   })
     .sort({ order: 1, createdAt: 1 })
-    .select("title section durationSec")
+    .select("title section durationSec order isPreview vimeoId")
     .lean();
-  return JSON.parse(JSON.stringify(lectures));
+
+  const sanitized = lectures.map((lec) => ({
+    _id: lec._id.toString(),
+    title: lec.title,
+    section: lec.section || "General",
+    durationSec: lec.durationSec || 0,
+    order: lec.order || 0,
+    isPreview: !!lec.isPreview,
+    vimeoId: lec.isPreview ? lec.vimeoId : undefined,
+  }));
+
+  return JSON.parse(JSON.stringify(sanitized));
 }
 
 /**
@@ -118,6 +129,57 @@ export async function getCachedWebsiteStats() {
       : {},
     publishedLecturesCount,
   };
+}
+
+/**
+ * Cached related courses (up to 3, same category first, then others).
+ */
+export async function getCachedRelatedCourses(courseId, category) {
+  "use cache";
+  cacheTag("courses");
+  cacheLife("max");
+  await connectDB();
+
+  const sameCategory = await Course.find({
+    _id: { $ne: courseId },
+    category,
+    published: true,
+  })
+    .sort({ order: 1, createdAt: 1 })
+    .limit(3)
+    .lean();
+
+  let related = [...sameCategory];
+  if (related.length < 3) {
+    const others = await Course.find({
+      _id: { $nin: [courseId, ...related.map((c) => c._id)] },
+      published: true,
+    })
+      .sort({ order: 1, createdAt: 1 })
+      .limit(3 - related.length)
+      .lean();
+    related = [...related, ...others];
+  }
+
+  const withLectureCounts = await Promise.all(
+    related.map(async (c) => {
+      const lectureCount = await Lecture.countDocuments({
+        courseId: c._id,
+        published: true,
+      });
+      return {
+        _id: c._id.toString(),
+        title: c.title,
+        subtitle: c.subtitle,
+        slug: c.slug,
+        category: c.category,
+        tone: c.tone,
+        lectureCount,
+      };
+    })
+  );
+
+  return JSON.parse(JSON.stringify(withLectureCounts));
 }
 
 /**
@@ -203,6 +265,13 @@ export async function createCourse(data, adminId) {
     published: !!data.published,
     featured: !!data.featured,
     order: data.order !== undefined && data.order !== null && !isNaN(Number(data.order)) ? Number(data.order) : nextOrder,
+    about: (data.about || "").trim(),
+    highlights: Array.isArray(data.highlights) ? data.highlights : [],
+    includes: Array.isArray(data.includes) ? data.includes : [],
+    faqs: Array.isArray(data.faqs) ? data.faqs : [],
+    facultyBullets: Array.isArray(data.facultyBullets) ? data.facultyBullets : [],
+    facultyProfileUrl: (data.facultyProfileUrl || "").trim(),
+    heroIllustration: data.heroIllustration || "books-subjects",
   });
 
   await logAuditEvent({
@@ -264,6 +333,13 @@ export async function updateCourse(courseId, data, adminId) {
   if (typeof data.published === "boolean") course.published = data.published;
   if (typeof data.featured === "boolean") course.featured = data.featured;
   if (typeof data.order === "number") course.order = data.order;
+  if (data.about !== undefined) course.about = (data.about || "").trim();
+  if (Array.isArray(data.highlights)) course.highlights = data.highlights;
+  if (Array.isArray(data.includes)) course.includes = data.includes;
+  if (Array.isArray(data.faqs)) course.faqs = data.faqs;
+  if (Array.isArray(data.facultyBullets)) course.facultyBullets = data.facultyBullets;
+  if (data.facultyProfileUrl !== undefined) course.facultyProfileUrl = (data.facultyProfileUrl || "").trim();
+  if (data.heroIllustration !== undefined) course.heroIllustration = data.heroIllustration;
 
   await course.save();
 
