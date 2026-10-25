@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Megaphone,
   Settings,
+  Activity,
   LogOut,
 } from "lucide-react";
 import { ADMIN_NAV_ITEMS } from "@/constants/adminNav";
@@ -27,13 +28,15 @@ const ICONS = {
   devices: Smartphone,
   courses: BookOpen,
   lectures: Video,
+  tests: FileCheck,
+  announcements: Megaphone,
+  settings: Settings,
+  activity: Activity,
   notes: FileText,
   toppers: Award,
   results: FileCheck,
   gallery: ImageIcon,
   reviews: MessageSquare,
-  announcements: Megaphone,
-  settings: Settings,
 };
 
 export default function AdminSidebar({ initialPendingCount = 0, adminUser }) {

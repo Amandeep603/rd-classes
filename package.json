@@ -15,7 +15,8 @@
     "seed:demo": "node --conditions=react-server scripts/seed-demo.mjs",
     "seed:demo:clean": "node --conditions=react-server scripts/seed-demo-clean.mjs",
     "db:migrate-courses": "node --conditions=react-server scripts/migrate-courses.mjs",
-    "seed:courses": "node --conditions=react-server scripts/seed-courses.mjs"
+    "seed:courses": "node --conditions=react-server scripts/seed-courses.mjs",
+    "test:crawl": "node --conditions=react-server scripts/e2e-crawl.mjs"
   },
 
   "dependencies": {

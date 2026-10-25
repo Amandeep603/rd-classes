@@ -5,6 +5,7 @@ import { Course } from "../db/models/Course.js";
 import { Lecture } from "../db/models/Lecture.js";
 import { Enrollment } from "../db/models/Enrollment.js";
 import { Progress } from "../db/models/Progress.js";
+import { Settings } from "../db/models/Settings.js";
 import { logAuditEvent } from "./audit.js";
 
 export function slugify(text) {
@@ -79,6 +80,44 @@ export async function getCachedCourseBySlug(slug) {
     published: true,
   }).lean();
   return course ? JSON.parse(JSON.stringify(course)) : null;
+}
+
+/**
+ * Cached public lecture outlines for a course.
+ */
+export async function getCachedCourseLectures(courseId) {
+  "use cache";
+  cacheTag("courses");
+  cacheLife("max");
+  await connectDB();
+  const lectures = await Lecture.find({
+    courseId,
+    published: true,
+  })
+    .sort({ order: 1, createdAt: 1 })
+    .select("title section durationSec")
+    .lean();
+  return JSON.parse(JSON.stringify(lectures));
+}
+
+/**
+ * Cached website numbers and lecture count for Home stats band.
+ */
+export async function getCachedWebsiteStats() {
+  "use cache";
+  cacheTag("courses");
+  cacheLife("max");
+  await connectDB();
+  const [settings, publishedLecturesCount] = await Promise.all([
+    Settings.findOne().select("websiteNumbers").lean(),
+    Lecture.countDocuments({ published: true }),
+  ]);
+  return {
+    websiteNumbers: settings?.websiteNumbers
+      ? JSON.parse(JSON.stringify(settings.websiteNumbers))
+      : {},
+    publishedLecturesCount,
+  };
 }
 
 /**

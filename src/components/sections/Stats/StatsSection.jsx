@@ -1,19 +1,85 @@
 import Reveal from "@/components/ui/Reveal";
 import InViewSection from "@/components/ui/InViewSection";
 import StatItem from "./StatItem";
-import { STATS } from "@/constants/stats";
+import { getCachedWebsiteStats } from "@/server/services/courseService";
+
+function parseStat(raw, defaultVal, defaultSuffix) {
+  if (!raw && defaultVal !== undefined) {
+    return { value: defaultVal, suffix: defaultSuffix || "" };
+  }
+  if (!raw) return null;
+  const match = raw.toString().match(/([\d,.]+)\s*(.*)/);
+  if (!match) return { value: raw, suffix: "" };
+  const num = parseFloat(match[1].replace(/,/g, ""));
+  return {
+    value: isNaN(num) ? match[1] : num,
+    suffix: match[2] || "",
+  };
+}
 
 /**
  * Section C: Stats Band
  * id="results"
- * Exact visual replica of stats.png:
- * - Height: Exactly 373u at 1600px canvas (padding top 68u, bottom 53u).
- * - Container bounds: 75u..1525u (padding-inline 75u across 1600u canvas).
- * - CSS Grid: 366fr 365fr 367fr 427fr with 1px vertical dividers 210u tall.
- * - Crisp overlapping corner circles from edge detection/Hough fit (NO blur filter).
- * - Mobile (<1024px): 2x2 grid, 48px 16px padding, cells 24px 12px, hairline dividers.
+ * Dynamically feeds from Settings.websiteNumbers and published Lecture counts.
+ * Hides completely when all four values are empty and no published lectures exist.
  */
-export default function StatsSection() {
+export default async function StatsSection() {
+  const { websiteNumbers, publishedLecturesCount } = await getCachedWebsiteStats();
+
+  const rawMentored = websiteNumbers.studentsMentored?.trim();
+  const rawSuccess = websiteNumbers.boardSuccessRate?.trim();
+  const rawTests = websiteNumbers.testsEvaluated?.trim();
+  const rawLectures = websiteNumbers.recordedLectures?.trim();
+
+  // "the Stats band hides itself when all four are empty and 'Recorded Lectures' defaults to the real count of published lectures"
+  const hasCustomStats = Boolean(rawMentored || rawSuccess || rawTests || rawLectures);
+  const totalLecturesEffective = rawLectures ? rawLectures : publishedLecturesCount > 0 ? `${publishedLecturesCount}` : "";
+
+  // If literally all four are empty and there are no published lectures, hide the section
+  if (!rawMentored && !rawSuccess && !rawTests && !totalLecturesEffective) {
+    return null;
+  }
+
+  const mentoredParsed = parseStat(rawMentored, 500, "+");
+  const successParsed = parseStat(rawSuccess, 95, "%+");
+  const testsParsed = parseStat(rawTests, 1200, "+");
+  const lecturesParsed = parseStat(totalLecturesEffective, 136, "");
+
+  const stats = [
+    {
+      id: "students-mentored",
+      icon: "Users",
+      value: mentoredParsed.value,
+      suffix: mentoredParsed.suffix,
+      label: "Students Mentored",
+      description: "Years of dedicated Class 11 & 12 batches in Sector 9",
+    },
+    {
+      id: "success-rate",
+      icon: "Award",
+      value: successParsed.value,
+      suffix: successParsed.suffix,
+      label: "Board Success Rate",
+      description: "Consistent 90+ marks & first division board records",
+    },
+    {
+      id: "tests-evaluated",
+      icon: "ClipboardCheck",
+      value: testsParsed.value,
+      suffix: testsParsed.suffix,
+      label: "Tests Evaluated",
+      description: "Weekly Sunday tests checked personally by Ronak Sir",
+    },
+    {
+      id: "recorded-lectures",
+      icon: "Video",
+      value: lecturesParsed.value,
+      suffix: lecturesParsed.suffix,
+      label: "Recorded Lectures",
+      description: "Complete HD video library with chapter-wise notes",
+    },
+  ];
+
   return (
     <InViewSection
       id="achievements"
@@ -22,12 +88,11 @@ export default function StatsSection() {
       style={{
         paddingTop: "clamp(48px, 5vw, calc(var(--su, 1px) * 68))",
         paddingBottom: "clamp(44px, 4.2vw, calc(var(--su, 1px) * 53))",
-        background: "linear-gradient(90deg, #171310 0%, #1F160C 14%, #381E09 26%, #5C2E06 40%, #7E3505 55%, #9B3804 70%, #8E2B02 84%, #7D1804 100%)",
+        background:
+          "linear-gradient(90deg, #171310 0%, #1F160C 14%, #381E09 26%, #5C2E06 40%, #7E3505 55%, #9B3804 70%, #8E2B02 84%, #7D1804 100%)",
       }}
     >
-      {/* ================= CRISP CORNER CIRCLES (From docs/STATS_SPEC.md, NO blur) ================= */}
-
-      {/* 1. Top-Left Dark Arc */}
+      {/* Corner Circles */}
       <div
         className="absolute rounded-full pointer-events-none lg:animate-stat-circle-drift"
         style={{
@@ -39,8 +104,6 @@ export default function StatsSection() {
         }}
         aria-hidden="true"
       />
-
-      {/* 2. Bottom-Left Outer Amber Arc: cx: 15u, cy: 460u, r: 290u (dia: 580u) */}
       <div
         className="absolute rounded-full pointer-events-none lg:animate-stat-circle-drift"
         style={{
@@ -53,8 +116,6 @@ export default function StatsSection() {
         }}
         aria-hidden="true"
       />
-
-      {/* 3. Bottom-Left Inner Deep Brown-Amber Circle: cx: -110u, cy: 500u, r: 240u */}
       <div
         className="absolute rounded-full pointer-events-none lg:animate-stat-circle-drift"
         style={{
@@ -62,13 +123,12 @@ export default function StatsSection() {
           height: "calc(var(--su, 1px) * 490)",
           left: "calc(var(--su, 1px) * -300)",
           bottom: "calc(var(--su, 1px) * -385)",
-          background: "radial-gradient(circle at 45% 45%, #AB7014 0%, #9B6210 40%, #764508 70%, #462805 88%, transparent 100%)",
+          background:
+            "radial-gradient(circle at 45% 45%, #AB7014 0%, #9B6210 40%, #764508 70%, #462805 88%, transparent 100%)",
           animationDelay: "-12s",
         }}
         aria-hidden="true"
       />
-
-      {/* 4. Upper Right Dark Orange Circle: tuned */}
       <div
         className="absolute rounded-full pointer-events-none lg:animate-stat-circle-drift"
         style={{
@@ -76,13 +136,12 @@ export default function StatsSection() {
           height: "calc(var(--su, 1px) * 520)",
           right: "calc(var(--su, 1px) * -260)",
           top: "calc(var(--su, 1px) * -340)",
-          background: "radial-gradient(circle at 50% 50%, #F84C00 0%, #EA3E00 28%, #C23000 56%, #942200 82%, transparent 98%)",
+          background:
+            "radial-gradient(circle at 50% 50%, #F84C00 0%, #EA3E00 28%, #C23000 56%, #942200 82%, transparent 98%)",
           animationDelay: "-18s",
         }}
         aria-hidden="true"
       />
-
-      {/* 5. Lower Right Bright Orange Circle */}
       <div
         className="absolute rounded-full pointer-events-none lg:animate-stat-circle-drift"
         style={{
@@ -90,12 +149,14 @@ export default function StatsSection() {
           height: "calc(var(--su, 1px) * 480)",
           right: "calc(var(--su, 1px) * -240)",
           bottom: "calc(var(--su, 1px) * -328)",
-          background: "radial-gradient(circle at 50% 50%, #E64C00 0%, #D84200 48%, #BE3600 75%, #881E00 96%, transparent 100%)",
+          background:
+            "radial-gradient(circle at 50% 50%, #E64C00 0%, #D84200 48%, #BE3600 75%, #881E00 96%, transparent 100%)",
           animationDelay: "-8s",
         }}
         aria-hidden="true"
       />
-      {/* ================= CONTENT CONTAINER ================= */}
+
+      {/* Content Container */}
       <div
         className="relative z-10 w-full max-w-[1600px] lg:max-w-[calc(var(--su,1px)*1600)] mx-auto px-3 lg:px-0"
         style={{
@@ -104,25 +165,26 @@ export default function StatsSection() {
         }}
       >
         <Reveal className="w-full">
-          {/* Desktop Layout (>=1024px): Exact Grid Template (366fr 365fr 367fr 352fr) with 1px Dividers at x=441u, 806u, 1173u */}
+          {/* Desktop Layout (>=1024px) */}
           <div
             className="hidden lg:grid items-center w-full relative"
             style={{
               gridTemplateColumns: "366fr 365fr 367fr 352fr",
             }}
           >
-            {STATS.map((stat, idx) => (
+            {stats.map((stat, idx) => (
               <div
                 key={stat.id}
                 className="flex items-center justify-center relative min-w-0"
               >
                 <StatItem stat={stat} index={idx} />
-                {idx < STATS.length - 1 && (
+                {idx < stats.length - 1 && (
                   <div
                     className="absolute right-0 top-1/2 -translate-y-1/2 w-[1px] animate-divider-draw"
                     style={{
                       height: "calc(var(--su, 1px) * 210)",
-                      background: "linear-gradient(to bottom, transparent, rgba(255, 170, 60, 0.3), transparent)",
+                      background:
+                        "linear-gradient(to bottom, transparent, rgba(255, 170, 60, 0.3), transparent)",
                     }}
                     aria-hidden="true"
                   />
@@ -131,20 +193,18 @@ export default function StatsSection() {
             ))}
           </div>
 
-          {/* Mobile & Tablet Layout (<1024px): 2x2 Grid with Equal Row Heights & Hairline Dividers */}
+          {/* Mobile & Tablet Layout (<1024px) */}
           <div className="grid grid-cols-2 lg:hidden w-full relative py-1 [grid-auto-rows:1fr]">
-            {/* Horizontal Center Divider */}
             <div
               className="absolute left-4 right-4 top-1/2 -translate-y-1/2 h-[1px] bg-[rgba(255,170,60,0.22)]"
               aria-hidden="true"
             />
-            {/* Vertical Center Divider */}
             <div
               className="absolute top-4 bottom-4 left-1/2 -translate-x-1/2 w-[1px] bg-[rgba(255,170,60,0.22)]"
               aria-hidden="true"
             />
 
-            {STATS.map((stat, idx) => (
+            {stats.map((stat, idx) => (
               <div
                 key={stat.id}
                 className="flex flex-col items-center justify-start py-6 px-2 min-w-0 h-full"

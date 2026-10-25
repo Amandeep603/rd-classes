@@ -41,6 +41,35 @@ export const adminNavItems = [
     enabled: true,
   },
   {
+    id: "tests",
+    label: "Tests",
+    href: "/admin/tests",
+    icon: "tests",
+    enabled: true,
+  },
+  {
+    id: "announcements",
+    label: "Announcements",
+    href: "/admin/announcements",
+    icon: "announcements",
+    enabled: true,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    href: "/admin/settings",
+    icon: "settings",
+    enabled: true,
+  },
+  {
+    id: "activity",
+    label: "Activity",
+    href: "/admin/activity",
+    icon: "activity",
+    enabled: true,
+  },
+  // Feature-gated modules (hidden behind flags until arrival in next prompts)
+  {
     id: "notes",
     label: "Notes",
     href: "/admin/notes",
@@ -76,25 +105,11 @@ export const adminNavItems = [
     enabled: false,
   },
   {
-    id: "announcements",
-    label: "Announcements",
-    href: "/admin/announcements",
-    icon: "announcements",
-    enabled: true,
-  },
-  {
-    id: "tests",
-    label: "Tests",
-    href: "/admin/tests",
-    icon: "tests",
-    enabled: true,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    href: "/admin/settings",
-    icon: "settings",
-    enabled: true,
+    id: "media",
+    label: "Media",
+    href: "/admin/media",
+    icon: "media",
+    enabled: false,
   },
 ];
 

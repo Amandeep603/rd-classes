@@ -15,14 +15,26 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import connectDB from "@/server/db/connect";
+import { Course } from "@/server/db/models/Course";
 import { Lecture } from "@/server/db/models/Lecture";
 import {
   getCachedCourseBySlug,
   getCachedPublicCourses,
+  getCachedCourseLectures,
 } from "@/server/services/courseService";
 import CourseIllustration from "@/components/courses/illustrations";
 import CourseCard from "@/components/courses/CourseCard";
 import { SITE_CONFIG } from "@/constants/site";
+
+export async function generateStaticParams() {
+  try {
+    await connectDB();
+    const courses = await Course.find({ published: true }).select("slug").lean();
+    return courses.map((c) => ({ slug: c.slug }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -65,15 +77,8 @@ export default async function CourseDetailPage({ params }) {
     notFound();
   }
 
-  await connectDB();
   // Fetch published lectures with ONLY public fields (title, section, durationSec)
-  const lectures = await Lecture.find({
-    courseId: course._id,
-    published: true,
-  })
-    .sort({ order: 1, createdAt: 1 })
-    .select("title section durationSec")
-    .lean();
+  const lectures = await getCachedCourseLectures(course._id);
 
   // Group lectures by section
   const sectionMap = {};

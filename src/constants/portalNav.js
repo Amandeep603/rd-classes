@@ -14,7 +14,7 @@ export const studentNavItems = [
   {
     id: "lectures",
     label: "Lectures",
-    href: "/student/courses",
+    href: "/student/lectures",
     icon: "lectures",
     enabled: true,
   },
@@ -23,7 +23,7 @@ export const studentNavItems = [
     label: "Notes",
     href: "/student/notes",
     icon: "notes",
-    enabled: false, // Feature-gated: enabled in future release
+    enabled: false, // Feature-gated: kept hidden until next prompt, no dead links
   },
   {
     id: "tests",

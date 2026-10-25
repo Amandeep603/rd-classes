@@ -7,14 +7,14 @@
 
 ## Progress Overview
 
-| Phase | Description | Status | Commit |
+| Phase | Description | Status | Commit / Details |
 |---|---|:---:|---|
 | **Phase 1** | Remove fake/demo data from admin & student portals, database guards, login helper & password flow cleanup | **DONE** | `3014c22` |
 | **Phase 2** | Course Model single source of truth, migration, indexes, zod validation, admin form with live preview, seed:courses | **DONE** | `f331a96` |
 | **Phase 3** | CourseCard component (home & catalog variants, tone tokens, illustrations, responsive hover, Home featured section) | **DONE** | `5310d25` |
-| **Phase 4** | Public `/courses` page (exact to reference, Caveat font hero, chips, search/sort URL params), `/courses/[slug]`, Navbar & footer updates | **DONE** | Pending commit |
-| **Phase 5** | Complete portal routes (`/student/lectures`, etc.), hidden flags for unready features, Settings fields, stats band, Playwright crawl | **IN PROGRESS** | Pending |
-| **Phase 6** | Visual comparison overlay tests, multi-viewport checks, vitest & Playwright E2E suites, static build verification | **PENDING** | Pending |
+| **Phase 4** | Public `/courses` page (exact to reference, Caveat font hero, chips, search/sort URL params), `/courses/[slug]`, Navbar & footer updates | **DONE** | `13e7ab7` |
+| **Phase 5** | Complete portal routes (`/student/lectures`), admin Activity page, hidden flags for unready features, Settings fields, stats band | **DONE** | `courses: phase 5` |
+| **Phase 6** | Verification reports (COMPARE_REPORT_COURSES.md, multi-viewport checks, vitest & crawl suites, static build verification) | **MISSING** | Next phase |
 
 ---
 
@@ -52,4 +52,13 @@
   - Built `/courses/[slug]` detail page with tone-tinted hero, curriculum preview by section (titles and durations only, zero exposed video IDs), "What's Included", and related courses.
   - Updated Navbar & MobileMenu: removed "Lectures", active underline on "Courses" using `usePathname()`.
   - Updated `sitemap.js` with dynamic published courses.
-- [ ] Phase 5: Build `/student/lectures`, hide unready portal nav items behind flags, expand Settings fields and connect Website Numbers to Home Stats band, Playwright crawl.
+- [x] Phase 5 completed (`courses: phase 5`):
+  - Added `/student/lectures` page and `StudentLecturesView.jsx` with search, course filter tabs, progress ticks, and "Resume" on last watched.
+  - Added Admin Activity log page (`/admin/activity`) backed by `getRecentAuditLogs` with table, search, event filters, and clean JSON serialization.
+  - Updated `src/constants/portalNav.js` pointing lectures to `/student/lectures` and keeping notes disabled.
+  - Updated `src/constants/adminNav.js` with Activity link and hidden feature flags for unready modules.
+  - Added redirect `/admin/devices` -> `/admin/device-requests` with `export const instant = false`.
+  - Added Settings fields `allowStudentPasswordChange` and `websiteNumbers` (students mentored, board success rate, tests evaluated, recorded lectures) to `PortalSettingsView.jsx` and server actions.
+  - Connected `StatsSection.jsx` to `getCachedWebsiteStats()` with fallback and auto-hide when empty.
+  - Built `scripts/e2e-crawl.mjs` to crawl all public, admin, and student routes.
+- [ ] Phase 6: Visual comparison overlay reports (`docs/COMPARE_REPORT_COURSES.md`), multi-viewport checks, vitest & Playwright E2E suites, static build verification.

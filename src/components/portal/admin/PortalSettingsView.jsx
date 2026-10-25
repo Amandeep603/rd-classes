@@ -10,6 +10,7 @@ import {
   Smartphone,
   Save,
   MessageCircle,
+  BarChart3,
 } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
@@ -39,6 +40,23 @@ export default function PortalSettingsView({
   const [rewardTargetText, setRewardTargetText] = useState(
     settings.rewardTargetText || "₹5,100 Cash Reward Target"
   );
+  const [allowStudentPasswordChange, setAllowStudentPasswordChange] = useState(
+    settings.allowStudentPasswordChange !== false
+  );
+
+  // Website numbers state
+  const [studentsMentored, setStudentsMentored] = useState(
+    settings.websiteNumbers?.studentsMentored || ""
+  );
+  const [boardSuccessRate, setBoardSuccessRate] = useState(
+    settings.websiteNumbers?.boardSuccessRate || ""
+  );
+  const [testsEvaluated, setTestsEvaluated] = useState(
+    settings.websiteNumbers?.testsEvaluated || ""
+  );
+  const [recordedLectures, setRecordedLectures] = useState(
+    settings.websiteNumbers?.recordedLectures || ""
+  );
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState("");
@@ -63,10 +81,17 @@ export default function PortalSettingsView({
         defaultDeviceLimit: Number(defaultDeviceLimit),
         watermarkEnabled,
         rewardTargetText,
+        allowStudentPasswordChange,
+        websiteNumbers: {
+          studentsMentored,
+          boardSuccessRate,
+          testsEvaluated,
+          recordedLectures,
+        },
       });
 
       if (res?.success) {
-        setSettingsMsg("Platform settings saved successfully.");
+        setSettingsMsg("Platform settings & website numbers saved successfully.");
       } else {
         setSettingsMsg(res?.error || "Failed to update settings.");
       }
@@ -102,7 +127,7 @@ export default function PortalSettingsView({
         setNewPassword("");
         setConfirmPassword("");
       } else {
-        setPasswordError(res?.error || "Failed to change password.");
+        setPasswordError(res?.error || "Failed to update password.");
       }
     } finally {
       setSavingPassword(false);
@@ -111,27 +136,27 @@ export default function PortalSettingsView({
 
   return (
     <div className="portal-page-container">
-      {/* Header bar */}
+      {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--portal-text-main)]">Portal & System Settings</h1>
+        <h1 className="text-2xl font-bold text-[var(--portal-text-main)]">Platform Settings</h1>
         <p className="text-xs text-[var(--portal-text-muted)] mt-1">
-          Configure security defaults, workspace identity, enquiry routes, and admin credentials.
+          Configure security policies, website numbers, and administrator account details.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Workspace & Portal Settings */}
+        {/* System & Security Preferences */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-5 pb-3 border-b border-[var(--portal-card-border)]">
-            <Settings className="w-5 h-5 text-[var(--portal-accent-yellow)]" />
+            <Smartphone className="w-5 h-5 text-amber-500" />
             <div>
-              <h2 className="text-base font-bold text-[var(--portal-text-main)]">Platform Preferences</h2>
-              <p className="text-xs text-[var(--portal-text-muted)]">Global configuration across student and admin portals.</p>
+              <h2 className="text-base font-bold text-[var(--portal-text-main)]">Workspace & Security</h2>
+              <p className="text-xs text-[var(--portal-text-muted)]">Device security and student portal settings.</p>
             </div>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-4">
-            <FormField label="Workspace Label" hint="Displayed in the admin header workspace pill.">
+            <FormField label="Workspace Name" hint="Shown in admin navigation header and sidebar.">
               <input
                 type="text"
                 value={workspaceName}
@@ -141,7 +166,7 @@ export default function PortalSettingsView({
               />
             </FormField>
 
-            <FormField label="Enquiry WhatsApp Number" hint="Used for WhatsApp enrolment links on login & profile.">
+            <FormField label="Official WhatsApp Number" hint="Used for automated student enquiry and login links.">
               <input
                 type="text"
                 value={whatsappNumber}
@@ -172,7 +197,7 @@ export default function PortalSettingsView({
               />
             </FormField>
 
-            <div className="pt-2">
+            <div className="space-y-3 pt-2">
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
                 <input
                   type="checkbox"
@@ -182,6 +207,71 @@ export default function PortalSettingsView({
                 />
                 <span>Enable dynamic floating student watermark on Vimeo player</span>
               </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
+                <input
+                  type="checkbox"
+                  checked={allowStudentPasswordChange}
+                  onChange={(e) => setAllowStudentPasswordChange(e.target.checked)}
+                  className="rounded accent-[var(--portal-accent-yellow)]"
+                />
+                <span>Allow students to change password from their Profile page</span>
+              </label>
+            </div>
+
+            {/* Website Numbers Sub-section */}
+            <div className="pt-4 border-t border-[var(--portal-card-border)] space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="w-4 h-4 text-amber-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--portal-text-main)]">
+                  Website Numbers (Home Stats Band)
+                </h3>
+              </div>
+              <p className="text-[11px] text-[var(--portal-text-muted)]">
+                Leave blank to auto-hide or default. Recorded lectures defaults to actual published count if empty.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField label="Students Mentored" hint="e.g. 1,200+">
+                  <input
+                    type="text"
+                    value={studentsMentored}
+                    onChange={(e) => setStudentsMentored(e.target.value)}
+                    className="portal-input text-xs"
+                    placeholder="e.g. 1,200+"
+                  />
+                </FormField>
+
+                <FormField label="Board Success Rate" hint="e.g. 98.4%">
+                  <input
+                    type="text"
+                    value={boardSuccessRate}
+                    onChange={(e) => setBoardSuccessRate(e.target.value)}
+                    className="portal-input text-xs"
+                    placeholder="e.g. 98.4%"
+                  />
+                </FormField>
+
+                <FormField label="Tests Evaluated" hint="e.g. 4,500+">
+                  <input
+                    type="text"
+                    value={testsEvaluated}
+                    onChange={(e) => setTestsEvaluated(e.target.value)}
+                    className="portal-input text-xs"
+                    placeholder="e.g. 4,500+"
+                  />
+                </FormField>
+
+                <FormField label="Recorded Lectures" hint="Leave blank for real count">
+                  <input
+                    type="text"
+                    value={recordedLectures}
+                    onChange={(e) => setRecordedLectures(e.target.value)}
+                    className="portal-input text-xs"
+                    placeholder="Auto or e.g. 136+"
+                  />
+                </FormField>
+              </div>
             </div>
 
             {settingsMsg && (
@@ -229,9 +319,8 @@ export default function PortalSettingsView({
               </div>
             )}
             {passwordMsg && (
-              <div className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>{passwordMsg}</span>
+              <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-xs border border-emerald-200">
+                {passwordMsg}
               </div>
             )}
 
@@ -240,17 +329,17 @@ export default function PortalSettingsView({
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="portal-input font-mono"
+                className="portal-input"
                 required
               />
             </FormField>
 
-            <FormField label="New Password" required hint="At least 8 characters.">
+            <FormField label="New Password" hint="Minimum 8 characters." required>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="portal-input font-mono"
+                className="portal-input"
                 required
               />
             </FormField>
@@ -260,15 +349,15 @@ export default function PortalSettingsView({
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="portal-input font-mono"
+                className="portal-input"
                 required
               />
             </FormField>
 
-            <div className="pt-3">
-              <Button type="submit" variant="yellow" size="sm" disabled={savingPassword}>
+            <div className="pt-2">
+              <Button type="submit" variant="primary" size="sm" disabled={savingPassword}>
                 <Key className="w-3.5 h-3.5" />
-                <span>{savingPassword ? "Updating..." : "Change Password"}</span>
+                <span>{savingPassword ? "Updating..." : "Update Password"}</span>
               </Button>
             </div>
           </form>

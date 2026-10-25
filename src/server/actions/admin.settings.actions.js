@@ -23,6 +23,17 @@ export async function updateSettingsAction(payload) {
   if (payload.defaultDeviceLimit) settings.defaultDeviceLimit = Number(payload.defaultDeviceLimit) || 1;
   if (typeof payload.watermarkEnabled === "boolean") settings.watermarkEnabled = payload.watermarkEnabled;
   if (payload.rewardTargetText) settings.rewardTargetText = payload.rewardTargetText.trim();
+  if (typeof payload.allowStudentPasswordChange === "boolean") {
+    settings.allowStudentPasswordChange = payload.allowStudentPasswordChange;
+  }
+  if (payload.websiteNumbers && typeof payload.websiteNumbers === "object") {
+    settings.websiteNumbers = {
+      studentsMentored: payload.websiteNumbers.studentsMentored?.toString().trim() || "",
+      boardSuccessRate: payload.websiteNumbers.boardSuccessRate?.toString().trim() || "",
+      testsEvaluated: payload.websiteNumbers.testsEvaluated?.toString().trim() || "",
+      recordedLectures: payload.websiteNumbers.recordedLectures?.toString().trim() || "",
+    };
+  }
 
   await settings.save();
 
@@ -34,9 +45,11 @@ export async function updateSettingsAction(payload) {
     meta: { workspaceName: settings.workspaceName },
   });
 
+  revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/settings");
   revalidatePath("/student");
+  revalidatePath("/student/profile");
 
   return { success: true, settings: JSON.parse(JSON.stringify(settings)) };
 }
