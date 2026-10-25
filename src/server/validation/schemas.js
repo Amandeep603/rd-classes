@@ -39,17 +39,99 @@ export const adminResetPasswordSchema = z.object({
   revokeSessions: z.boolean().optional().default(true),
 });
 
-export const courseCreateSchema = z.object({
-  title: z.string().min(2, "Title is required").max(150),
-  description: z.string().max(2000).optional().default(""),
-  thumbnail: z.string().url("Must be a valid URL").or(z.literal("")).optional().default(""),
-  published: z.boolean().optional().default(false),
-  order: z.coerce.number().optional().default(0),
-});
+export const courseSchema = z
+  .object({
+    title: z.string().min(2, "Title is required").max(150),
+    subtitle: z.string().max(100).optional().default(""),
+    slug: z
+      .string()
+      .min(2, "Slug must be at least 2 characters")
+      .max(100)
+      .regex(/^[a-z0-9-]+$/, "Slug must only contain lowercase letters, numbers, and hyphens"),
+    category: z.enum(["class12", "class11", "recorded", "test-series", "crash"]),
+    classLabel: z.string().max(50).optional().default("Class 12"),
+    badgeText: z.string().max(50).optional().default(""),
+    badgeVariant: z
+      .enum(["crown-navy", "yellow", "orange", "green", "purple", "red", ""])
+      .optional()
+      .default("crown-navy"),
+    tone: z.enum(["sky", "yellow", "orange", "green", "purple", "red"]),
+    illustration: z
+      .enum([
+        "books-blue",
+        "open-book",
+        "revision-plan",
+        "target",
+        "laptop-play",
+        "checklist-clock",
+        "notebook-red",
+        "",
+      ])
+      .optional()
+      .default("books-blue"),
+    illustrationAssetId: z.string().nullable().optional().default(null),
+    description: z.string().max(2000).optional().default(""),
+    metaIcon: z.enum(["video", "file", "clock"]).optional().default("video"),
+    metaText: z.string().max(100).optional().default(""),
+    language: z.string().max(50).optional().default("Bilingual"),
+    facultyName: z.string().max(100).optional().default("Ronak Dugar"),
+    facultyRole: z.string().max(100).optional().default("Lead Accountancy Faculty"),
+    facultyAvatarAssetId: z.string().nullable().optional().default(null),
+    whatsappText: z.string().max(500).optional().default(""),
+    thumbnail: z.string().optional().default(""),
+    published: z.boolean().optional().default(false),
+    featured: z.boolean().optional().default(false),
+    order: z.coerce.number().optional().default(0),
+  })
+  .superRefine((data, ctx) => {
+    if (data.published) {
+      if (!data.title || data.title.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["title"],
+          message: "Published courses require a title",
+        });
+      }
+      if (!data.slug || data.slug.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["slug"],
+          message: "Published courses require a slug",
+        });
+      }
+      if (!data.category) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["category"],
+          message: "Published courses require a category",
+        });
+      }
+      if (!data.tone) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tone"],
+          message: "Published courses require a tone",
+        });
+      }
+      if (!data.description || data.description.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["description"],
+          message: "Published courses require a description",
+        });
+      }
+      if (!data.metaText || data.metaText.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["metaText"],
+          message: "Published courses require metaText",
+        });
+      }
+    }
+  });
 
-export const courseUpdateSchema = courseCreateSchema.extend({
-  slug: z.string().min(2).max(100).optional(),
-});
+export const courseCreateSchema = courseSchema;
+export const courseUpdateSchema = courseSchema;
 
 export const lectureCreateSchema = z.object({
   courseId: z.string().min(1, "Course ID is required"),

@@ -13,7 +13,9 @@
     "seed:admin": "node --conditions=react-server scripts/seed-admin.mjs",
     "admin:unlock": "node --conditions=react-server scripts/admin-unlock.mjs",
     "seed:demo": "node --conditions=react-server scripts/seed-demo.mjs",
-    "seed:demo:clean": "node --conditions=react-server scripts/seed-demo-clean.mjs"
+    "seed:demo:clean": "node --conditions=react-server scripts/seed-demo-clean.mjs",
+    "db:migrate-courses": "node --conditions=react-server scripts/migrate-courses.mjs",
+    "seed:courses": "node --conditions=react-server scripts/seed-courses.mjs"
   },
 
   "dependencies": {

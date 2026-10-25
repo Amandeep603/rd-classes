@@ -24,8 +24,10 @@ import Avatar from "../ui/Avatar";
 import Tabs from "../ui/Tabs";
 import Dialog from "../ui/Dialog";
 import FormField from "../ui/FormField";
+import CourseForm from "./CourseForm.jsx";
 import {
   createLectureAction,
+
   updateLectureAction,
   deleteLectureAction,
   reorderLecturesAction,
@@ -373,65 +375,9 @@ export default function PortalCourseDetailView({
 
       {/* Tab 2: Course Settings */}
       {activeTab === "details" && (
-        <Card className="p-6 max-w-2xl">
-          <h2 className="text-base font-bold text-[var(--portal-text-main)] mb-4">Edit Course Information</h2>
-          <form onSubmit={handleSaveCourse} className="space-y-4">
-            <FormField label="Course Title" required>
-              <input
-                type="text"
-                value={courseTitle}
-                onChange={(e) => setCourseTitle(e.target.value)}
-                className="portal-input"
-                required
-              />
-            </FormField>
-
-            <FormField label="URL Slug" hint="Used in student portal route path.">
-              <input
-                type="text"
-                value={courseSlug}
-                onChange={(e) => setCourseSlug(e.target.value)}
-                className="portal-input font-mono text-xs"
-                required
-              />
-            </FormField>
-
-            <FormField label="Description">
-              <textarea
-                value={courseDescription}
-                onChange={(e) => setCourseDescription(e.target.value)}
-                className="portal-input min-h-[90px]"
-              />
-            </FormField>
-
-            <FormField label="Thumbnail URL">
-              <input
-                type="url"
-                value={courseThumbnail}
-                onChange={(e) => setCourseThumbnail(e.target.value)}
-                className="portal-input text-xs"
-              />
-            </FormField>
-
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)] pt-2">
-              <input
-                type="checkbox"
-                checked={coursePublished}
-                onChange={(e) => setCoursePublished(e.target.checked)}
-                className="rounded accent-[var(--portal-accent-yellow)]"
-              />
-              <span>Course is Published and Visible</span>
-            </label>
-
-            {courseMsg && (
-              <p className="text-xs font-semibold text-emerald-700">{courseMsg}</p>
-            )}
-
-            <Button type="submit" variant="yellow" size="sm" disabled={savingCourse}>
-              {savingCourse ? "Saving..." : "Save Course Details"}
-            </Button>
-          </form>
-        </Card>
+        <div className="max-w-5xl">
+          <CourseForm course={course} mode="edit" />
+        </div>
       )}
 
       {/* Tab 3: Enrolled Students */}

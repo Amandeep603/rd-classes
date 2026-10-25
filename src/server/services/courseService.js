@@ -1,4 +1,5 @@
 import "server-only";
+import { cacheTag, cacheLife } from "next/cache";
 import connectDB from "../db/connect.js";
 import { Course } from "../db/models/Course.js";
 import { Lecture } from "../db/models/Lecture.js";
@@ -16,6 +17,68 @@ export function slugify(text) {
     .replace(/\-\-+/g, "-")
     .replace(/^-+/, "")
     .replace(/-+$/, "");
+}
+
+/**
+ * Invalidates cached courses tag using Next 16 updateTag / revalidateTag API.
+ */
+export async function invalidateCoursesCache() {
+  try {
+    const cacheModule = await import("next/cache");
+    if (typeof cacheModule.updateTag === "function") {
+      cacheModule.updateTag("courses");
+    } else if (typeof cacheModule.revalidateTag === "function") {
+      cacheModule.revalidateTag("courses", "max");
+    }
+  } catch (err) {
+    console.warn("Could not invalidate courses tag:", err?.message || err);
+  }
+}
+
+/**
+ * Cached function for all published public courses.
+ * Tagged with cacheTag("courses") and cacheLife("max").
+ */
+export async function getCachedPublicCourses() {
+  "use cache";
+  cacheTag("courses");
+  cacheLife("max");
+  await connectDB();
+  const courses = await Course.find({ published: true })
+    .sort({ order: 1, createdAt: 1 })
+    .lean();
+  return JSON.parse(JSON.stringify(courses));
+}
+
+/**
+ * Cached function for featured home courses.
+ * Tagged with cacheTag("courses") and cacheLife("max").
+ */
+export async function getCachedFeaturedCourses() {
+  "use cache";
+  cacheTag("courses");
+  cacheLife("max");
+  await connectDB();
+  const courses = await Course.find({ published: true, featured: true })
+    .sort({ order: 1, createdAt: 1 })
+    .limit(6)
+    .lean();
+  return JSON.parse(JSON.stringify(courses));
+}
+
+/**
+ * Cached function for single public course by slug.
+ */
+export async function getCachedCourseBySlug(slug) {
+  "use cache";
+  cacheTag("courses");
+  cacheLife("max");
+  await connectDB();
+  const course = await Course.findOne({
+    slug: slug.toLowerCase(),
+    published: true,
+  }).lean();
+  return course ? JSON.parse(JSON.stringify(course)) : null;
 }
 
 /**
@@ -59,11 +122,12 @@ export async function getCourseBySlug(slug) {
 }
 
 /**
- * Creates a new course.
+ * Creates a new course. Order is automatically assigned order = max + 1.
  */
 export async function createCourse(data, adminId) {
   await connectDB();
-  let baseSlug = slugify(data.title);
+
+  let baseSlug = slugify(data.slug || data.title);
   if (!baseSlug) baseSlug = "course";
 
   let slug = baseSlug;
@@ -73,13 +137,33 @@ export async function createCourse(data, adminId) {
     counter++;
   }
 
+  // Calculate order = max + 1
+  const maxCourse = await Course.findOne().sort({ order: -1 }).select("order").lean();
+  const nextOrder = (maxCourse?.order ?? 0) + 1;
+
   const course = await Course.create({
-    title: data.title.trim(),
+    title: (data.title || "").trim(),
+    subtitle: (data.subtitle || "").trim(),
     slug,
+    category: data.category || "class12",
+    classLabel: (data.classLabel || "Class 12").trim(),
+    badgeText: (data.badgeText || "").trim(),
+    badgeVariant: data.badgeVariant || "crown-navy",
+    tone: data.tone || "sky",
+    illustration: data.illustration || "books-blue",
+    illustrationAssetId: data.illustrationAssetId || null,
     description: (data.description || "").trim(),
+    metaIcon: data.metaIcon || "video",
+    metaText: (data.metaText || "").trim(),
+    language: (data.language || "Bilingual").trim(),
+    facultyName: (data.facultyName || "Ronak Dugar").trim(),
+    facultyRole: (data.facultyRole || "Lead Accountancy Faculty").trim(),
+    facultyAvatarAssetId: data.facultyAvatarAssetId || null,
+    whatsappText: (data.whatsappText || "").trim(),
     thumbnail: (data.thumbnail || "").trim(),
     published: !!data.published,
-    order: Number(data.order) || 0,
+    featured: !!data.featured,
+    order: data.order !== undefined && data.order !== null && !isNaN(Number(data.order)) ? Number(data.order) : nextOrder,
   });
 
   await logAuditEvent({
@@ -90,11 +174,13 @@ export async function createCourse(data, adminId) {
     meta: { title: course.title, slug: course.slug },
   });
 
+  await invalidateCoursesCache();
+
   return course;
 }
 
 /**
- * Updates a course.
+ * Updates an existing course.
  */
 export async function updateCourse(courseId, data, adminId) {
   await connectDB();
@@ -103,7 +189,9 @@ export async function updateCourse(courseId, data, adminId) {
     throw new Error("Course not found.");
   }
 
-  if (data.title) course.title = data.title.trim();
+  if (data.title !== undefined) course.title = data.title.trim();
+  if (data.subtitle !== undefined) course.subtitle = (data.subtitle || "").trim();
+
   if (data.slug) {
     const desiredSlug = slugify(data.slug);
     if (desiredSlug !== course.slug) {
@@ -117,9 +205,25 @@ export async function updateCourse(courseId, data, adminId) {
       course.slug = desiredSlug;
     }
   }
+
+  if (data.category !== undefined) course.category = data.category;
+  if (data.classLabel !== undefined) course.classLabel = data.classLabel.trim();
+  if (data.badgeText !== undefined) course.badgeText = (data.badgeText || "").trim();
+  if (data.badgeVariant !== undefined) course.badgeVariant = data.badgeVariant;
+  if (data.tone !== undefined) course.tone = data.tone;
+  if (data.illustration !== undefined) course.illustration = data.illustration;
+  if (data.illustrationAssetId !== undefined) course.illustrationAssetId = data.illustrationAssetId;
   if (typeof data.description === "string") course.description = data.description.trim();
+  if (data.metaIcon !== undefined) course.metaIcon = data.metaIcon;
+  if (data.metaText !== undefined) course.metaText = (data.metaText || "").trim();
+  if (data.language !== undefined) course.language = (data.language || "Bilingual").trim();
+  if (data.facultyName !== undefined) course.facultyName = (data.facultyName || "Ronak Dugar").trim();
+  if (data.facultyRole !== undefined) course.facultyRole = (data.facultyRole || "Lead Accountancy Faculty").trim();
+  if (data.facultyAvatarAssetId !== undefined) course.facultyAvatarAssetId = data.facultyAvatarAssetId;
+  if (data.whatsappText !== undefined) course.whatsappText = (data.whatsappText || "").trim();
   if (typeof data.thumbnail === "string") course.thumbnail = data.thumbnail.trim();
   if (typeof data.published === "boolean") course.published = data.published;
+  if (typeof data.featured === "boolean") course.featured = data.featured;
   if (typeof data.order === "number") course.order = data.order;
 
   await course.save();
@@ -132,14 +236,61 @@ export async function updateCourse(courseId, data, adminId) {
     meta: { title: course.title },
   });
 
+  await invalidateCoursesCache();
+
   return course;
 }
 
 /**
- * Deletes a course and cascades lecture removal.
+ * Reorders courses by swapping orders with neighboring course.
+ */
+export async function reorderCourse(courseId, direction, adminId) {
+  await connectDB();
+  const current = await Course.findById(courseId);
+  if (!current) throw new Error("Course not found.");
+
+  const allCourses = await Course.find().sort({ order: 1, createdAt: 1 });
+  const index = allCourses.findIndex((c) => c._id.toString() === courseId.toString());
+  if (index === -1) throw new Error("Course not found in list.");
+
+  if (direction === "up" && index > 0) {
+    const prev = allCourses[index - 1];
+    const temp = current.order;
+    current.order = prev.order;
+    prev.order = temp;
+    await current.save();
+    await prev.save();
+  } else if (direction === "down" && index < allCourses.length - 1) {
+    const next = allCourses[index + 1];
+    const temp = current.order;
+    current.order = next.order;
+    next.order = temp;
+    await current.save();
+    await next.save();
+  }
+
+  await invalidateCoursesCache();
+
+  return { success: true };
+}
+
+/**
+ * Deletes a course. Blocked while students are enrolled; offers Unpublish instead.
  */
 export async function deleteCourse(courseId, adminId) {
   await connectDB();
+
+  const activeEnrollments = await Enrollment.countDocuments({
+    courseId,
+    status: "active",
+  });
+
+  if (activeEnrollments > 0) {
+    throw new Error(
+      `Cannot delete course: ${activeEnrollments} student(s) are currently enrolled. Please Unpublish the course instead to hide it from new visitors.`
+    );
+  }
+
   await Lecture.deleteMany({ courseId });
   await Enrollment.deleteMany({ courseId });
   await Progress.deleteMany({ courseId });
@@ -152,6 +303,8 @@ export async function deleteCourse(courseId, adminId) {
     targetId: courseId.toString(),
     meta: {},
   });
+
+  await invalidateCoursesCache();
 
   return { success: true };
 }
@@ -193,8 +346,20 @@ export async function getStudentEnrolledCourses(studentId) {
     courses.push({
       _id: course._id.toString(),
       title: course.title,
+      subtitle: course.subtitle,
       slug: course.slug,
+      category: course.category,
+      classLabel: course.classLabel,
+      badgeText: course.badgeText,
+      badgeVariant: course.badgeVariant,
+      tone: course.tone,
+      illustration: course.illustration,
       description: course.description,
+      metaIcon: course.metaIcon,
+      metaText: course.metaText,
+      language: course.language,
+      facultyName: course.facultyName,
+      facultyRole: course.facultyRole,
       thumbnail: course.thumbnail,
       totalLectures,
       completedLectures,

@@ -5,7 +5,8 @@ import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { Lecture } from "@/server/db/models/Lecture.js";
 import { Progress } from "@/server/db/models/Progress.js";
 import ProgressBar from "@/components/portal/ui/ProgressBar";
-import { BookOpen, Video, ArrowRight, Clock, Award } from "lucide-react";
+import { BookOpen, Video, ArrowRight, Clock, Award, Sparkles } from "lucide-react";
+import CourseIllustration from "@/components/courses/illustrations";
 
 export const instant = false;
 
@@ -52,7 +53,12 @@ export default async function StudentCoursesPage() {
         return {
           _id: course._id.toString(),
           title: course.title,
+          subtitle: course.subtitle,
           slug: course.slug,
+          classLabel: course.classLabel || "Class 12",
+          badgeText: course.badgeText,
+          tone: course.tone || "sky",
+          illustration: course.illustration || "books-blue",
           description: course.description,
           thumbnail: course.thumbnail,
           expiresAt: e.expiresAt,
@@ -96,30 +102,45 @@ export default async function StudentCoursesPage() {
                 className="group flex flex-col justify-between rounded-[22px] border border-black/5 bg-white p-6 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)] hover:shadow-lg transition-all"
               >
                 <div>
-                  {/* Thumbnail / Gradient Fallback */}
+                  {/* Thumbnail / Tone Illustration Banner */}
                   <div
-                    className="relative flex h-40 w-full items-center justify-center rounded-2xl overflow-hidden mb-5 shadow-xs"
+                    className="relative flex h-36 w-full items-center justify-between rounded-2xl overflow-hidden mb-5 px-5 py-3 shadow-xs"
+                    data-course-tone={course.tone}
                     style={{
                       background:
-                        "linear-gradient(135deg, #FFD54A 0%, #FFC21A 100%)",
+                        course.tone === "sky"
+                          ? "linear-gradient(135deg, #DDEEFB 0%, #BAE0F7 100%)"
+                          : course.tone === "yellow"
+                          ? "linear-gradient(135deg, #FFF1C2 0%, #FEE58A 100%)"
+                          : course.tone === "orange"
+                          ? "linear-gradient(135deg, #FFE0D0 0%, #FCC4A8 100%)"
+                          : course.tone === "green"
+                          ? "linear-gradient(135deg, #DDF3E8 0%, #B7E7CE 100%)"
+                          : course.tone === "purple"
+                          ? "linear-gradient(135deg, #E8E2FB 0%, #D1C5F7 100%)"
+                          : "linear-gradient(135deg, #FFE0DF 0%, #FCC0BE 100%)",
                     }}
                   >
-                    <div className="absolute inset-0 flex items-center justify-center opacity-15 font-black text-7xl select-none text-neutral-900">
-                      RD
-                    </div>
-                    <div className="relative z-10 flex flex-col items-center text-center p-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/90 text-neutral-900 font-black text-xl shadow-xs mb-2">
-                        RD
-                      </div>
-                      <span className="text-xs font-extrabold uppercase tracking-widest text-neutral-900">
-                        Accountancy
+                    <div className="flex flex-col gap-1.5 z-10">
+                      <span className="self-start px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-slate-800 shadow-sm">
+                        {course.classLabel}
                       </span>
+                      {course.badgeText && (
+                        <span className="self-start px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900/80 text-white shadow-sm flex items-center gap-1">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                          <span>{course.badgeText}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="relative w-24 h-24 shrink-0 drop-shadow-md z-10">
+                      <CourseIllustration name={course.illustration} />
                     </div>
                   </div>
 
                   {/* Course Title */}
-                  <h2 className="text-lg font-extrabold text-[#111827] group-hover:text-amber-800 transition-colors line-clamp-2">
-                    {course.title}
+                  <h2 className="text-base font-extrabold text-[#111827] group-hover:text-amber-800 transition-colors line-clamp-2">
+                    {course.title} {course.subtitle && <span className="font-normal text-slate-500">{course.subtitle}</span>}
                   </h2>
                   <p className="mt-1 text-xs text-[#6B7280] line-clamp-2">
                     {course.description || "Complete comprehensive accountancy syllabus coverage."}

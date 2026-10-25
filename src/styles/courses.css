@@ -1,0 +1,150 @@
+/* =========================================================================
+   COURSES DESIGN SYSTEM — TONE TOKENS & CARD STYLES
+   ========================================================================= */
+
+.course-card-container {
+  container-type: inline-size;
+}
+
+/* 1. SKY / NAVY */
+[data-course-tone="sky"] {
+  --course-tint: #D8ECFB;
+  --course-tint-gradient: linear-gradient(180deg, #D8ECFB 0%, #F5FAFE 60%, #FFFFFF 100%);
+  --course-btn-bg: #0B2A5B;
+  --course-btn-hover: #0F387A;
+  --course-btn-text: #FFFFFF;
+  --course-chat-bg-home: #E1F2FD;
+  --course-chat-color-home: #0B2A5B;
+  --course-chat-bg-cat: #0B2A5B;
+  --course-chat-color-cat: #FFFFFF;
+  --course-badge-bg: #0B2A5B;
+  --course-badge-text: #FFFFFF;
+  --course-class-bg: rgba(255, 255, 255, 0.85);
+  --course-class-text: #1E293B;
+  --course-ring-focus: #0B2A5B;
+}
+
+/* 2. YELLOW / GOLD */
+[data-course-tone="yellow"] {
+  --course-tint: #FFF0BE;
+  --course-tint-gradient: linear-gradient(180deg, #FFF0BE 0%, #FFFDF5 60%, #FFFFFF 100%);
+  --course-btn-bg: #FFC21A;
+  --course-btn-hover: #ffd54a;
+  --course-btn-text: #1E293B;
+  --course-chat-bg-home: #FEF3C7;
+  --course-chat-color-home: #B45309;
+  --course-chat-bg-cat: #FFC21A;
+  --course-chat-color-cat: #1E293B;
+  --course-badge-bg: #FFC21A;
+  --course-badge-text: #1E293B;
+  --course-class-bg: rgba(255, 255, 255, 0.85);
+  --course-class-text: #1E293B;
+  --course-ring-focus: #FFC21A;
+}
+
+/* 3. ORANGE / CORAL */
+[data-course-tone="orange"] {
+  --course-tint: #FFE1D1;
+  --course-tint-gradient: linear-gradient(180deg, #FFE1D1 0%, #FFF8F5 60%, #FFFFFF 100%);
+  --course-btn-bg: #F97316;
+  --course-btn-hover: #fb8c3c;
+  --course-btn-text: #FFFFFF;
+  --course-chat-bg-home: #FFEDD5;
+  --course-chat-color-home: #EA580C;
+  --course-chat-bg-cat: #F97316;
+  --course-chat-color-cat: #FFFFFF;
+  --course-badge-bg: #F97316;
+  --course-badge-text: #FFFFFF;
+  --course-class-bg: rgba(255, 255, 255, 0.85);
+  --course-class-text: #1E293B;
+  --course-ring-focus: #F97316;
+}
+
+/* 4. GREEN / TEAL */
+[data-course-tone="green"] {
+  --course-tint: #DCF4E9;
+  --course-tint-gradient: linear-gradient(180deg, #DCF4E9 0%, #F5FCF8 60%, #FFFFFF 100%);
+  --course-btn-bg: #0E7A57;
+  --course-btn-hover: #12946a;
+  --course-btn-text: #FFFFFF;
+  --course-chat-bg-home: #E1F7EC;
+  --course-chat-color-home: #0E7A57;
+  --course-chat-bg-cat: #0E7A57;
+  --course-chat-color-cat: #FFFFFF;
+  --course-badge-bg: #1F9D6B;
+  --course-badge-text: #FFFFFF;
+  --course-class-bg: rgba(255, 255, 255, 0.85);
+  --course-class-text: #1E293B;
+  --course-ring-focus: #0E7A57;
+}
+
+/* 5. PURPLE / INDIGO */
+[data-course-tone="purple"] {
+  --course-tint: #E9E3FC;
+  --course-tint-gradient: linear-gradient(180deg, #E9E3FC 0%, #FAF8FE 60%, #FFFFFF 100%);
+  --course-btn-bg: #6D4AE0;
+  --course-btn-hover: #7f5ef2;
+  --course-btn-text: #FFFFFF;
+  --course-chat-bg-home: #F0ECFD;
+  --course-chat-color-home: #6D4AE0;
+  --course-chat-bg-cat: #6D4AE0;
+  --course-chat-color-cat: #FFFFFF;
+  --course-badge-bg: #6D4AE0;
+  --course-badge-text: #FFFFFF;
+  --course-class-bg: rgba(255, 255, 255, 0.85);
+  --course-class-text: #1E293B;
+  --course-ring-focus: #6D4AE0;
+}
+
+/* 6. RED / RUBY */
+[data-course-tone="red"] {
+  --course-tint: #FFE0DF;
+  --course-tint-gradient: linear-gradient(180deg, #FFE0DF 0%, #FFF7F7 60%, #FFFFFF 100%);
+  --course-btn-bg: #E5392E;
+  --course-btn-hover: #ea564d;
+  --course-btn-text: #FFFFFF;
+  --course-chat-bg-home: #FEE8E7;
+  --course-chat-color-home: #E5392E;
+  --course-chat-bg-cat: #E5392E;
+  --course-chat-color-cat: #FFFFFF;
+  --course-badge-bg: #E5392E;
+  --course-badge-text: #FFFFFF;
+  --course-class-bg: rgba(255, 255, 255, 0.85);
+  --course-class-text: #1E293B;
+  --course-ring-focus: #E5392E;
+}
+
+/* Base Card transition & hover lift (only on devices with true hover) */
+.course-card {
+  will-change: transform, box-shadow;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.course-card-illustration {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.course-btn-arrow {
+  transition: transform 0.18s ease-out;
+}
+
+@media (hover: hover) {
+  .course-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.12), 0 10px 15px -8px rgba(0, 0, 0, 0.08);
+  }
+  .course-card:hover .course-card-illustration {
+    transform: translateY(-4px);
+  }
+  .course-card:hover .course-btn-arrow {
+    transform: translateX(4px);
+  }
+}
+
+/* Motion gate: disable smooth transition if user prefers reduced motion */
+html[data-motion="reduced"] .course-card,
+html[data-motion="reduced"] .course-card-illustration,
+html[data-motion="reduced"] .course-btn-arrow {
+  transition: none !important;
+  transform: none !important;
+}
