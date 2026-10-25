@@ -8,6 +8,7 @@ import { Enrollment } from "../db/models/Enrollment.js";
 import { AuditLog } from "../db/models/AuditLog.js";
 import { hashPassword, comparePassword } from "../auth/password.js";
 import { logAuditEvent } from "./audit.js";
+import { toISTEndOfDay } from "../utils/timezone.js";
 
 /**
  * Generates next sequential student loginId (e.g. rd1001, rd1002...).
@@ -613,7 +614,7 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
         skipped.push({ rowNumber: rowNum, name, error: `Validity date "${row.validUntil}" cannot be in the past.` });
         continue;
       }
-      expiresAt = parsedDate;
+      expiresAt = toISTEndOfDay(parsedDate);
     }
 
     // Parse courses

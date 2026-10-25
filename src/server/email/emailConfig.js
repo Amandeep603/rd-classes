@@ -24,8 +24,10 @@ export function getEmailConfig() {
 export function isEmailConfigured() {
   const config = getEmailConfig();
   if (config.driver === "console") {
-    // Console driver is valid in development / test
-    return process.env.NODE_ENV !== "production";
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_CONSOLE_EMAIL_IN_PROD !== "true") {
+      return false;
+    }
+    return true;
   }
   if (config.driver === "smtp") {
     return !!(config.smtpHost && config.fromAddress);

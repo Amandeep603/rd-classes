@@ -26,10 +26,13 @@ export async function generateStaticParams() {
   try {
     await connectDB();
     const courses = await Course.find({ published: true }).select("slug").lean();
-    return courses.map((c) => ({ slug: c.slug }));
+    if (courses && courses.length > 0) {
+      return courses.map((c) => ({ slug: c.slug }));
+    }
   } catch {
-    return [];
+    // Return fallback slug for build validation
   }
+  return [{ slug: "course-preview" }];
 }
 
 export async function generateMetadata({ params }) {

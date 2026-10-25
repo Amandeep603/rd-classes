@@ -5,6 +5,8 @@ import { Course } from "../db/models/Course.js";
 import { User } from "../db/models/User.js";
 import { logAuditEvent } from "./audit.js";
 
+import { toISTEndOfDay } from "../utils/timezone.js";
+
 /**
  * Enrolls a student in a course or updates existing enrollment status.
  */
@@ -27,13 +29,15 @@ export async function enrollStudentInCourse({
     throw new Error("Course not found.");
   }
 
+  const normalizedExpiresAt = expiresAt ? toISTEndOfDay(expiresAt) : null;
+
   const enrollment = await Enrollment.findOneAndUpdate(
     { userId, courseId },
     {
       $set: {
         status: "active",
         startsAt: new Date(),
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        expiresAt: normalizedExpiresAt,
         assignedBy,
       },
     },

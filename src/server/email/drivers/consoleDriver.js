@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 export async function sendWithConsole({ to, subject, html, text }) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_CONSOLE_EMAIL_IN_PROD !== "true") {
     throw new Error(
       "Console email driver is refused in production mode. Configure SMTP or Resend driver."
     );

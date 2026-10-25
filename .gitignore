@@ -48,3 +48,10 @@ next-env.d.ts
 /backups/
 
 
+
+/.local-emails/
+/.local-uploads/
+/backups/
+/scratch/
+/reference/
+/docs/compare/

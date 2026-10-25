@@ -1,80 +1,98 @@
-# RD Classes Functional E2E Verification Report
+# RD Classes — End-to-End Test Report (Phase C5)
 
-**Execution Timestamp:** 2026-10-23T12:38:56.719Z  
-**Target Environment:** Local Production Build (`http://localhost:3000`)  
-**Engine:** Playwright Chromium (Dual Browser Contexts: Desktop & Mobile Safari)  
-
----
-
-## 1. Scenario Summary & Assertions
-
-| # | Step / Assertion | Target URL / Entity | Status | Result Summary |
-|---|---|---|:---:|---|
-| 1 | Seed Base Courses & Admin | `Created admin, enrolled course, unenrolled course & lectures.` | **PASS** | Created admin, enrolled course, unenrolled course & lectures. |
-| 2 | Admin Wizard Student Creation | `Student 'E2E Student 8312' created (Login ID` | **PASS** | Student 'E2E Student 8312' created (Login ID: rd2026010, Password: E2EPassword123!). WhatsApp message verified. |
-| 3 | Device A Student Login | `Device A auto-registered and landed on http` | **PASS** | Device A auto-registered and landed on http://localhost:3000/student |
-| 4 | Device B Pending Screen | `Device B redirected to pending page` | **PASS** | Device B redirected to pending page: http://localhost:3000/student/login/pending?deviceId=774823c8-5f2e-4983-845b-3e3cb6b9d50e |
-| 5 | Device B Student Note Saved | `Note "Need mobile access while traveling to coaching center" saved on pending request.` | **PASS** | Note "Need mobile access while traveling to coaching center" saved on pending request. |
-| 6 | Admin Approve (Replace Mode) | `Approved Device B in replace mode via dashboard card.` | **PASS** | Approved Device B in replace mode via dashboard card. |
-| 7 | Device B Live Polling Status | `Pending page flipped to 'Device Approved!' via polling.` | **PASS** | Pending page flipped to 'Device Approved!' via polling. |
-| 8 | Device B Login After Approval | `Device B successfully logged in at http` | **PASS** | Device B successfully logged in at http://localhost:3000/student |
-| 9 | Device A Session Revocation | `Device A session revoked instantly; kicked to http` | **PASS** | Device A session revoked instantly; kicked to http://localhost:3000/student/login |
-| 10 | Enrolled Lecture Playback | `Vimeo player successfully rendered with ID` | **PASS** | Vimeo player successfully rendered with ID: https://player.vimeo.com/video/76979871?dnt=1&title=0&byline=0&portrait=0&playsinline=1 |
-| 11 | Unenrolled Lecture Access Refusal | `Access to unenrolled course was securely refused (HTTP 200, URL` | **PASS** | Access to unenrolled course was securely refused (HTTP 200, URL: http://localhost:3000/student/courses/e2e-bst-unenrolled/lectures/6adb553514224c8fbc081c30). |
+**Executed On**: 2026-10-26T02:14:30+05:30  
+**Environment**: Production Mode (`next start` on `http://localhost:3100`), Turbopack build, MongoDB local instance  
+**Runner**: Playwright with Chromium (headless) via [`scripts/e2e-full-scenario.mjs`](file:///e:/rd-classes/scripts/e2e-full-scenario.mjs)  
+**Overall Status**: **PASSED (12 / 12 steps verified)**
 
 ---
 
-## 2. Detailed Execution Log
+## Scenario Summary & Test Results
 
-### 1. Seed Base Courses & Admin [PASS]
-- **Timestamp:** `2026-10-23T12:38:13.373Z`
-- **Result Details:** Created admin, enrolled course, unenrolled course & lectures.
-
-### 2. Admin Wizard Student Creation [PASS]
-- **Timestamp:** `2026-10-23T12:38:22.476Z`
-- **Result Details:** Student 'E2E Student 8312' created (Login ID: rd2026010, Password: E2EPassword123!). WhatsApp message verified.
-
-### 3. Device A Student Login [PASS]
-- **Timestamp:** `2026-10-23T12:38:27.143Z`
-- **Result Details:** Device A auto-registered and landed on http://localhost:3000/student
-
-### 4. Device B Pending Screen [PASS]
-- **Timestamp:** `2026-10-23T12:38:31.616Z`
-- **Result Details:** Device B redirected to pending page: http://localhost:3000/student/login/pending?deviceId=774823c8-5f2e-4983-845b-3e3cb6b9d50e
-
-### 5. Device B Student Note Saved [PASS]
-- **Timestamp:** `2026-10-23T12:38:32.056Z`
-- **Result Details:** Note "Need mobile access while traveling to coaching center" saved on pending request.
-
-### 6. Admin Approve (Replace Mode) [PASS]
-- **Timestamp:** `2026-10-23T12:38:36.626Z`
-- **Result Details:** Approved Device B in replace mode via dashboard card.
-
-### 7. Device B Live Polling Status [PASS]
-- **Timestamp:** `2026-10-23T12:38:42.096Z`
-- **Result Details:** Pending page flipped to 'Device Approved!' via polling.
-
-### 8. Device B Login After Approval [PASS]
-- **Timestamp:** `2026-10-23T12:38:44.814Z`
-- **Result Details:** Device B successfully logged in at http://localhost:3000/student
-
-### 9. Device A Session Revocation [PASS]
-- **Timestamp:** `2026-10-23T12:38:54.152Z`
-- **Result Details:** Device A session revoked instantly; kicked to http://localhost:3000/student/login
-
-### 10. Enrolled Lecture Playback [PASS]
-- **Timestamp:** `2026-10-23T12:38:55.542Z`
-- **Result Details:** Vimeo player successfully rendered with ID: https://player.vimeo.com/video/76979871?dnt=1&title=0&byline=0&portrait=0&playsinline=1
-
-### 11. Unenrolled Lecture Access Refusal [PASS]
-- **Timestamp:** `2026-10-23T12:38:56.230Z`
-- **Result Details:** Access to unenrolled course was securely refused (HTTP 200, URL: http://localhost:3000/student/courses/e2e-bst-unenrolled/lectures/6adb553514224c8fbc081c30).
-
+| Step | Test Objective | UI Route / Flow | Result | Key Assertion |
+| :---: | :--- | :--- | :---: | :--- |
+| **1** | Admin Credential Validation | DB Verification | **PASSED** | Admin user verified & rate limits cleared for pristine test state. |
+| **2** | Course & Content Provisioning | DB Direct Seed | **PASSED** | Published course created with 3 lectures, 1 external link note, and 1 file note. |
+| **3** | Admin Authentication | `/admin/login` | **PASSED** | Admin session cookie created; redirect to `/admin` dashboard confirmed. |
+| **4** | Bulk CSV Student Import | `/admin/students` | **PASSED** | 3-row CSV imported; one-time plain credentials table rendered with copy buttons. |
+| **5** | Bulk Credential Email Delivery | `/admin/students` Modal | **PASSED** | Batch email delivery executed; 3 student credentials written to `.local-emails`. |
+| **6** | Student A Device 1 Registration | `/student/login` | **PASSED** | Student logged in; Device 1 registered to active student session in MongoDB. |
+| **7** | Student A Device 2 Registration Attempt | `/student/login` | **PASSED** | Device 2 rejected from direct portal entry; routed to pending approval waiting page. |
+| **8** | Admin Device Replacement Approval | `/admin/devices` | **PASSED** | Pending device request located; approved with "Replace" decision via UI modal. |
+| **9** | Device 1 Session Invalidation | `/student` (Device 1) | **PASSED** | Device 1 page reloaded; session killed immediately; redirected to login. |
+| **10** | Device 2 Portal Access & Stream Check | `/student/courses/[slug]` | **PASSED** | Device 2 accessed dashboard, opened course, recorded progress, viewed notes. |
+| **11** | Blocked Student Enforcement | `/student/login` | **PASSED** | Blocked student rejected with clear banner message; zero session issued. |
+| **12** | Unpublished Course Catalog Isolation | `/courses/[slug]` | **PASSED** | Unpublished course returned branded 404; public cannot discover draft courses. |
 
 ---
 
-## 3. Overall Verdict
-- **Total Assertions:** 11
-- **Passed:** 11
-- **Failed:** 0
-- **Final Result:** **100% PASS - ALL SPECIFICATIONS & DEVICE-LOCK RULES FULLY MET**
+## Detailed Step Logs
+
+### Step 1: Admin Credential Setup
+- Cleared rate limits for `admin` IP and identifiers.
+- Verified admin existence in MongoDB with role `admin`.
+
+### Step 2: Course & Content Seeding
+- Seeded course `e2e-accounts-mastery` (`Accounts Mastery E2E`).
+- Seeded 3 video lectures (`Trial Balance Foundations`, `Depreciation Accounting`, `Final Accounts Formulation`) with Vimeo video IDs.
+- Attached 2 lecture notes:
+  - External Link Note: `https://rdclasses.in/sample-notes.pdf`
+  - Downloadable File Note: `https://rdclasses.in/assets/e2e-notes.pdf`
+
+### Step 3: Admin Login & Portal Access
+- Navigated to `http://localhost:3100/admin/login`.
+- Input admin username and password.
+- Verified transition to `http://localhost:3100/admin`.
+
+### Step 4: CSV Student Import
+- Navigated to `http://localhost:3100/admin/students`.
+- Pasted CSV with 3 students (`Aman Sharma`, `Rohit Kumar`, `Neha Gupta`).
+- System verified data rows and triggered import.
+- Table rendered showing generated passwords and credential rows.
+
+### Step 5: Bulk Credential Delivery
+- Triggered "Email Credentials to Imported Students".
+- Delivery modal monitored batch processing.
+- Verified email output files created in `.local-emails` directory.
+
+### Step 6: Student A Device 1 Registration
+- Emulated Chrome Desktop viewport & user-agent for Device 1.
+- Logged in with Student A's generated credentials.
+- Auto-registered Device 1 fingerprint; verified redirect to `/student`.
+
+### Step 7: Student A Device 2 Device Lock Check
+- Created isolated browser context for Device 2 with distinct user-agent (`RDClasses-Device2/E2E-Mobile`).
+- Attempted login for Student A.
+- Verified device lock triggered; navigated to `/student/device-pending`.
+
+### Step 8: Admin Device Approval
+- Switched back to Admin browser context.
+- Navigated to `/admin/devices`.
+- Located pending request for `Aman Sharma`.
+- Clicked "Approve", selected "Replace current device", and confirmed.
+
+### Step 9: Device 1 Eviction
+- Switched to Device 1 browser context.
+- Attempted to reload `/student`.
+- Session token invalidated by device fingerprint mismatch.
+- Redirected to `/student/login` with session terminated.
+
+### Step 10: Device 2 Portal & Course Access
+- Device 2 reloaded and logged in.
+- Navigated to `http://localhost:3100/student/courses/e2e-accounts-mastery`.
+- Verified lecture list, notes tab, and progress tracking API integration.
+
+### Step 11: Blocked Student Security Check
+- Attempted login with `Rohit Kumar` (marked status: `blocked`).
+- Login rejected with error: `Your account is blocked. Please contact support.`
+- No student session cookie created.
+
+### Step 12: Unpublished Course Security Check
+- Created draft course `e2e-draft-economics` (`isPublished: false`).
+- Attempted public access at `http://localhost:3100/courses/e2e-draft-economics`.
+- Verified HTTP 404 response with branded Not Found UI.
+
+---
+
+## Conclusion
+The full end-to-end lifecycle of student onboarding, device enforcement, admin moderation, and content protection behaves as designed under production conditions.
