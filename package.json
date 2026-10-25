@@ -18,8 +18,8 @@
     "seed:courses": "node --conditions=react-server scripts/seed-courses.mjs",
     "test:crawl": "node --conditions=react-server scripts/e2e-crawl.mjs"
   },
-
   "dependencies": {
+    "@vercel/blob": "^2.8.2",
     "@vimeo/player": "^2.30.4",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.60.0",

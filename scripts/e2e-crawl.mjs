@@ -200,6 +200,7 @@ async function run() {
       "/admin/announcements",
       "/admin/settings",
       "/admin/activity",
+      "/admin/media",
     ];
 
     for (const r of adminRoutes) {

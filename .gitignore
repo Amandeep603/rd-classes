@@ -43,5 +43,6 @@ next-env.d.ts
 /scratch/
 /reference/
 /docs/compare/
+/.local-uploads/
 
 

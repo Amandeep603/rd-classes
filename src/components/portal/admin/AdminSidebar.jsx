@@ -37,6 +37,7 @@ const ICONS = {
   results: FileCheck,
   gallery: ImageIcon,
   reviews: MessageSquare,
+  media: ImageIcon,
 };
 
 export default function AdminSidebar({ initialPendingCount = 0, adminUser }) {

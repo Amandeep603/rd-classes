@@ -15,3 +15,4 @@ export { Announcement } from "./Announcement.js";
 export { Test } from "./Test.js";
 export { TestResult } from "./TestResult.js";
 export { Settings } from "./Settings.js";
+export { MediaAsset } from "./MediaAsset.js";

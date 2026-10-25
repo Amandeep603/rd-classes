@@ -109,7 +109,7 @@ export const adminNavItems = [
     label: "Media",
     href: "/admin/media",
     icon: "media",
-    enabled: false,
+    enabled: true,
   },
 ];
 
