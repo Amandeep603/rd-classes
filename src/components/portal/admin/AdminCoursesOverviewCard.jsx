@@ -68,8 +68,23 @@ export default function AdminCoursesOverviewCard({ courses = [] }) {
           ))}
         </div>
       ) : (
-        <div className="text-center py-6 text-xs text-[#6B7280]">
-          No courses yet - add your first course.
+        <div className="rounded-2xl border border-dashed border-black/10 p-6 text-center space-y-2.5">
+          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs font-bold text-[#111827]">No courses yet</p>
+            <p className="text-[11px] text-[#6B7280]">
+              Create your first course to start publishing lectures.
+            </p>
+          </div>
+          <Link
+            href="/admin/courses/new"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-xs font-bold shadow-2xs transition-colors"
+          >
+            <span>Add Course</span>
+            <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
       )}
     </div>

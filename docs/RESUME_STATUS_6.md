@@ -13,7 +13,7 @@
 | **D2** | Login Pages (`/student/login` & `/admin/login` matching reference with dark navy study room scene, no photos, no forgot password) + Credential Model (AES-256-GCM encrypted copy `passwordEnc`, admin reveal with re-auth & audit log, no student password change) | **DONE** |
 | **D3** | Free First Lecture (`freePreview` auto-set on lowest order lecture, admin override) + "Buy on WhatsApp" dialog on locked lectures & visitor sidebar | **DONE** |
 | **D4** | Notes Ecosystem (Public `/notes` page, note card grid, protected stream route, course detail notes tab + lecture note links) | **DONE** |
-| **D5** | Admin Polish, Zero Data (real counters, empty checklists), Final Lint + Build + Vitest + Docs | **NEXT** |
+| **D5** | Admin Polish, Zero Data (real counters, empty checklists), Final Lint + Build + Vitest + Docs | **DONE** |
 
 ---
 
@@ -53,3 +53,18 @@
 - [x] Course detail page Notes tab updated in [`CourseDetailClient.jsx`](file:///e:/rd-classes/src/components/courses/CourseDetailClient.jsx) with interactive "Enrolled only · Unlock note" button opening the course purchase dialog for visitors.
 - [x] Student lecture player page in [`[lectureId]/page.js`](file:///e:/rd-classes/src/app/%28student%29/student/%28portal%29/courses/%5Bslug%5D/lectures/%5BlectureId%5D/page.js) enriched with "Chapter Notes & Resources" card displaying direct PDF stream / link access for enrolled students.
 - [x] Created [`tests/notes_ecosystem.test.js`](file:///e:/rd-classes/tests/notes_ecosystem.test.js) (4 tests). Full Vitest suite passes 80/80 tests across all 11 suites; ESLint 0 errors; Next.js 58/58 production build succeeded.
+
+## Phase D5 Summary
+- [x] Real Counters: Verified all 6 admin stat tiles (`Students`, `Active Logins`, `Pending Devices`, `Recorded Videos`, `Active Courses`, `Enrolments`) execute real database queries via `Promise.all` with zero placeholder values.
+- [x] Quick Setup Checklist: Implemented [`AdminSetupChecklistCard.jsx`](file:///e:/rd-classes/src/components/portal/admin/AdminSetupChecklistCard.jsx) dynamically tracking initial platform completion (Courses, Lectures, Students, Notes) with direct navigation buttons and progress bar, cleanly hiding when all 4 steps are complete.
+- [x] Polished Empty States:
+  - [`AdminCoursesOverviewCard.jsx`](file:///e:/rd-classes/src/components/portal/admin/AdminCoursesOverviewCard.jsx): Replaced plain text with polished zero-state card and direct "Add Course" action button.
+  - [`AdminDeviceApprovalCard.jsx`](file:///e:/rd-classes/src/components/portal/admin/AdminDeviceApprovalCard.jsx): Replaced empty message with green check "All clear! No pending device clearance requests."
+  - [`AdminAnnouncementsCard.jsx`](file:///e:/rd-classes/src/components/portal/admin/AdminAnnouncementsCard.jsx): Replaced bare container with clean broadcast prompt and "Create Announcement" action link.
+  - [`AdminRecentActivityCard.jsx`](file:///e:/rd-classes/src/components/portal/admin/AdminRecentActivityCard.jsx): Enhanced with dashed container explaining audit log behavior.
+- [x] Testing & QA:
+  - Added [`tests/admin_dashboard_zero_data.test.js`](file:///e:/rd-classes/tests/admin_dashboard_zero_data.test.js) (2 tests) verifying zero-count robustness and checklist completion calculations.
+  - All 12 test files passed (82/82 tests passing).
+  - ESLint passed with 0 errors across `src` and `tests`.
+  - Next.js production build succeeded with 58/58 routes prerendered / compiled cleanly.
+

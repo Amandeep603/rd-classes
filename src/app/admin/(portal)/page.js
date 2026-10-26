@@ -9,7 +9,9 @@ import { Lecture } from "@/server/db/models/Lecture.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { Announcement } from "@/server/db/models/Announcement.js";
 import { AuditLog } from "@/server/db/models/AuditLog.js";
+import { Note } from "@/server/db/models/Note.js";
 import AdminWelcomeBanner from "@/components/portal/admin/AdminWelcomeBanner";
+import AdminSetupChecklistCard from "@/components/portal/admin/AdminSetupChecklistCard";
 import StatTile from "@/components/portal/ui/StatTile";
 import AdminDeviceApprovalCard from "@/components/portal/admin/AdminDeviceApprovalCard";
 import AdminRecentActivityCard from "@/components/portal/admin/AdminRecentActivityCard";
@@ -41,6 +43,7 @@ export default async function AdminDashboardPage() {
     coursesCount,
     lecturesCount,
     enrollmentsCount,
+    notesCount,
     pendingRequests,
     recentLogs,
     allCourses,
@@ -52,6 +55,7 @@ export default async function AdminDashboardPage() {
     Course.countDocuments({ published: true }),
     Lecture.countDocuments({ published: true }),
     Enrollment.countDocuments({ status: "active" }),
+    Note.countDocuments({ published: true }),
     DeviceRequest.find({ status: "pending" })
       .populate("userId", "name loginId studentCode deviceCount deviceLimit")
       .sort({ createdAt: -1 })
@@ -107,6 +111,14 @@ export default async function AdminDashboardPage() {
       <AdminWelcomeBanner
         adminName={auth?.user?.name || "Ronak Sir"}
         courses={coursesWithCounts}
+      />
+
+      {/* 1.5 Quick Setup Checklist (renders when setup is incomplete) */}
+      <AdminSetupChecklistCard
+        coursesCount={coursesCount}
+        lecturesCount={lecturesCount}
+        studentsCount={studentsCount}
+        notesCount={notesCount}
       />
 
       {/* 2. Six Stat Tiles */}

@@ -51,8 +51,18 @@ export default function AdminAnnouncementsCard({ announcements = [] }) {
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-black/10 p-6 text-center text-xs text-[#6B7280]">
-          No active announcements.
+        <div className="rounded-2xl border border-dashed border-black/10 p-6 text-center space-y-2">
+          <p className="text-xs font-bold text-[#111827]">No active announcements</p>
+          <p className="text-[11px] text-[#6B7280]">
+            Broadcast notices or exam reminders to enrolled students.
+          </p>
+          <Link
+            href="/admin/announcements"
+            className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700"
+          >
+            <span>Create Announcement</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
       )}
     </div>

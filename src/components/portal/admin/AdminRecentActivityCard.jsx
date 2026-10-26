@@ -145,8 +145,11 @@ export default function AdminRecentActivityCard({ logs = [] }) {
           })}
         </div>
       ) : (
-        <div className="text-center py-6 text-xs text-[#6B7280]">
-          No recorded activity yet.
+        <div className="rounded-2xl border border-dashed border-black/10 p-6 text-center space-y-1">
+          <p className="text-xs font-bold text-[#111827]">No activity logs yet</p>
+          <p className="text-[11px] text-[#6B7280]">
+            Audit records will appear here as students log in and enrol.
+          </p>
         </div>
       )}
     </div>

@@ -241,8 +241,16 @@ export default function AdminDeviceApprovalCard({
           })}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-black/10 p-8 text-center text-sm text-[#6B7280]">
-          No device requests yet.
+        <div className="rounded-2xl border border-dashed border-black/10 p-8 text-center space-y-2">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-2xs">
+            <Check className="h-5 w-5 stroke-[2.5]" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs font-bold text-[#111827]">All clear!</p>
+            <p className="text-[11px] text-[#6B7280]">
+              No pending device clearance requests from students.
+            </p>
+          </div>
         </div>
       )}
 
