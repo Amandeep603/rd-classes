@@ -7,6 +7,7 @@ import { Session } from "../db/models/Session.js";
 import { Enrollment } from "../db/models/Enrollment.js";
 import { AuditLog } from "../db/models/AuditLog.js";
 import { hashPassword, comparePassword } from "../auth/password.js";
+import { encryptPassword } from "../auth/credentialEncryption.js";
 import { logAuditEvent } from "./audit.js";
 import { toISTEndOfDay } from "../utils/timezone.js";
 
@@ -178,6 +179,10 @@ export async function getStudentDetail(studentId) {
 
   if (!student) return null;
 
+  const hasEncryptedPassword = Boolean(student.passwordEnc?.ciphertext);
+  delete student.passwordEnc;
+  student.hasEncryptedPassword = hasEncryptedPassword;
+
   const [devices, sessions, enrollments, recentActivity] = await Promise.all([
     Device.find({ userId: studentId }).sort({ lastUsedAt: -1 }).lean(),
     Session.find({ userId: studentId }).sort({ lastSeenAt: -1 }).lean(),
@@ -234,6 +239,7 @@ export async function createStudent(
   }
 
   const passwordHash = await hashPassword(password);
+  const passwordEnc = encryptPassword(password);
 
   const student = await User.create({
     role: "student",
@@ -245,6 +251,7 @@ export async function createStudent(
     email: email ? email.trim().toLowerCase() : "",
     loginId: normalizedLoginId,
     passwordHash,
+    passwordEnc,
     deviceLimit: Math.min(Math.max(deviceLimit || 1, 1), 3),
     deviceCount: 0,
     mustChangePassword: !!mustChangePassword,
@@ -435,6 +442,7 @@ export async function adminResetPassword(
 
   const passwordHash = await hashPassword(newPassword);
   student.passwordHash = passwordHash;
+  student.passwordEnc = encryptPassword(newPassword);
   await student.save();
 
   if (revokeSessions) {
@@ -479,6 +487,7 @@ export async function resetStudentPasswordAndEmail(
   const newPassword = generateReadablePassword();
   const passwordHash = await hashPassword(newPassword);
   student.passwordHash = passwordHash;
+  student.passwordEnc = encryptPassword(newPassword);
   await student.save();
 
   if (revokeSessions) {
@@ -676,6 +685,7 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
 
     try {
       const passwordHash = await hashPassword(rawPassword);
+      const passwordEnc = encryptPassword(rawPassword);
       const student = await User.create({
         role: "student",
         studentCode,
@@ -686,6 +696,7 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
         email,
         loginId,
         passwordHash,
+        passwordEnc,
         deviceLimit,
         deviceCount: 0,
         mustChangePassword: false,
@@ -740,54 +751,3 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
   };
 }
 
-/**
- * Student changes own password. Requires current password and revokes other sessions.
- */
-export async function studentChangePassword({
-  userId,
-  currentPassword,
-  newPassword,
-  currentSessionId,
-}) {
-  await connectDB();
-  const { Settings } = await import("../db/models/Settings.js");
-  const settings = await Settings.findOne().lean();
-  if (settings && settings.allowStudentPasswordChange === false) {
-    throw new Error("Password changes by students are disabled by the administrator.");
-  }
-
-  const student = await User.findById(userId);
-  if (!student) {
-    throw new Error("User not found.");
-  }
-
-  const isValid = await comparePassword(currentPassword, student.passwordHash);
-  if (!isValid) {
-    throw new Error("Current password is incorrect.");
-  }
-
-  const passwordHash = await hashPassword(newPassword);
-  student.passwordHash = passwordHash;
-  student.mustChangePassword = false;
-  await student.save();
-
-  // Revoke all sessions except current session
-  if (currentSessionId) {
-    await Session.deleteMany({
-      userId,
-      _id: { $ne: currentSessionId },
-    });
-  } else {
-    await Session.deleteMany({ userId });
-  }
-
-  await logAuditEvent({
-    actorId: userId,
-    action: "student.password_changed",
-    targetType: "student",
-    targetId: userId.toString(),
-    meta: {},
-  });
-
-  return { success: true };
-}

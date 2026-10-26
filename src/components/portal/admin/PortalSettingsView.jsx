@@ -44,9 +44,6 @@ export default function PortalSettingsView({
   const [rewardTargetText, setRewardTargetText] = useState(
     settings.rewardTargetText || "₹5,100 Cash Reward Target"
   );
-  const [allowStudentPasswordChange, setAllowStudentPasswordChange] = useState(
-    settings.allowStudentPasswordChange !== false
-  );
   const [emailOnDeviceApproved, setEmailOnDeviceApproved] = useState(
     settings.emailOnDeviceApproved !== false
   );
@@ -93,7 +90,6 @@ export default function PortalSettingsView({
         defaultDeviceLimit: Number(defaultDeviceLimit),
         watermarkEnabled,
         rewardTargetText,
-        allowStudentPasswordChange,
         emailOnDeviceApproved,
         websiteNumbers: {
           studentsMentored,
@@ -221,15 +217,6 @@ export default function PortalSettingsView({
                 <span>Enable dynamic floating student watermark on Vimeo player</span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
-                <input
-                  type="checkbox"
-                  checked={allowStudentPasswordChange}
-                  onChange={(e) => setAllowStudentPasswordChange(e.target.checked)}
-                  className="rounded accent-[var(--portal-accent-yellow)]"
-                />
-                <span>Allow students to change password from their Profile page</span>
-              </label>
 
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
                 <input

@@ -43,6 +43,7 @@ export default async function AdminStudentDetailPage({ params }) {
       enrollments={serializedDetail.enrollments}
       recentActivity={serializedDetail.recentActivity}
       allCourses={serializedCourses}
+      encryptionConfigured={Boolean(process.env.CREDENTIAL_ENC_KEY)}
     />
   );
 }

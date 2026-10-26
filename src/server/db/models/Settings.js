@@ -33,10 +33,6 @@ const settingsSchema = new mongoose.Schema(
       default: "₹5,100 Cash Reward Target",
       trim: true,
     },
-    allowStudentPasswordChange: {
-      type: Boolean,
-      default: true,
-    },
     emailOnDeviceApproved: {
       type: Boolean,
       default: true,

@@ -40,6 +40,7 @@ export default function BulkEmailProgressModal({
   const [config, setConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [revokeSessions, setRevokeSessions] = useState(true);
+  const [autoResetMissing, setAutoResetMissing] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
   // Runner state: "idle" | "running" | "paused" | "finished" | "cancelled"
@@ -146,6 +147,7 @@ export default function BulkEmailProgressModal({
           studentIds: chunk.map((c) => c.studentId || c._id),
           revokeSessions,
           batchId: batchIdRef.current,
+          autoResetMissing,
         });
       }
 
@@ -246,10 +248,10 @@ export default function BulkEmailProgressModal({
               <h2 className="text-lg font-extrabold text-neutral-900">
                 {mode === "import"
                   ? "Email Credentials to Imported Students"
-                  : "Bulk Reset & Email Credentials"}
+                  : "Bulk Send Student Credentials"}
               </h2>
               <p className="text-xs text-neutral-500">
-                {totalItems} students selected • Chunked serverless execution
+                {totalItems} students selected • Chunked delivery
               </p>
             </div>
           </div>
@@ -303,23 +305,34 @@ export default function BulkEmailProgressModal({
               {runnerState === "idle" && (
                 <div className="space-y-4">
                   {mode === "reset" && (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-950 space-y-2">
-                      <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
-                        <ShieldAlert className="h-4 w-4 text-amber-700" />
-                        <span>Action Notice</span>
+                    <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 text-xs text-sky-950 space-y-2.5">
+                      <div className="flex items-center gap-2 font-bold text-sm text-sky-900">
+                        <ShieldAlert className="h-4 w-4 text-sky-700" />
+                        <span>Credential Delivery Notice</span>
                       </div>
                       <p className="leading-relaxed">
-                        This action will <strong>generate brand new passwords</strong> for each student and email them immediately. Previous passwords cannot be recovered.
+                        Credentials will be sent to students using their stored encrypted password <strong>without resetting</strong>.
                       </p>
-                      <label className="flex items-center gap-2 pt-1 font-semibold cursor-pointer">
+                      <label className="flex items-center gap-2 pt-1 font-semibold cursor-pointer text-neutral-800">
                         <input
                           type="checkbox"
-                          checked={revokeSessions}
-                          onChange={(e) => setRevokeSessions(e.target.checked)}
+                          checked={autoResetMissing}
+                          onChange={(e) => setAutoResetMissing(e.target.checked)}
                           className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                         />
-                        <span>Revoke active logins / sessions on their devices</span>
+                        <span>Generate new password if encrypted copy is missing</span>
                       </label>
+                      {autoResetMissing && (
+                        <label className="flex items-center gap-2 pt-0.5 font-semibold cursor-pointer text-amber-900">
+                          <input
+                            type="checkbox"
+                            checked={revokeSessions}
+                            onChange={(e) => setRevokeSessions(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                          />
+                          <span>Revoke active logins / sessions when generating new passwords</span>
+                        </label>
+                      )}
                     </div>
                   )}
 

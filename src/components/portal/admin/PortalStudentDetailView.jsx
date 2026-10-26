@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -37,6 +37,8 @@ import {
   resetStudentPasswordAndEmailAction,
   enrollStudentAction,
   revokeEnrollmentAction,
+  revealStudentPasswordAction,
+  sendStudentCredentialsAction,
 } from "@/server/actions/admin.students.actions.js";
 import {
   removeDeviceAction,
@@ -52,8 +54,87 @@ export default function PortalStudentDetailView({
   enrollments = [],
   recentActivity = [],
   allCourses = [],
+  encryptionConfigured = true,
 }) {
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Reveal password state
+  const [showRevealModal, setShowRevealModal] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [revealSubmitting, setRevealSubmitting] = useState(false);
+  const [revealError, setRevealError] = useState("");
+  const [revealedPassword, setRevealedPassword] = useState(null);
+  const [revealCountdown, setRevealCountdown] = useState(0);
+
+  // Send credentials feedback
+  const [sendingCredentials, setSendingCredentials] = useState(false);
+  const [sendCredentialsMsg, setSendCredentialsMsg] = useState("");
+
+  // Countdown auto-mask timer
+  useEffect(() => {
+    if (!revealedPassword) return;
+    const timer = setInterval(() => {
+      setRevealCountdown((prev) => {
+        if (prev <= 1) {
+          setRevealedPassword(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [revealedPassword]);
+
+  const handleRevealPassword = async (e) => {
+    e.preventDefault();
+    if (!adminPasswordInput) return;
+    setRevealSubmitting(true);
+    setRevealError("");
+    try {
+      const res = await revealStudentPasswordAction({
+        studentId: student._id,
+        adminPassword: adminPasswordInput,
+      });
+      if (res?.success) {
+        setRevealedPassword(res.password);
+        setRevealCountdown(30);
+        setShowRevealModal(false);
+        setAdminPasswordInput("");
+      } else {
+        setRevealError(res?.error || "Failed to reveal password.");
+      }
+    } catch (err) {
+      setRevealError(err.message || "Failed to reveal password.");
+    } finally {
+      setRevealSubmitting(false);
+    }
+  };
+
+  const handleSendCredentials = async () => {
+    setSendingCredentials(true);
+    setSendCredentialsMsg("");
+    try {
+      const res = await sendStudentCredentialsAction({
+        studentId: student._id,
+        sendEmail: true,
+      });
+      if (res?.success) {
+        let msg = "Credentials sent!";
+        if (res.emailSent) msg += " Email delivered.";
+        if (res.whatsappUrl) {
+          window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
+          msg += " WhatsApp opened.";
+        }
+        setSendCredentialsMsg(msg);
+      } else {
+        setSendCredentialsMsg(res?.error || "Failed to send credentials.");
+      }
+    } catch (err) {
+      setSendCredentialsMsg(err.message || "Failed to send credentials.");
+    } finally {
+      setSendingCredentials(false);
+    }
+  };
 
   // Profile edit
   const [name, setName] = useState(student.name || "");
@@ -339,6 +420,95 @@ export default function PortalStudentDetailView({
       {/* Tab 1: Overview */}
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Credentials Card */}
+          <Card className="p-6 md:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-3 border-b border-[var(--portal-card-border)]">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                  <Key className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-[var(--portal-text-main)]">Credentials</h2>
+                  <p className="text-xs text-[var(--portal-text-muted)]">Encrypted student access details &amp; secure delivery</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="yellow"
+                  size="sm"
+                  onClick={handleSendCredentials}
+                  disabled={sendingCredentials || !encryptionConfigured}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>{sendingCredentials ? "Sending..." : "Send Credentials"}</span>
+                </Button>
+              </div>
+            </div>
+
+            {sendCredentialsMsg && (
+              <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 font-medium">
+                {sendCredentialsMsg}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-[var(--portal-bg-page)] border border-[var(--portal-card-border)]">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--portal-text-muted)] block mb-1">
+                  Login ID
+                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-base font-bold text-[var(--portal-text-main)]">
+                    {student.loginId}
+                  </span>
+                  <CopyButton text={student.loginId} />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[var(--portal-bg-page)] border border-[var(--portal-card-border)]">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[var(--portal-text-muted)]">
+                    Password
+                  </span>
+                  {revealedPassword && (
+                    <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Masking in {revealCountdown}s
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-base font-bold text-[var(--portal-text-main)] tracking-wider">
+                    {revealedPassword || "••••••••••••"}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {revealedPassword ? (
+                      <CopyButton text={revealedPassword} />
+                    ) : (
+                      encryptionConfigured && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setRevealError("");
+                            setShowRevealModal(true);
+                          }}
+                        >
+                          Reveal
+                        </Button>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {!encryptionConfigured && (
+              <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200/80 p-3 text-xs text-amber-800">
+                <strong>Notice:</strong> CREDENTIAL_ENC_KEY is not configured in environment variables. Set this 32-byte base64 key in your environment to enable password reveal and delivery without password resets.
+              </div>
+            )}
+          </Card>
           <Card className="p-6">
             <h2 className="text-base font-bold text-[var(--portal-text-main)] mb-4">Edit Profile</h2>
             <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -724,6 +894,61 @@ export default function PortalStudentDetailView({
             </Button>
           </div>
         </div>
+      </Dialog>
+
+      {/* Password Reveal Modal (Requires Admin Re-Authentication) */}
+      <Dialog
+        isOpen={showRevealModal}
+        onClose={() => {
+          setShowRevealModal(false);
+          setAdminPasswordInput("");
+          setRevealError("");
+        }}
+        title="Confirm Admin Identity"
+        description="Re-enter your administrator password to decrypt and view this student's password. This action is rate-limited and logged."
+      >
+        <form onSubmit={handleRevealPassword} className="space-y-4 pt-2">
+          {revealError && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+              {revealError}
+            </div>
+          )}
+
+          <FormField label="Your Admin Password" required hint="Rate limited to 5 reveals per minute.">
+            <input
+              type="password"
+              value={adminPasswordInput}
+              onChange={(e) => setAdminPasswordInput(e.target.value)}
+              placeholder="Enter your admin password"
+              className="portal-input"
+              autoFocus
+              required
+            />
+          </FormField>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowRevealModal(false);
+                setAdminPasswordInput("");
+                setRevealError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="yellow"
+              size="sm"
+              disabled={revealSubmitting || !adminPasswordInput}
+            >
+              {revealSubmitting ? "Verifying..." : "Confirm & Reveal"}
+            </Button>
+          </div>
+        </form>
       </Dialog>
     </div>
   );

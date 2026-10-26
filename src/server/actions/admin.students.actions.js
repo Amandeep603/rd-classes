@@ -14,6 +14,29 @@ import {
   unblockStudent,
   adminResetPassword,
 } from "../services/studentService.js";
+import {
+  isEncryptionKeyConfigured,
+  decryptPassword,
+} from "../auth/credentialEncryption.js";
+import { comparePassword } from "../auth/password.js";
+import { logAuditEvent } from "../services/audit.js";
+
+// Rate limit map: 5 reveals per minute per admin
+const revealAttemptsMap = new Map();
+function checkRevealRateLimit(adminId) {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 5;
+  const history = (revealAttemptsMap.get(adminId.toString()) || []).filter(
+    (t) => now - t < windowMs
+  );
+  if (history.length >= maxAttempts) {
+    return false;
+  }
+  history.push(now);
+  revealAttemptsMap.set(adminId.toString(), history);
+  return true;
+}
 
 export async function createStudentAction(prevState, formData) {
   const admin = await requireAdmin();
@@ -499,17 +522,209 @@ export async function sendBulkImportCredentialsChunkAction({ items, batchId }) {
 }
 
 /**
- * Resets passwords and emails new credentials to a chunk of up to 10 existing students.
+ * Checks whether the credential encryption key is properly configured in environment.
+ */
+export async function checkCredentialEncryptionConfigAction() {
+  await requireAdmin();
+  return { configured: isEncryptionKeyConfigured() };
+}
+
+/**
+ * Reveals a student's password to an authenticated admin.
+ * Requires admin re-authentication, rate limited to 5/minute, and audits access.
+ */
+export async function revealStudentPasswordAction({ studentId, adminPassword }) {
+  const admin = await requireAdmin();
+
+  if (!checkRevealRateLimit(admin.user._id)) {
+    return {
+      success: false,
+      error: "Rate limit exceeded. Maximum 5 password reveals per minute.",
+    };
+  }
+
+  if (!adminPassword || typeof adminPassword !== "string") {
+    return {
+      success: false,
+      error: "Admin password confirmation is required.",
+    };
+  }
+
+  const { User } = await import("../db/models/User.js");
+  const adminUser = await User.findById(admin.user._id);
+  if (!adminUser) {
+    return { success: false, error: "Admin user not found." };
+  }
+
+  const isPasswordValid = await comparePassword(adminPassword, adminUser.passwordHash);
+  if (!isPasswordValid) {
+    return { success: false, error: "Incorrect admin password." };
+  }
+
+  if (!isEncryptionKeyConfigured()) {
+    return {
+      success: false,
+      error: "CREDENTIAL_ENC_KEY is not configured on this server.",
+    };
+  }
+
+  const student = await User.findById(studentId);
+  if (!student || student.role !== "student") {
+    return { success: false, error: "Student not found." };
+  }
+
+  if (!student.passwordEnc || !student.passwordEnc.ciphertext) {
+    return {
+      success: false,
+      error: "No encrypted password stored for this student. Reset password to enable reveal.",
+    };
+  }
+
+  try {
+    const plainPassword = decryptPassword(student.passwordEnc);
+
+    await logAuditEvent({
+      actorId: admin.user._id,
+      action: "student.password_revealed",
+      targetType: "student",
+      targetId: student._id.toString(),
+      meta: {
+        loginId: student.loginId,
+      },
+    });
+
+    return { success: true, password: plainPassword };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message || "Failed to decrypt password.",
+    };
+  }
+}
+
+/**
+ * Sends credentials to a student (email and/or WhatsApp) using their decrypted password
+ * WITHOUT resetting the student's password.
+ */
+export async function sendStudentCredentialsAction({ studentId, sendEmail: wantEmail = true }) {
+  const admin = await requireAdmin();
+  const { User } = await import("../db/models/User.js");
+  const { Enrollment } = await import("../db/models/Enrollment.js");
+  const { Course } = await import("../db/models/Course.js");
+  const { renderCredentialsTemplate } = await import("../email/templates/credentials.js");
+  const { sendEmail } = await import("../email/emailService.js");
+
+  const student = await User.findById(studentId);
+  if (!student || student.role !== "student") {
+    return { success: false, error: "Student not found." };
+  }
+
+  if (!student.passwordEnc || !student.passwordEnc.ciphertext) {
+    return {
+      success: false,
+      error: "No encrypted password stored for this student. Reset password to enable sending credentials.",
+    };
+  }
+
+  let plainPassword;
+  try {
+    plainPassword = decryptPassword(student.passwordEnc);
+  } catch (err) {
+    return { success: false, error: "Decryption failed: " + err.message };
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+  const whatsappMsg = `Hello ${student.name}, welcome to RD Classes! Login ID: ${student.loginId} | Password: ${plainPassword} | Portal: ${siteUrl}/student/login`;
+  const cleanPhone = (student.phone || "").replace(/\D/g, "");
+  const whatsappUrl = `https://wa.me/${cleanPhone || ""}?text=${encodeURIComponent(whatsappMsg)}`;
+
+  let emailSent = false;
+  let emailError = null;
+
+  if (wantEmail && student.email) {
+    try {
+      const enrollments = await Enrollment.find({
+        userId: student._id,
+        status: "active",
+      }).lean();
+
+      const courseIds = enrollments.map((e) => e.courseId);
+      const courses = await Course.find({ _id: { $in: courseIds } })
+        .select("title")
+        .lean();
+
+      const coursesWithDates = enrollments.map((e) => {
+        const c = courses.find((x) => x._id.toString() === e.courseId.toString());
+        return {
+          title: c?.title || "Enrolled Course",
+          validUntil: e.expiresAt,
+        };
+      });
+
+      const { subject, html, text } = renderCredentialsTemplate({
+        studentName: student.name,
+        loginId: student.loginId,
+        password: plainPassword,
+        loginUrl: `${siteUrl}/student/login`,
+        courses: coursesWithDates,
+      });
+
+      const emailRes = await sendEmail({
+        to: student.email,
+        subject,
+        html,
+        text,
+        kind: "credentials",
+        studentId: student._id,
+        createdBy: admin.user._id,
+      });
+
+      emailSent = emailRes.success;
+      emailError = emailRes.error || null;
+    } catch (e) {
+      emailError = e.message;
+    }
+  }
+
+  await logAuditEvent({
+    actorId: admin.user._id,
+    action: "student.credentials_sent",
+    targetType: "student",
+    targetId: student._id.toString(),
+    meta: {
+      toEmail: student.email || null,
+      emailSent,
+      hasWhatsApp: Boolean(cleanPhone),
+    },
+  });
+
+  return {
+    success: true,
+    whatsappMsg,
+    whatsappUrl,
+    emailSent,
+    emailError,
+  };
+}
+
+/**
+ * Emails credentials to a chunk of up to 10 existing students.
+ * Uses decrypted password without resetting unless missing (when autoResetMissing is true).
  */
 export async function bulkResetAndEmailCredentialsChunkAction({
   studentIds,
   revokeSessions = true,
   batchId,
+  autoResetMissing = true,
 }) {
   const admin = await requireAdmin();
   const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
   const { resetStudentPasswordAndEmail } = await import("../services/studentService.js");
   const { User } = await import("../db/models/User.js");
+  const { Enrollment } = await import("../db/models/Enrollment.js");
+  const { Course } = await import("../db/models/Course.js");
+  const { renderCredentialsTemplate } = await import("../email/templates/credentials.js");
+  const { sendEmail } = await import("../email/emailService.js");
 
   if (!isEmailConfigured()) {
     return { success: false, error: "Email delivery is not configured on this server." };
@@ -526,10 +741,11 @@ export async function bulkResetAndEmailCredentialsChunkAction({
 
   const chunkIds = (studentIds || []).slice(0, 10);
   const results = [];
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
 
   for (const sId of chunkIds) {
     try {
-      const student = await User.findById(sId).lean();
+      const student = await User.findById(sId);
       if (!student) {
         results.push({ studentId: sId, status: "skipped", reason: "not_found" });
         continue;
@@ -542,6 +758,76 @@ export async function bulkResetAndEmailCredentialsChunkAction({
           email: "",
           status: "skipped",
           reason: "no_email",
+        });
+        continue;
+      }
+
+      // If student has encrypted password, send without resetting
+      if (student.passwordEnc && student.passwordEnc.ciphertext && isEncryptionKeyConfigured()) {
+        try {
+          const plainPassword = decryptPassword(student.passwordEnc);
+          const enrollments = await Enrollment.find({
+            userId: student._id,
+            status: "active",
+          }).lean();
+
+          const courseIds = enrollments.map((e) => e.courseId);
+          const courses = await Course.find({ _id: { $in: courseIds } })
+            .select("title")
+            .lean();
+
+          const coursesWithDates = enrollments.map((e) => {
+            const c = courses.find((x) => x._id.toString() === e.courseId.toString());
+            return {
+              title: c?.title || "Enrolled Course",
+              validUntil: e.expiresAt,
+            };
+          });
+
+          const { subject, html, text } = renderCredentialsTemplate({
+            studentName: student.name,
+            loginId: student.loginId,
+            password: plainPassword,
+            loginUrl: `${siteUrl}/student/login`,
+            courses: coursesWithDates,
+          });
+
+          const sendResult = await sendEmail({
+            to: student.email,
+            subject,
+            html,
+            text,
+            kind: "credentials",
+            studentId: student._id,
+            createdBy: admin.user._id,
+            batchId: batchId || null,
+          });
+
+          results.push({
+            studentId: sId,
+            name: student.name,
+            email: student.email,
+            loginId: student.loginId,
+            status: sendResult.success ? "sent" : "failed",
+            resetPerformed: false,
+            error: sendResult.error || null,
+          });
+          continue;
+        } catch {
+          // If decryption fails, fall through to autoResetMissing logic
+        }
+      }
+
+      // If student does not have encrypted password:
+      if (!autoResetMissing) {
+        results.push({
+          studentId: sId,
+          name: student.name,
+          email: student.email,
+          loginId: student.loginId,
+          status: "skipped",
+          reason: "missing_encrypted_password",
+          needsReset: true,
         });
         continue;
       }
@@ -560,6 +846,7 @@ export async function bulkResetAndEmailCredentialsChunkAction({
         loginId: student.loginId,
         newPassword: res.newPassword,
         status: res.emailResult?.success ? "sent" : "failed",
+        resetPerformed: true,
         error: res.emailResult?.error || null,
       });
     } catch (err) {

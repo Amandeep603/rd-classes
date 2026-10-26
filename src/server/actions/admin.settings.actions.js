@@ -23,9 +23,7 @@ export async function updateSettingsAction(payload) {
   if (payload.defaultDeviceLimit) settings.defaultDeviceLimit = Number(payload.defaultDeviceLimit) || 1;
   if (typeof payload.watermarkEnabled === "boolean") settings.watermarkEnabled = payload.watermarkEnabled;
   if (payload.rewardTargetText) settings.rewardTargetText = payload.rewardTargetText.trim();
-  if (typeof payload.allowStudentPasswordChange === "boolean") {
-    settings.allowStudentPasswordChange = payload.allowStudentPasswordChange;
-  }
+
   if (typeof payload.emailOnDeviceApproved === "boolean") {
     settings.emailOnDeviceApproved = payload.emailOnDeviceApproved;
   }

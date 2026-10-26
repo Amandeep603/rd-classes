@@ -2,8 +2,7 @@ import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Device } from "@/server/db/models/Device.js";
 import { User } from "@/server/db/models/User.js";
-import { Settings } from "@/server/db/models/Settings.js";
-import ChangePasswordCard from "@/components/portal/student/ChangePasswordCard";
+
 import {
   User as UserIcon,
   Phone,
@@ -29,20 +28,17 @@ export default async function StudentProfilePage() {
   if (!auth?.user) return null;
   await connectDB();
 
-  const [user, settings, devices] = await Promise.all([
+  const [user, devices] = await Promise.all([
     User.findById(auth.user._id).lean(),
-    Settings.findOne().lean(),
     Device.find({ userId: auth.user._id }).sort({ lastUsedAt: -1 }).lean(),
   ]);
-
-  const allowChangePassword = settings?.allowStudentPasswordChange !== false;
 
   const currentDeviceId = auth.session.deviceId;
 
   const whatsappPhone =
     SITE_CONFIG?.contact?.whatsapp?.replace(/\D/g, "") || "919999999999";
   const whatsappUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
-    `Hello Sir, I want to change or update my approved device for the RD Classes portal.\nStudent: ${user.name} (${user.studentCode || user.loginId})`
+    `Hello Sir, I want to change or update my password or approved device for the RD Classes portal.\nStudent: ${user.name} (${user.studentCode || user.loginId})`
   )}`;
 
   return (
@@ -139,21 +135,43 @@ export default async function StudentProfilePage() {
           </div>
         </div>
 
-        {/* Right Column: Change Password */}
+        {/* Right Column: Account Security & Contact Sir */}
         <div className="lg:col-span-7">
-          {allowChangePassword ? (
-            <ChangePasswordCard />
-          ) : (
-            <div className="rounded-[22px] border border-black/5 bg-white p-6 sm:p-8 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)] space-y-3">
-              <div className="flex items-center gap-2.5 text-amber-700 font-extrabold text-sm">
-                <ShieldAlert className="h-5 w-5" />
-                <span>Password Change Managed by Admin</span>
+          <div className="rounded-[22px] border border-black/5 bg-white p-6 sm:p-8 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)] space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 border border-amber-200/60 text-[#D97706]">
+                <ShieldCheck className="h-5 w-5" />
               </div>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Direct password changes for students are currently disabled by RD Classes management. If you need your password reset or updated, please request Ronak Sir or the administration directly.
-              </p>
+              <div>
+                <h2 className="text-lg font-extrabold text-[#111827]">
+                  Account Security
+                </h2>
+                <p className="text-xs text-[#6B7280]">
+                  Your credentials and authorized devices are managed by faculty
+                </p>
+              </div>
             </div>
-          )}
+
+            <div className="rounded-2xl bg-[#F8FAF7] border border-black/5 p-4 sm:p-5 space-y-3">
+              <p className="text-sm font-semibold text-[#1F2937]">
+                To change your password or device, contact Sir
+              </p>
+              <p className="text-xs text-[#6B7280] leading-relaxed">
+                For security and single-device protection, all student credentials and device approvals are maintained directly by Ronak Sir. If you lost access, changed phones, or need assistance, message Sir on WhatsApp.
+              </p>
+              <div className="pt-2">
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-2.5 text-xs font-bold shadow-sm transition-all active:scale-[0.98]"
+                >
+                  <MessageCircle className="h-4 w-4 fill-white" />
+                  <span>Contact Sir on WhatsApp</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

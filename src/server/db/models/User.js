@@ -53,6 +53,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    passwordEnc: {
+      iv: { type: String, default: null },
+      tag: { type: String, default: null },
+      ciphertext: { type: String, default: null },
+      keyVersion: { type: Number, default: 1 },
+    },
     status: {
       type: String,
       enum: ["active", "blocked"],
