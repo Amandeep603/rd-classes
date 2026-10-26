@@ -12,8 +12,8 @@
 | **D0 + D1** | Test Isolation + Navbar (Solid dark on all non-home routes, #notes link, no lectures) + `/courses` pixel-matching (1536 canvas, 431px cards, large illustrations, tone system) + Zero-data states (courses empty state, home sections hide when empty) | **DONE** |
 | **D2** | Login Pages (`/student/login` & `/admin/login` matching reference with dark navy study room scene, no photos, no forgot password) + Credential Model (AES-256-GCM encrypted copy `passwordEnc`, admin reveal with re-auth & audit log, no student password change) | **DONE** |
 | **D3** | Free First Lecture (`freePreview` auto-set on lowest order lecture, admin override) + "Buy on WhatsApp" dialog on locked lectures & visitor sidebar | **DONE** |
-| **D4** | Notes Ecosystem (Public `/notes` page, note card grid, protected stream route, course detail notes tab + lecture note links) | **NEXT** |
-| **D5** | Admin Polish, Zero Data (real counters, empty checklists), Final Lint + Build + Vitest + Docs | **PENDING** |
+| **D4** | Notes Ecosystem (Public `/notes` page, note card grid, protected stream route, course detail notes tab + lecture note links) | **DONE** |
+| **D5** | Admin Polish, Zero Data (real counters, empty checklists), Final Lint + Build + Vitest + Docs | **NEXT** |
 
 ---
 
@@ -45,3 +45,11 @@
   - Visitor sidebar card updated to "Buy this course" with direct prefilled WhatsApp CTA and Student Login link.
 - [x] Updated admin lecture managers ([`PortalCourseDetailView.jsx`](file:///e:/rd-classes/src/components/portal/admin/PortalCourseDetailView.jsx), [`PortalLecturesView.jsx`](file:///e:/rd-classes/src/components/portal/admin/PortalLecturesView.jsx), [`LecturesManager.jsx`](file:///e:/rd-classes/src/components/admin/LecturesManager.jsx)) with "Free" badges and "Free preview" checkboxes.
 - [x] Created [`tests/free_lecture.test.js`](file:///e:/rd-classes/tests/free_lecture.test.js) (6 tests). Full Vitest suite passes 76/76 tests across all 10 suites; ESLint 0 errors; Next.js 57/57 production build succeeded.
+
+## Phase D4 Summary
+- [x] Built public [`/notes`](file:///e:/rd-classes/src/app/%28marketing%29/notes/page.js) page and [`NotesDirectoryClient.jsx`](file:///e:/rd-classes/src/components/notes/NotesDirectoryClient.jsx) with curriculum search, Class 11/12 tabs, kind chips (Concept Notes, Practice Sheets, Formula Cards, Board Papers), live counts, and zero-data states.
+- [x] Implemented `getCachedPublicNotes()` in [`noteService.js`](file:///e:/rd-classes/src/server/services/noteService.js) with `cacheTag("notes")` and `cacheLife("max")`, sanitizing sensitive storage keys and file paths while populating linked course badges.
+- [x] Protected streaming route [`/api/notes/[id]/stream`](file:///e:/rd-classes/src/app/api/notes/%5Bid%5D/stream/route.js) verifies authentication and active course enrollment before serving PDFs as `inline` with `no-store` headers.
+- [x] Course detail page Notes tab updated in [`CourseDetailClient.jsx`](file:///e:/rd-classes/src/components/courses/CourseDetailClient.jsx) with interactive "Enrolled only · Unlock note" button opening the course purchase dialog for visitors.
+- [x] Student lecture player page in [`[lectureId]/page.js`](file:///e:/rd-classes/src/app/%28student%29/student/%28portal%29/courses/%5Bslug%5D/lectures/%5BlectureId%5D/page.js) enriched with "Chapter Notes & Resources" card displaying direct PDF stream / link access for enrolled students.
+- [x] Created [`tests/notes_ecosystem.test.js`](file:///e:/rd-classes/tests/notes_ecosystem.test.js) (4 tests). Full Vitest suite passes 80/80 tests across all 11 suites; ESLint 0 errors; Next.js 58/58 production build succeeded.

@@ -686,10 +686,14 @@ export default function CourseDetailClient({
                               </a>
                             )
                           ) : (
-                            <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-semibold">
-                              <Lock className="w-3.5 h-3.5 text-neutral-400" />
-                              <span>Enrolled students only</span>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setBuyDialogOpen(true)}
+                              className="flex items-center gap-1.5 text-xs text-[#0B2545] font-semibold hover:text-[#0066FF] cursor-pointer"
+                            >
+                              <Lock className="w-3.5 h-3.5 text-[#D97706]" />
+                              <span>Enrolled only · Unlock note</span>
+                            </button>
                           )}
                         </div>
                       </div>

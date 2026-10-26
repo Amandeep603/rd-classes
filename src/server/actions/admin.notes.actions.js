@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "../auth/session.js";
 import { noteCreateSchema, noteUpdateSchema } from "../validation/schemas.js";
 import {
@@ -33,6 +33,9 @@ export async function createNoteAction(payload) {
     const note = await createNote(parsed.data, admin.user._id);
     revalidatePath("/admin/courses");
     revalidatePath("/admin/notes");
+    revalidatePath("/notes");
+    revalidateTag("notes");
+    revalidateTag("courses");
     return { success: true, note };
   } catch (err) {
     return { success: false, error: err.message };
@@ -57,6 +60,9 @@ export async function updateNoteAction(noteId, payload) {
     const note = await updateNote(noteId, parsed.data, admin.user._id);
     revalidatePath("/admin/courses");
     revalidatePath("/admin/notes");
+    revalidatePath("/notes");
+    revalidateTag("notes");
+    revalidateTag("courses");
     return { success: true, note };
   } catch (err) {
     return { success: false, error: err.message };
@@ -73,6 +79,9 @@ export async function deleteNoteAction(noteId) {
     const res = await deleteNote(noteId, admin.user._id);
     revalidatePath("/admin/courses");
     revalidatePath("/admin/notes");
+    revalidatePath("/notes");
+    revalidateTag("notes");
+    revalidateTag("courses");
     return res;
   } catch (err) {
     return { success: false, error: err.message };
@@ -88,6 +97,9 @@ export async function attachNoteToCourseAction({ noteId, courseId }) {
   try {
     const note = await attachNoteToCourse(noteId, courseId);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidatePath("/notes");
+    revalidateTag("notes");
+    revalidateTag("courses");
     return { success: true, note };
   } catch (err) {
     return { success: false, error: err.message };
@@ -103,6 +115,9 @@ export async function detachNoteFromCourseAction({ noteId, courseId }) {
   try {
     const note = await detachNoteFromCourse(noteId, courseId);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidatePath("/notes");
+    revalidateTag("notes");
+    revalidateTag("courses");
     return { success: true, note };
   } catch (err) {
     return { success: false, error: err.message };
@@ -118,6 +133,9 @@ export async function reorderCourseNotesAction({ courseId, orderedNoteIds }) {
   try {
     const res = await reorderCourseNotes(courseId, orderedNoteIds);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidatePath("/notes");
+    revalidateTag("notes");
+    revalidateTag("courses");
     return res;
   } catch (err) {
     return { success: false, error: err.message };

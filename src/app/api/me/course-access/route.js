@@ -12,21 +12,38 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug");
 
-  if (!slug) {
-    return NextResponse.json({ error: "Missing course slug" }, { status: 400 });
-  }
-
   const auth = await getCurrentUser();
   if (!auth || auth.user.role !== "student") {
     return NextResponse.json({
       authenticated: false,
       enrolled: false,
+      enrolledCourseIds: [],
     }, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
   }
 
   await connectDB();
+  const now = new Date();
+
+  // If slug is omitted, return all active enrolled course IDs for general directories
+  if (!slug) {
+    const enrollments = await Enrollment.find({
+      userId: auth.user._id,
+      status: "active",
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    }).select("courseId").lean();
+
+    return NextResponse.json({
+      authenticated: true,
+      enrolled: enrollments.length > 0,
+      enrolledCourseIds: enrollments.map((e) => e.courseId.toString()),
+      studentName: auth.user.name,
+    }, {
+      headers: { "Cache-Control": "private, no-store, max-age=0" },
+    });
+  }
+
   const course = await Course.findOne({ slug: slug.toLowerCase() }).select("_id slug").lean();
   if (!course) {
     return NextResponse.json({
@@ -37,7 +54,6 @@ export async function GET(request) {
     });
   }
 
-  const now = new Date();
   const enrollment = await Enrollment.findOne({
     userId: auth.user._id,
     courseId: course._id,

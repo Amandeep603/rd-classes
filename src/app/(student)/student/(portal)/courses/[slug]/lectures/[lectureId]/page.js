@@ -5,6 +5,7 @@ import {
   getAuthorizedLecture,
   getCourseSyllabusForStudent,
 } from "@/server/services/lectureService.js";
+import { getStudentAccessibleNotes } from "@/server/services/noteService.js";
 import VimeoPlayer from "@/components/student/VimeoPlayer";
 import { markLectureCompleteAction } from "@/server/actions/student.progress.actions.js";
 import {
@@ -15,6 +16,9 @@ import {
   PlayCircle,
   Clock,
   Sparkles,
+  FileText,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 
 export const instant = false;
@@ -48,10 +52,10 @@ export default async function StudentLecturePlayerPage({ params }) {
     nextLecture,
   } = data;
 
-  const syllabus = await getCourseSyllabusForStudent(
-    lecture.courseId,
-    auth.user._id
-  );
+  const [syllabus, notes] = await Promise.all([
+    getCourseSyllabusForStudent(lecture.courseId, auth.user._id),
+    getStudentAccessibleNotes(auth.user._id, { courseId: lecture.courseId }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -159,6 +163,73 @@ export default async function StudentLecturePlayerPage({ params }) {
               <p className="text-sm text-[#4B5563] leading-relaxed whitespace-pre-line">
                 {lecture.description}
               </p>
+            </div>
+          )}
+
+          {/* Lecture & Chapter Notes */}
+          {notes && notes.length > 0 && (
+            <div className="rounded-[22px] border border-black/5 bg-white p-6 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold text-[#111827] uppercase tracking-wider">
+                    Chapter Notes &amp; Resources
+                  </h3>
+                  <p className="text-xs text-[#6B7280] mt-0.5">
+                    Study materials, formula sheets, and practice sets for this chapter.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                  {notes.length} Material{notes.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              <div className="divide-y divide-black/5 pt-1">
+                {notes.map((note) => (
+                  <div
+                    key={note._id}
+                    className="py-3 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-[#111827] truncate">
+                          {note.title}
+                        </h4>
+                        <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
+                          <span className="capitalize">{note.kind}</span>
+                          {note.pageCount > 0 && (
+                            <>
+                              <span>•</span>
+                              <span>{note.pageCount} Pages</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <a
+                      href={note.source === "link" && note.externalUrl ? note.externalUrl : `/api/notes/${note._id}/stream`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-black text-white font-bold text-xs transition-colors flex-shrink-0"
+                    >
+                      {note.source === "link" ? (
+                        <>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Open Link</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Open PDF</span>
+                        </>
+                      )}
+                    </a>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -196,6 +196,44 @@ export async function getCachedNotesForCourse(courseId) {
 }
 
 /**
+ * Cached function for all published notes in the public /notes directory.
+ */
+export async function getCachedPublicNotes() {
+  "use cache";
+  cacheTag("notes");
+  cacheLife("max");
+  await connectDB();
+  const notes = await Note.find({ published: true })
+    .populate("courseIds", "title slug tone category")
+    .select("_id title kind source pageCount section courseIds createdAt")
+    .sort({ order: 1, createdAt: -1 })
+    .lean();
+
+  const sanitized = notes.map((n) => ({
+    _id: n._id.toString(),
+    title: n.title,
+    kind: n.kind,
+    source: n.source,
+    pageCount: n.pageCount || 0,
+    section: n.section || "General",
+    courses: Array.isArray(n.courseIds)
+      ? n.courseIds
+          .filter(Boolean)
+          .map((c) => ({
+            _id: c._id.toString(),
+            title: c.title,
+            slug: c.slug,
+            tone: c.tone,
+            category: c.category,
+          }))
+      : [],
+    createdAt: n.createdAt ? n.createdAt.toISOString() : null,
+  }));
+
+  return JSON.parse(JSON.stringify(sanitized));
+}
+
+/**
  * Gets notes library list with filters and search for admin.
  */
 export async function getNotesList({
