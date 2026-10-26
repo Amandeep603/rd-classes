@@ -44,11 +44,14 @@ async function checkServerRunning() {
   });
 }
 
+import { deriveIsolatedTestUri } from "./lib/testDbIsolation.mjs";
+
 async function run() {
   console.log("=== RD Classes Portal & Routes E2E Crawl ===");
 
-  // Connect to DB to ensure student user & enrollment for test crawl
-  await mongoose.connect(process.env.MONGODB_URI, { bufferCommands: false });
+  const { testUri, testDbName } = deriveIsolatedTestUri();
+  console.log(`Connecting to Isolated Test DB: "${testDbName}"...`);
+  await mongoose.connect(testUri, { bufferCommands: false });
   const { User, Course, Enrollment, Device } = await import(
     "../src/server/db/models/index.js"
   );

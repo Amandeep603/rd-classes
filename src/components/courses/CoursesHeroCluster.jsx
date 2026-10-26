@@ -16,15 +16,14 @@ const caveatFont = Caveat({
  */
 export default function CoursesHeroCluster({ className = "" }) {
   return (
-    <div className={`relative flex items-center justify-center select-none ${className}`}>
+    <div className={`relative flex items-center justify-between select-none w-full max-w-[650px] ${className}`}>
       {/* Background Pale Yellow Glow Circle */}
       <div
-        className="absolute w-[360px] h-[360px] sm:w-[420px] sm:h-[420px] rounded-full -z-10 pointer-events-none"
+        className="absolute w-[360px] h-[360px] rounded-full -z-10 pointer-events-none"
         style={{
-          background: "radial-gradient(circle, #FEEBAA 0%, #FFF8DF 60%, rgba(255,248,223,0) 80%)",
-          filter: "blur(18px)",
+          background: "radial-gradient(circle, #FEEBAA 0%, #FFF8DF 65%, rgba(255,248,223,0) 80%)",
           top: "50%",
-          left: "50%",
+          left: "38%",
           transform: "translate(-50%, -50%)",
         }}
         aria-hidden="true"
@@ -180,23 +179,23 @@ export default function CoursesHeroCluster({ className = "" }) {
         </g>
       </svg>
 
-      {/* Handwritten Badge: Learn / Practice / Score Higher */}
+      {/* Handwritten Badge: Learn / Practice / Score Higher (Clearly separated from books at right) */}
       <div
-        className={`absolute -right-2 sm:-right-8 top-12 sm:top-14 select-none pointer-events-none transform -rotate-12 ${caveatFont.className}`}
+        className={`hidden sm:block absolute right-[-10px] lg:right-[-25px] top-6 select-none pointer-events-none transform -rotate-12 ${caveatFont.className}`}
         style={{
           color: "#1E293B",
           lineHeight: 1.15,
         }}
       >
-        <div className="text-[26px] sm:text-[34px] md:text-[38px] font-bold tracking-tight whitespace-nowrap drop-shadow-xs">
+        <div className="text-[28px] sm:text-[32px] font-bold tracking-tight whitespace-nowrap drop-shadow-xs">
           Learn<br />
           Practice<br />
           Score Higher
         </div>
         {/* Yellow Swoosh Underline */}
         <svg
-          width="130"
-          height="16"
+          width="120"
+          height="14"
           viewBox="0 0 130 16"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -205,7 +204,7 @@ export default function CoursesHeroCluster({ className = "" }) {
           <path
             d="M4 11 C35 2 85 4 126 12 C100 13 45 13 25 15"
             stroke="#FFB800"
-            strokeWidth="4"
+            strokeWidth="3.5"
             strokeLinecap="round"
           />
         </svg>

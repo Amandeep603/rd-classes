@@ -11,10 +11,14 @@ import { TOPPERS, DEFAULT_ACTIVE_TOPPER_INDEX } from "@/constants/toppers";
 
 export default function BoardToppersSection() {
   const [activeIdx, setActiveIdx] = useState(DEFAULT_ACTIVE_TOPPER_INDEX);
-  const n = TOPPERS.length;
+  const n = TOPPERS?.length || 0;
 
   const handlePrev = () => setActiveIdx((prev) => (prev - 1 + n) % n);
   const handleNext = () => setActiveIdx((prev) => (prev + 1) % n);
+
+  if (!TOPPERS || TOPPERS.length === 0) {
+    return null;
+  }
 
   return (
     <InViewSection

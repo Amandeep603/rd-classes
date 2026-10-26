@@ -67,16 +67,18 @@ export default function Navbar() {
     return () => window.removeEventListener("resize", handleResize);
   }, [mobileMenuOpen]);
 
+  const isSolid = pathname !== "/" || isScrolled;
+
   return (
     <>
       <header
         className={`fixed top-0 left-0 right-0 z-50 w-full transition-colors duration-200 flex items-center px-5 lg:px-[6.25vw] h-[64px] lg:h-[clamp(64px,calc(var(--u)*88),96px)] ${
-          isScrolled
+          isSolid
             ? "bg-[#0A0A0A] border-b border-white/[0.08]"
             : "bg-transparent border-none"
         }`}
         style={
-          isScrolled
+          isSolid
             ? {
                 backgroundColor: "#0A0A0A",
                 borderBottom: "1px solid rgba(255, 255, 255, 0.08)",

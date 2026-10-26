@@ -736,21 +736,48 @@ export default function CourseForm({ course = null, mode = "new" }) {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#374151] mb-1">
-                  Card Tone
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-[#374151] mb-2 flex items-center justify-between">
+                  <span>Card Tone & Accent Swatches</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Controls card tint, View Course button & WhatsApp button</span>
                 </label>
-                <select
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value)}
-                  className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-[#111827]"
-                >
-                  <option value="sky">Sky (Blue)</option>
-                  <option value="yellow">Yellow</option>
-                  <option value="orange">Orange</option>
-                  <option value="green">Green</option>
-                  <option value="purple">Purple</option>
-                </select>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+                  {[
+                    { value: "sky", label: "Sky (Navy)", color: "#0B2A5B", bg: "#D8ECFB" },
+                    { value: "yellow", label: "Yellow", color: "#FFC21A", bg: "#FFF0BE" },
+                    { value: "orange", label: "Orange", color: "#F97316", bg: "#FFE1D1" },
+                    { value: "green", label: "Green", color: "#0E7A57", bg: "#DCF4E9" },
+                    { value: "purple", label: "Purple", color: "#6D4AE0", bg: "#E9E3FC" },
+                    { value: "red", label: "Red", color: "#E5392E", bg: "#FFE0DF" },
+                  ].map((swatch) => {
+                    const isSelected = tone === swatch.value;
+                    return (
+                      <button
+                        key={swatch.value}
+                        type="button"
+                        onClick={() => setTone(swatch.value)}
+                        className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all text-center cursor-pointer ${
+                          isSelected
+                            ? "border-slate-900 ring-2 ring-slate-900 bg-white shadow-xs"
+                            : "border-black/10 bg-white hover:border-black/20"
+                        }`}
+                      >
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center border border-black/10 shadow-2xs"
+                          style={{ backgroundColor: swatch.bg }}
+                        >
+                          <span
+                            className="w-3.5 h-3.5 rounded-full"
+                            style={{ backgroundColor: swatch.color }}
+                          />
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-800">
+                          {swatch.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

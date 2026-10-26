@@ -57,18 +57,19 @@ export default function CourseCard({
         className={`course-card-container group relative flex flex-col justify-between overflow-hidden rounded-[24px] border border-black/8 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.04)] course-card ${className}`}
         style={{
           background: "var(--course-tint-gradient)",
+          minHeight: "318px",
         }}
       >
-        <div className="p-5 sm:p-6 pb-0 flex-1 flex flex-col">
+        <div className="p-5 pb-0 flex-1 flex flex-col">
           {/* Top Pill Row */}
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <span className="inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-800 shadow-2xs">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="inline-flex items-center h-[30px] rounded-full bg-white px-3.5 text-[12px] font-extrabold uppercase tracking-wide text-slate-800 shadow-2xs">
               {classLabel}
             </span>
 
             {badgeText && (
               <span
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-extrabold shadow-2xs"
+                className="inline-flex items-center h-[30px] gap-1.5 rounded-full px-3.5 text-[12px] font-extrabold shadow-2xs"
                 style={{
                   backgroundColor: "var(--course-badge-bg)",
                   color: "var(--course-badge-text)",
@@ -81,31 +82,31 @@ export default function CourseCard({
           </div>
 
           {/* Title & Illustration Row */}
-          <div className="flex items-start justify-between gap-4 mb-3">
+          <div className="flex items-start justify-between gap-3 mb-2">
             <div className="min-w-0 flex-1">
-              <h3 className="text-[19px] sm:text-[21px] font-extrabold text-[#0F172A] leading-tight">
+              <h3 className="text-[22px] font-extrabold text-[#0F172A] leading-[24px] line-clamp-2">
                 {title}
               </h3>
               {subtitle && (
-                <div className="text-[15px] font-semibold text-[#475569] mt-0.5">
+                <div className="text-[13px] font-semibold text-[#475569] mt-0.5">
                   {subtitle}
                 </div>
               )}
             </div>
 
-            {/* Illustration */}
-            <div className="w-[105px] h-[85px] shrink-0 course-card-illustration pointer-events-none select-none">
+            {/* Illustration (~28% of 431px card width = ~120px) */}
+            <div className="w-[120px] h-[90px] shrink-0 course-card-illustration pointer-events-none select-none -mr-1 -mt-1">
               <CourseIllustration name={illustration} />
             </div>
           </div>
 
           {/* Description */}
-          <p className="text-[13px] leading-relaxed text-[#5B6676] line-clamp-2 mb-4">
+          <p className="text-[12.5px] leading-[18px] text-[#5B6676] line-clamp-3 mb-3">
             {description}
           </p>
 
           {/* Meta & Language Row */}
-          <div className="mt-auto pt-3 border-t border-black/6 flex items-center justify-between gap-3 text-[12px] font-medium text-[#475569]">
+          <div className="mt-auto pt-2.5 border-t border-black/6 flex items-center justify-between gap-3 text-[13px] font-medium text-[#475569]">
             <div className="flex items-center gap-1.5 truncate">
               <MetaIconComponent className="h-3.5 w-3.5 text-slate-500 shrink-0" />
               <span className="truncate">{metaText}</span>
@@ -117,15 +118,15 @@ export default function CourseCard({
           </div>
 
           {/* Faculty Row */}
-          <div className="flex items-center gap-2.5 pt-3 mb-4">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FFC21A] text-[11px] font-black text-slate-900 shadow-2xs shrink-0">
+          <div className="flex items-center gap-3 pt-3 mb-3">
+            <div className="w-[40px] h-[40px] rounded-full bg-[#FFC21A] text-slate-900 font-black text-sm flex items-center justify-center shrink-0 shadow-2xs">
               RD
             </div>
             <div className="truncate">
-              <div className="text-[12.5px] font-bold text-[#0F172A] truncate">
+              <div className="text-[13px] font-bold text-[#0F172A] truncate">
                 {facultyName}
               </div>
-              <div className="text-[10.5px] text-[#64748B] truncate">
+              <div className="text-[11px] text-[#64748B] truncate">
                 {facultyRole}
               </div>
             </div>
@@ -133,10 +134,10 @@ export default function CourseCard({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-5 pb-5 sm:px-6 sm:pb-6 flex items-center gap-2.5 pt-2">
+        <div className="px-5 pb-5 flex items-center gap-2.5 pt-1">
           <Link
             href={`/courses/${slug}`}
-            className="flex-1 flex h-[44px] items-center justify-center gap-2 rounded-full text-xs sm:text-sm font-extrabold shadow-sm transition-all active:scale-98 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            className="flex-1 flex h-[40px] items-center justify-center gap-2 rounded-full text-[13px] font-extrabold shadow-sm transition-all active:scale-98 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
             style={{
               backgroundColor: "var(--course-btn-bg)",
               color: "var(--course-btn-text)",
@@ -151,7 +152,7 @@ export default function CourseCard({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Chat on WhatsApp about ${title}`}
-            className="flex h-[44px] w-[44px] items-center justify-center rounded-full shadow-sm transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 shrink-0"
+            className="flex h-[46px] w-[46px] items-center justify-center rounded-full shadow-sm transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 shrink-0"
             style={{
               backgroundColor: "var(--course-chat-bg-cat)",
               color: "var(--course-chat-color-cat)",

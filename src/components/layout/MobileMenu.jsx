@@ -52,7 +52,7 @@ export default function MobileMenu({ isOpen, onClose, currentPath }) {
   return (
     <div
       id="mobile-navigation"
-      className="fixed inset-0 top-[68px] z-40 bg-[#0A0A0A]/98 backdrop-blur-2xl border-t border-white/10 flex flex-col justify-between p-6 overflow-y-auto min-[1200px]:hidden transition-all duration-300"
+      className="fixed inset-0 top-[64px] z-40 bg-[#0A0A0A] border-t border-white/10 flex flex-col justify-between p-6 overflow-y-auto min-[1200px]:hidden transition-all duration-300"
       role="dialog"
       aria-modal="true"
       aria-label="Mobile Navigation Menu"

@@ -242,6 +242,13 @@ export async function createCourse(data, adminId) {
   const maxCourse = await Course.findOne().sort({ order: -1 }).select("order").lean();
   const nextOrder = (maxCourse?.order ?? 0) + 1;
 
+  const TONE_CYCLE = ["sky", "yellow", "orange", "green", "purple", "red"];
+  let assignedTone = data.tone;
+  if (!assignedTone || !TONE_CYCLE.includes(assignedTone)) {
+    const totalCourses = await Course.countDocuments();
+    assignedTone = TONE_CYCLE[totalCourses % TONE_CYCLE.length];
+  }
+
   const course = await Course.create({
     title: (data.title || "").trim(),
     subtitle: (data.subtitle || "").trim(),
@@ -250,7 +257,7 @@ export async function createCourse(data, adminId) {
     classLabel: (data.classLabel || "Class 12").trim(),
     badgeText: (data.badgeText || "").trim(),
     badgeVariant: data.badgeVariant || "crown-navy",
-    tone: data.tone || "sky",
+    tone: assignedTone,
     illustration: data.illustration || "books-blue",
     illustrationAssetId: data.illustrationAssetId || null,
     description: (data.description || "").trim(),

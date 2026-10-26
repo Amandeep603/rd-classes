@@ -22,18 +22,21 @@ if (fs.existsSync(envPath)) {
   }
 }
 
+import { deriveIsolatedTestUri } from "./lib/testDbIsolation.mjs";
+
 const PORT = process.env.PORT || "3100";
 const BASE_URL = `http://localhost:${PORT}`;
-const MONGODB_URI = process.env.MONGODB_URI;
+
+const { testUri, testDbName } = deriveIsolatedTestUri();
 
 const adminLoginId = (process.env.ADMIN_LOGIN_ID || "admin").trim().toLowerCase();
 const adminPassword = process.env.ADMIN_PASSWORD || "password123";
 
 async function runScenario() {
   console.log("=== RD Classes Full End-to-End Playwright Scenario ===");
-  console.log(`Connecting to MongoDB & Target: ${BASE_URL}...`);
+  console.log(`Connecting to Isolated Test DB: "${testDbName}" & Target: ${BASE_URL}...`);
 
-  await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 15000 });
+  await mongoose.connect(testUri, { serverSelectionTimeoutMS: 15000 });
   const db = mongoose.connection.db;
 
   const results = [];
@@ -385,11 +388,17 @@ Chetan Verma,${studentCLoginId},chetan@example.com,9876543212,12,DAV Public Scho
     console.log("✓ ALL 12 END-TO-END SCENARIO STEPS VERIFIED AND PASSED!");
     console.log("========================================================");
 
-    // Clean up created test records
-    await db.collection("courses").updateOne({ _id: courseId }, { $set: { published: true } });
+    // Clean up created test records completely
+    if (courseId) {
+      await db.collection("courses").deleteMany({ _id: courseId });
+      await db.collection("lectures").deleteMany({ courseId });
+      await db.collection("notes").deleteMany({ courseIds: courseId });
+      await db.collection("enrollments").deleteMany({ courseId });
+      await db.collection("progresses").deleteMany({ courseId });
+    }
     await db.collection("users").deleteMany({ loginId: { $in: [studentALoginId, studentBLoginId, studentCLoginId] } });
-    await db.collection("enrollments").deleteMany({ courseId });
-    await db.collection("progresses").deleteMany({ courseId });
+    await db.collection("students").deleteMany({ $or: [{ email: /@example\.com$/i }, { name: /Aman Sharma|Rohit Kumar|Neha Gupta/ }] });
+    await db.collection("devicerequests").deleteMany({});
 
   } catch (err) {
     console.error("✕ E2E Scenario Failed:", err);

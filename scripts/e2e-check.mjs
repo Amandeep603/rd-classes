@@ -22,20 +22,22 @@ if (fs.existsSync(envPath)) {
   }
 }
 
+import { deriveIsolatedTestUri } from "./lib/testDbIsolation.mjs";
+
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-const MONGODB_URI = process.env.MONGODB_URI;
+const { testUri, testDbName } = deriveIsolatedTestUri();
 
 const adminLoginId = (process.env.ADMIN_LOGIN_ID || "admin").trim().toLowerCase();
 const adminPassword = process.env.ADMIN_PASSWORD || "password123";
 
 async function runE2E() {
   console.log("=== Starting RD Classes Complete E2E Verification ===");
-  console.log(`Target: ${BASE_URL}`);
+  console.log(`Target: ${BASE_URL} | Isolated Test DB: ${testDbName}`);
 
   let retries = 5;
   while (retries > 0) {
     try {
-      await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 15000 });
+      await mongoose.connect(testUri, { serverSelectionTimeoutMS: 15000 });
       break;
     } catch (err) {
       retries--;

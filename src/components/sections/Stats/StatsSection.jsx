@@ -40,13 +40,17 @@ export default async function StatsSection() {
     return null;
   }
 
-  const mentoredParsed = parseStat(rawMentored, 500, "+");
-  const successParsed = parseStat(rawSuccess, 95, "%+");
-  const testsParsed = parseStat(rawTests, 1200, "+");
-  const lecturesParsed = parseStat(totalLecturesEffective, 136, "");
+  const mentoredParsed = parseStat(rawMentored);
+  const successParsed = parseStat(rawSuccess);
+  const testsParsed = parseStat(rawTests);
+  const lecturesParsed = parseStat(totalLecturesEffective);
+
+  if (!mentoredParsed && !successParsed && !testsParsed && !lecturesParsed) {
+    return null;
+  }
 
   const stats = [
-    {
+    mentoredParsed && {
       id: "students-mentored",
       icon: "Users",
       value: mentoredParsed.value,
@@ -54,7 +58,7 @@ export default async function StatsSection() {
       label: "Students Mentored",
       description: "Years of dedicated Class 11 & 12 batches in Sector 9",
     },
-    {
+    successParsed && {
       id: "success-rate",
       icon: "Award",
       value: successParsed.value,
@@ -62,7 +66,7 @@ export default async function StatsSection() {
       label: "Board Success Rate",
       description: "Consistent 90+ marks & first division board records",
     },
-    {
+    testsParsed && {
       id: "tests-evaluated",
       icon: "ClipboardCheck",
       value: testsParsed.value,
@@ -70,7 +74,7 @@ export default async function StatsSection() {
       label: "Tests Evaluated",
       description: "Weekly Sunday tests checked personally by Ronak Sir",
     },
-    {
+    lecturesParsed && {
       id: "recorded-lectures",
       icon: "Video",
       value: lecturesParsed.value,
@@ -78,7 +82,11 @@ export default async function StatsSection() {
       label: "Recorded Lectures",
       description: "Complete HD video library with chapter-wise notes",
     },
-  ];
+  ].filter(Boolean);
+
+  if (stats.length === 0) {
+    return null;
+  }
 
   return (
     <InViewSection

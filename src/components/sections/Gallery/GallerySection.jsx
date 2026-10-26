@@ -28,6 +28,10 @@ export default function GallerySection() {
     strip.scrollBy({ left: cardW * 2, behavior: "smooth" });
   };
 
+  if (!GALLERY_ITEMS || GALLERY_ITEMS.length === 0) {
+    return null;
+  }
+
   return (
     <InViewSection
       id="gallery"

@@ -26,21 +26,19 @@ if (process.env.NODE_ENV === "production") {
   process.exit(1);
 }
 
-const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) {
-  console.error("MONGODB_URI is not set in environment or .env.local");
-  process.exit(1);
-}
+import { deriveIsolatedTestUri } from "./lib/testDbIsolation.mjs";
+
+const { testUri, testDbName, appDbName } = deriveIsolatedTestUri();
 
 async function seedDemo() {
-  console.log("Connecting to MongoDB...");
-  await mongoose.connect(MONGODB_URI);
+  console.log(`Connecting to Isolated Test Database: "${testDbName}"...`);
+  await mongoose.connect(testUri);
 
   const dbName = mongoose.connection.name;
   console.log(`Connected database: ${dbName}`);
 
-  if (!dbName.endsWith("_dev")) {
-    console.error(`ERROR: seed:demo refused: database name "${dbName}" does not end with "_dev".`);
+  if (dbName.toLowerCase() === appDbName.toLowerCase()) {
+    console.error(`ERROR: seed:demo refused: database name "${dbName}" is the primary application database.`);
     await mongoose.disconnect();
     process.exit(1);
   }

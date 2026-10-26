@@ -40,6 +40,10 @@ function RatingCounter({ target = 4.8 }) {
 }
 
 export default function TestimonialsSection() {
+  if (!TESTIMONIALS || TESTIMONIALS.length === 0) {
+    return null;
+  }
+
   return (
     <InViewSection
       id="reviews"
