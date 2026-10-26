@@ -9,8 +9,16 @@ import { useEffect, useRef, useState } from "react";
  */
 export default function CountUp({ value, suffix = "", className = "" }) {
   const containerRef = useRef(null);
-  // SSR displays the final formatted value
-  const formattedFinal = Number(value).toLocaleString("en-US") + suffix;
+  
+  const numValue =
+    typeof value === "number"
+      ? value
+      : parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
+
+  const formattedFinal =
+    (numValue > 0 ? numValue.toLocaleString("en-US") : String(value || "0")) +
+    (suffix || "");
+
   const [displayValue, setDisplayValue] = useState(formattedFinal);
   const hasAnimated = useRef(false);
 
@@ -18,10 +26,12 @@ export default function CountUp({ value, suffix = "", className = "" }) {
     // Check for reduced motion mode from document dataset
     const isReducedMotion =
       document.documentElement.dataset.motion === "reduce" ||
-      (window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+      (typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
         process.env.NEXT_PUBLIC_FORCE_MOTION !== "1");
 
-    if (isReducedMotion) {
+    if (isReducedMotion || numValue <= 0) {
+      setDisplayValue(formattedFinal);
       return;
     }
 
@@ -33,14 +43,14 @@ export default function CountUp({ value, suffix = "", className = "" }) {
           observer.disconnect();
 
           const startTime = performance.now();
-          const duration = 1600; // 1600ms easeOutCubic
+          const duration = 1400; // 1400ms easeOutCubic
 
           const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
             // easeOutCubic
             const ease = 1 - Math.pow(1 - progress, 3);
-            const currentCount = Math.floor(ease * value);
+            const currentCount = Math.floor(ease * numValue);
 
             setDisplayValue(currentCount.toLocaleString("en-US") + suffix);
 
@@ -51,12 +61,12 @@ export default function CountUp({ value, suffix = "", className = "" }) {
             }
           };
 
-          // Reset to 0 before starting the count-up animation
+          // Start from 0
           setDisplayValue("0" + suffix);
           requestAnimationFrame(animate);
         }
       },
-      { threshold: 0.4 }
+      { threshold: 0.1 }
     );
 
     if (containerRef.current) {

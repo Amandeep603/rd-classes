@@ -63,27 +63,35 @@ export default function Hero() {
           <HeroContent />
         </div>
 
-        {/* Right Arch Cluster: anchored right at 3.9vw */}
+        {/* Right Arch Cluster: anchored with safe margins so it NEVER cuts on any screen */}
         <div
-          className="absolute bottom-0 z-10 flex items-start"
+          className="absolute z-10 flex items-end justify-center pointer-events-none"
           style={{
-            right: "3.9vw",
+            right: "clamp(24px, 4.5vw, 64px)",
+            bottom: "clamp(16px, 3svh, 44px)",
             top: "calc(clamp(64px, calc(var(--u) * 88), 96px) + 2svh)",
-            height: "calc(100svh - clamp(64px, calc(var(--u) * 88), 96px) - 2svh)",
+            maxWidth: "calc(100vw - calc(var(--u) * 650) - 12vw)",
           }}
         >
-          <HeroImageGrid isDesktop={true} style={{ height: "100%", width: "auto" }} />
+          <HeroImageGrid
+            isDesktop={true}
+            style={{
+              height: "100%",
+              maxHeight: "calc(100svh - clamp(64px, calc(var(--u) * 88), 96px) - 6svh)",
+              width: "auto",
+            }}
+          />
         </div>
       </div>
 
       {/* ================= MOBILE & TABLET LAYOUT (< 1024px) ================= */}
-      {/* Scrollable, height auto, pb-[28px], content starts below 64px header (pt 88px) */}
-      <div className="flex lg:hidden flex-col items-center justify-start min-h-[100svh] h-auto w-full pt-[88px] pb-[28px] px-4 z-20 relative">
+      {/* Scrollable, height auto, pb-[36px], content starts below 64px header (pt 88px) */}
+      <div className="flex lg:hidden flex-col items-center justify-start min-h-[100svh] h-auto w-full pt-[88px] pb-[36px] px-4 z-20 relative">
         {/* Centered Content */}
         <HeroContent />
 
-        {/* Scaled Arch Cluster showing all 5 arches completely: gap 28px below buttons */}
-        <div className="w-[min(100%-32px,440px)] mx-auto mt-[28px] shrink-0">
+        {/* Scaled Arch Cluster showing all 5 arches completely and proportionally */}
+        <div className="w-[min(100%-24px,390px)] mx-auto mt-7 shrink-0">
           <HeroImageGrid isDesktop={false} className="w-full" />
         </div>
       </div>
