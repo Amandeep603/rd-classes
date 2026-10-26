@@ -55,7 +55,7 @@ export default async function StudentLecturesPage() {
     published: true,
   })
     .sort({ order: 1, createdAt: 1 })
-    .select("title section durationSec courseId isPreview order")
+    .select("title section durationSec courseId isPreview freePreview order")
     .lean();
 
   // 4. Fetch student progress records

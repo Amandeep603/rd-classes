@@ -192,6 +192,7 @@ export const lectureCreateSchema = z.object({
   durationSec: z.coerce.number().min(0).default(0),
   description: z.string().max(3000).optional().default(""),
   published: z.boolean().optional().default(true),
+  freePreview: z.boolean().optional(),
   isPreview: z.boolean().optional().default(false),
   order: z.coerce.number().optional(),
 });
@@ -203,6 +204,7 @@ export const lectureUpdateSchema = z.object({
   durationSec: z.coerce.number().min(0).optional(),
   description: z.string().optional(),
   published: z.boolean().optional(),
+  freePreview: z.boolean().optional(),
   isPreview: z.boolean().optional(),
   order: z.coerce.number().optional(),
 });

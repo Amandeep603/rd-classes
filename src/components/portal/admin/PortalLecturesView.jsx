@@ -51,7 +51,7 @@ export default function PortalLecturesView({
     setTitle(l.title || "");
     setSection(l.section || "");
     setPublished(!!l.published);
-    setIsPreview(!!l.isPreview);
+    setIsPreview(Boolean(l.freePreview ?? l.isPreview));
     setDurationSec(l.durationSec || 0);
   };
 
@@ -64,7 +64,10 @@ export default function PortalLecturesView({
     fd.append("section", section);
     fd.append("durationSec", durationSec.toString());
     if (published) fd.append("published", "on");
-    if (isPreview) fd.append("isPreview", "on");
+    if (isPreview) {
+      fd.append("freePreview", "on");
+      fd.append("isPreview", "on");
+    }
 
     try {
       const res = await updateLectureAction(
@@ -185,7 +188,7 @@ export default function PortalLecturesView({
                           ) : (
                             <Badge tone="yellow">Draft</Badge>
                           )}
-                          {l.isPreview && <Badge tone="blue">Preview</Badge>}
+                          {Boolean(l.freePreview ?? l.isPreview) && <Badge tone="blue">Free</Badge>}
                         </div>
                       </td>
                       <td className="text-center font-mono text-xs text-[var(--portal-text-muted)]">
@@ -262,11 +265,12 @@ export default function PortalLecturesView({
             <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
               <input
                 type="checkbox"
+                name="freePreview"
                 checked={isPreview}
                 onChange={(e) => setIsPreview(e.target.checked)}
                 className="rounded accent-[var(--portal-accent-yellow)]"
               />
-              <span>Free Preview</span>
+              <span>Free preview</span>
             </label>
           </div>
 

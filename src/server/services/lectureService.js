@@ -16,6 +16,28 @@ export async function getAdminLecturesByCourse(courseId) {
 }
 
 /**
+ * Automatically ensures the lowest order published lecture is marked as freePreview,
+ * unless overridden by an admin. Also keeps isPreview synchronized.
+ */
+export async function syncCourseFreePreview(courseId) {
+  if (!courseId) return;
+  await connectDB();
+  const publishedLectures = await Lecture.find({ courseId, published: true })
+    .sort({ order: 1, createdAt: 1 });
+
+  if (publishedLectures.length === 0) return;
+
+  const hasFree = publishedLectures.some((lec) => lec.freePreview);
+
+  if (!hasFree) {
+    const firstLec = publishedLectures[0];
+    firstLec.freePreview = true;
+    firstLec.isPreview = true;
+    await firstLec.save();
+  }
+}
+
+/**
  * Creates a lecture inside a course.
  */
 export async function createLecture(data, adminId) {
@@ -33,6 +55,29 @@ export async function createLecture(data, adminId) {
     .lean();
   const nextOrder = (highestOrder?.order ?? -1) + 1;
 
+  const hasExplicitFreeToggle =
+    typeof data.freePreview === "boolean" || typeof data.isPreview === "boolean";
+  const explicitFreeValue =
+    typeof data.freePreview === "boolean"
+      ? data.freePreview
+      : typeof data.isPreview === "boolean"
+      ? data.isPreview
+      : false;
+
+  const isPublished = typeof data.published === "boolean" ? data.published : true;
+
+  // Auto-mark freePreview: true if this is the first published lecture of the course
+  let isFree = hasExplicitFreeToggle ? explicitFreeValue : false;
+  if (!hasExplicitFreeToggle && isPublished) {
+    const existingCount = await Lecture.countDocuments({
+      courseId: data.courseId,
+      published: true,
+    });
+    if (existingCount === 0) {
+      isFree = true;
+    }
+  }
+
   const lecture = await Lecture.create({
     courseId: data.courseId,
     section: (data.section || "General").trim(),
@@ -42,9 +87,13 @@ export async function createLecture(data, adminId) {
     vimeoHash: vimeoHash || data.vimeoHash || "",
     durationSec: Number(data.durationSec) || 0,
     description: (data.description || "").trim(),
-    published: typeof data.published === "boolean" ? data.published : true,
-    isPreview: !!data.isPreview,
+    published: isPublished,
+    freePreview: isFree,
+    freePreviewOverridden: hasExplicitFreeToggle,
+    isPreview: isFree,
   });
+
+  await syncCourseFreePreview(data.courseId);
 
   await logAuditEvent({
     actorId: adminId,
@@ -78,10 +127,19 @@ export async function updateLecture(lectureId, data, adminId) {
   if (typeof data.durationSec === "number") lecture.durationSec = data.durationSec;
   if (typeof data.description === "string") lecture.description = data.description.trim();
   if (typeof data.published === "boolean") lecture.published = data.published;
-  if (typeof data.isPreview === "boolean") lecture.isPreview = data.isPreview;
+  if (typeof data.freePreview === "boolean") {
+    lecture.freePreview = data.freePreview;
+    lecture.freePreviewOverridden = true;
+    lecture.isPreview = data.freePreview;
+  } else if (typeof data.isPreview === "boolean") {
+    lecture.freePreview = data.isPreview;
+    lecture.freePreviewOverridden = true;
+    lecture.isPreview = data.isPreview;
+  }
   if (typeof data.order === "number") lecture.order = data.order;
 
   await lecture.save();
+  await syncCourseFreePreview(lecture.courseId);
 
   await logAuditEvent({
     actorId: adminId,
@@ -99,8 +157,14 @@ export async function updateLecture(lectureId, data, adminId) {
  */
 export async function deleteLecture(lectureId, adminId) {
   await connectDB();
+  const lecture = await Lecture.findById(lectureId);
+  const courseId = lecture?.courseId;
   await Progress.deleteMany({ lectureId });
   await Lecture.findByIdAndDelete(lectureId);
+
+  if (courseId) {
+    await syncCourseFreePreview(courseId);
+  }
 
   await logAuditEvent({
     actorId: adminId,
@@ -127,6 +191,7 @@ export async function reorderLectures(courseId, orderedIds, adminId) {
 
   if (bulkOps.length > 0) {
     await Lecture.bulkWrite(bulkOps);
+    await syncCourseFreePreview(courseId);
   }
 
   await logAuditEvent({
@@ -174,7 +239,8 @@ export async function getCourseSyllabusForStudent(courseId, studentId) {
       title: lec.title,
       order: lec.order,
       durationSec: lec.durationSec,
-      isPreview: !!lec.isPreview,
+      freePreview: Boolean(lec.freePreview || lec.isPreview),
+      isPreview: Boolean(lec.freePreview || lec.isPreview),
       completed: !!prog?.completed,
       positionSec: prog?.positionSec || 0,
     });
@@ -203,7 +269,7 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
     return null;
   }
 
-  // Check enrollment
+  // Check enrollment or free preview
   const now = new Date();
   const enrollment = await Enrollment.findOne({
     userId: studentId,
@@ -212,7 +278,8 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
     $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
   }).lean();
 
-  if (!enrollment && !lecture.isPreview) {
+  const isFree = Boolean(lecture.freePreview || lecture.isPreview);
+  if (!enrollment && !isFree) {
     return null;
   }
 
@@ -260,7 +327,8 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
       section: lecture.section,
       description: lecture.description,
       durationSec: lecture.durationSec,
-      isPreview: lecture.isPreview,
+      freePreview: isFree,
+      isPreview: isFree,
       order: lecture.order,
       courseId: lecture.courseId.toString(),
       courseTitle: course.title,

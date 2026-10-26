@@ -175,7 +175,7 @@ export default function PortalCourseDetailView({
     setDurationSec(lec.durationSec || 0);
     setDescription(lec.description || "");
     setPublished(!!lec.published);
-    setIsPreview(!!lec.isPreview);
+    setIsPreview(Boolean(lec.freePreview ?? lec.isPreview));
     setError("");
     setVimeoMsg("");
     setModalMode("edit");
@@ -221,7 +221,10 @@ export default function PortalCourseDetailView({
     fd.append("durationSec", String(durationSec));
     fd.append("description", description);
     if (published) fd.append("published", "on");
-    if (isPreview) fd.append("isPreview", "on");
+    if (isPreview) {
+      fd.append("freePreview", "on");
+      fd.append("isPreview", "on");
+    }
 
     try {
       let res;
@@ -568,8 +571,8 @@ export default function PortalCourseDetailView({
                               <span className="font-bold text-sm text-[var(--portal-text-main)]">
                                 {lec.title}
                               </span>
-                              {lec.isPreview && (
-                                <Badge tone="blue">Free Preview</Badge>
+                              {Boolean(lec.freePreview ?? lec.isPreview) && (
+                                <Badge tone="blue">Free</Badge>
                               )}
                               {!lec.published && (
                                 <Badge tone="yellow">Draft</Badge>
@@ -936,11 +939,12 @@ export default function PortalCourseDetailView({
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--portal-text-main)]">
                 <input
                   type="checkbox"
+                  name="freePreview"
                   checked={isPreview}
                   onChange={(e) => setIsPreview(e.target.checked)}
                   className="rounded accent-[var(--portal-accent-yellow)]"
                 />
-                <span>Free Preview Lecture</span>
+                <span>Free preview</span>
               </label>
             </div>
           </div>

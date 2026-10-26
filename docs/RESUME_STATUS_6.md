@@ -11,8 +11,8 @@
 |---|---|:---:|
 | **D0 + D1** | Test Isolation + Navbar (Solid dark on all non-home routes, #notes link, no lectures) + `/courses` pixel-matching (1536 canvas, 431px cards, large illustrations, tone system) + Zero-data states (courses empty state, home sections hide when empty) | **DONE** |
 | **D2** | Login Pages (`/student/login` & `/admin/login` matching reference with dark navy study room scene, no photos, no forgot password) + Credential Model (AES-256-GCM encrypted copy `passwordEnc`, admin reveal with re-auth & audit log, no student password change) | **DONE** |
-| **D3** | Free First Lecture (`freePreview` auto-set on lowest order lecture, admin override) + "Buy on WhatsApp" dialog on locked lectures & visitor sidebar | **NEXT** |
-| **D4** | Notes Ecosystem (Public `/notes` page, note card grid, protected stream route, course detail notes tab + lecture note links) | **PENDING** |
+| **D3** | Free First Lecture (`freePreview` auto-set on lowest order lecture, admin override) + "Buy on WhatsApp" dialog on locked lectures & visitor sidebar | **DONE** |
+| **D4** | Notes Ecosystem (Public `/notes` page, note card grid, protected stream route, course detail notes tab + lecture note links) | **NEXT** |
 | **D5** | Admin Polish, Zero Data (real counters, empty checklists), Final Lint + Build + Vitest + Docs | **PENDING** |
 
 ---
@@ -34,3 +34,14 @@
 - [x] Added "Credentials" card to admin student page with Login ID copy, masked password, and admin re-authentication "Reveal" modal (rate limited to 5/minute, 30-second auto-mask timer, audited without logging password).
 - [x] Added "Send credentials" (WhatsApp and email) utilizing the decrypted password without resetting it; updated bulk email to send stored credentials without resetting unless missing.
 - [x] 70/70 Vitest tests passed across all 9 suites, ESLint passed with 0 errors, Next.js 42/42 production build passed.
+
+## Phase D3 Summary
+- [x] Added `freePreview` and `freePreviewOverridden` fields to [`Lecture.js`](file:///e:/rd-classes/src/server/db/models/Lecture.js) with pre-validate hook keeping `isPreview` synchronized.
+- [x] Implemented `syncCourseFreePreview(courseId)` in [`lectureService.js`](file:///e:/rd-classes/src/server/services/lectureService.js) to automatically assign `freePreview: true` to the lowest order published lecture whenever lectures are created, reordered, deleted, or bulk imported unless manually overridden.
+- [x] Video safety & privacy: Updated `getCachedCourseLectures` in [`courseService.js`](file:///e:/rd-classes/src/server/services/courseService.js) and `getAuthorizedLecture` in `lectureService.js` to ensure Vimeo IDs are strictly scrubbed for locked lectures and provided only for `freePreview` lectures.
+- [x] Enhanced public course curriculum UI in [`CourseDetailClient.jsx`](file:///e:/rd-classes/src/components/courses/CourseDetailClient.jsx):
+  - Free lecture row displays a "Watch Free" button with Play icon opening the accessible Vimeo modal player.
+  - Locked lecture rows and lock buttons open the accessible "Buy this course" dialog with prefilled WhatsApp button (`Hello RD Classes, I want to buy the course: <title>. Please share the details.`) and secondary "I already have a login" link.
+  - Visitor sidebar card updated to "Buy this course" with direct prefilled WhatsApp CTA and Student Login link.
+- [x] Updated admin lecture managers ([`PortalCourseDetailView.jsx`](file:///e:/rd-classes/src/components/portal/admin/PortalCourseDetailView.jsx), [`PortalLecturesView.jsx`](file:///e:/rd-classes/src/components/portal/admin/PortalLecturesView.jsx), [`LecturesManager.jsx`](file:///e:/rd-classes/src/components/admin/LecturesManager.jsx)) with "Free" badges and "Free preview" checkboxes.
+- [x] Created [`tests/free_lecture.test.js`](file:///e:/rd-classes/tests/free_lecture.test.js) (6 tests). Full Vitest suite passes 76/76 tests across all 10 suites; ESLint 0 errors; Next.js 57/57 production build succeeded.

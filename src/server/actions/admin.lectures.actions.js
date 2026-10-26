@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "../auth/session.js";
 import {
   lectureCreateSchema,
@@ -11,11 +11,18 @@ import {
   updateLecture,
   deleteLecture,
   reorderLectures,
+  syncCourseFreePreview,
 } from "../services/lectureService.js";
 import { fetchVimeoMetadata } from "../services/vimeo.js";
 
 export async function createLectureAction(courseId, prevState, formData) {
   const admin = await requireAdmin();
+
+  const isFreeExplicit = formData.has("freePreview")
+    ? formData.get("freePreview") === "on"
+    : formData.has("isPreview")
+    ? formData.get("isPreview") === "on"
+    : undefined;
 
   const raw = {
     courseId,
@@ -25,7 +32,8 @@ export async function createLectureAction(courseId, prevState, formData) {
     durationSec: formData.get("durationSec") || 0,
     description: formData.get("description") || "",
     published: formData.get("published") === "on",
-    isPreview: formData.get("isPreview") === "on",
+    isPreview: isFreeExplicit ?? false,
+    freePreview: isFreeExplicit,
   };
 
   const parsed = lectureCreateSchema.safeParse(raw);
@@ -39,6 +47,7 @@ export async function createLectureAction(courseId, prevState, formData) {
   try {
     await createLecture(parsed.data, admin.user._id);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidateTag("courses");
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -53,6 +62,12 @@ export async function updateLectureAction(
 ) {
   const admin = await requireAdmin();
 
+  const isFreeExplicit = formData.has("freePreview")
+    ? formData.get("freePreview") === "on"
+    : formData.has("isPreview")
+    ? formData.get("isPreview") === "on"
+    : undefined;
+
   const raw = {
     section: formData.get("section"),
     title: formData.get("title"),
@@ -62,7 +77,8 @@ export async function updateLectureAction(
       : undefined,
     description: formData.get("description"),
     published: formData.get("published") === "on",
-    isPreview: formData.get("isPreview") === "on",
+    isPreview: isFreeExplicit,
+    freePreview: isFreeExplicit,
   };
 
   const parsed = lectureUpdateSchema.safeParse(raw);
@@ -76,6 +92,7 @@ export async function updateLectureAction(
   try {
     await updateLecture(lectureId, parsed.data, admin.user._id);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidateTag("courses");
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -87,6 +104,7 @@ export async function deleteLectureAction(lectureId, courseId) {
   try {
     await deleteLecture(lectureId, admin.user._id);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidateTag("courses");
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -98,6 +116,7 @@ export async function reorderLecturesAction(courseId, orderedIds) {
   try {
     await reorderLectures(courseId, orderedIds, admin.user._id);
     revalidatePath(`/admin/courses/${courseId}`);
+    revalidateTag("courses");
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -234,6 +253,10 @@ export async function bulkAddLecturesToCourseAction({
     }
   }
 
+  if (created.length > 0) {
+    await syncCourseFreePreview(courseId);
+  }
+
   await logAuditEvent({
     actorId: admin.user._id,
     action: "lectures.bulk_added",
@@ -248,6 +271,7 @@ export async function bulkAddLecturesToCourseAction({
   });
 
   revalidatePath(`/admin/courses/${courseId}`);
+  revalidateTag("courses");
 
   return {
     success: true,
@@ -288,6 +312,7 @@ export async function moveLectureToSectionAction({ lectureId, courseId, newSecti
   });
 
   revalidatePath(`/admin/courses/${courseId}`);
+  revalidateTag("courses");
 
   return { success: true, lecture: JSON.parse(JSON.stringify(lecture)) };
 }

@@ -38,7 +38,8 @@ export async function saveLectureProgress({
     $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
   }).lean();
 
-  if (!enrollment && !lecture.isPreview) {
+  const isFree = Boolean(lecture.freePreview ?? lecture.isPreview);
+  if (!enrollment && !isFree) {
     throw new Error("Student is not actively enrolled in this course.");
   }
 

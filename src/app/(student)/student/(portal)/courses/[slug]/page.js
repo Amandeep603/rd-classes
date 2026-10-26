@@ -152,7 +152,8 @@ export default async function StudentCoursePage({ params }) {
             {/* Lecture items */}
             <div className="divide-y divide-black/5">
               {section.lectures.map((lecture, lIdx) => {
-                const canWatch = enrollment || lecture.isPreview;
+                const isFree = Boolean(lecture.freePreview ?? lecture.isPreview);
+                const canWatch = enrollment || isFree;
 
                 return (
                   <div
@@ -177,9 +178,9 @@ export default async function StudentCoursePage({ params }) {
                         <div className="flex items-center gap-2 text-xs text-[#6B7280] mt-0.5">
                           <Clock className="h-3.5 w-3.5" />
                           <span>{formatDuration(lecture.durationSec)}</span>
-                          {lecture.isPreview && !enrollment && (
+                          {isFree && !enrollment && (
                             <span className="rounded-md bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
-                              Preview
+                              Free
                             </span>
                           )}
                         </div>

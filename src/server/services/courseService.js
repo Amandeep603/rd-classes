@@ -95,18 +95,22 @@ export async function getCachedCourseLectures(courseId) {
     published: true,
   })
     .sort({ order: 1, createdAt: 1 })
-    .select("title section durationSec order isPreview vimeoId")
+    .select("title section durationSec order isPreview freePreview vimeoId")
     .lean();
 
-  const sanitized = lectures.map((lec) => ({
-    _id: lec._id.toString(),
-    title: lec.title,
-    section: lec.section || "General",
-    durationSec: lec.durationSec || 0,
-    order: lec.order || 0,
-    isPreview: !!lec.isPreview,
-    vimeoId: lec.isPreview ? lec.vimeoId : undefined,
-  }));
+  const sanitized = lectures.map((lec) => {
+    const isFree = Boolean(lec.freePreview || lec.isPreview);
+    return {
+      _id: lec._id.toString(),
+      title: lec.title,
+      section: lec.section || "General",
+      durationSec: lec.durationSec || 0,
+      order: lec.order || 0,
+      freePreview: isFree,
+      isPreview: isFree,
+      vimeoId: isFree ? lec.vimeoId : undefined,
+    };
+  });
 
   return JSON.parse(JSON.stringify(sanitized));
 }

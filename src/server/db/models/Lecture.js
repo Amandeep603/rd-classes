@@ -49,6 +49,15 @@ const lectureSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    freePreview: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    freePreviewOverridden: {
+      type: Boolean,
+      default: false,
+    },
     isPreview: {
       type: Boolean,
       default: false,
@@ -65,6 +74,14 @@ const lectureSchema = new mongoose.Schema(
 );
 
 lectureSchema.index({ courseId: 1, order: 1 });
+
+lectureSchema.pre("validate", function () {
+  if (this.freePreview === true) {
+    this.isPreview = true;
+  } else if (this.isPreview === true && this.freePreview !== true) {
+    this.freePreview = true;
+  }
+});
 
 export const Lecture = mongoose.models.Lecture || mongoose.model("Lecture", lectureSchema);
 export default Lecture;

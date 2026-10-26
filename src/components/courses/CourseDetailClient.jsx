@@ -112,6 +112,7 @@ export default function CourseDetailClient({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [previewLecture, setPreviewLecture] = useState(null);
+  const [buyDialogOpen, setBuyDialogOpen] = useState(false);
 
   // Manual section toggle overrides: map of sectionName -> boolean
   const [toggledSections, setToggledSections] = useState({});
@@ -233,9 +234,11 @@ export default function CourseDetailClient({
     }));
   };
 
-  const whatsappHref = `https://wa.me/${siteWhatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-    `Hello RD Classes, I want to know more about ${course.title} ${course.subtitle || ""}.`
+  const cleanPhone = siteWhatsapp.replace(/[^0-9]/g, "");
+  const buyWhatsappHref = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+    `Hello RD Classes, I want to buy the course: ${course.title}. Please share the details.`
   )}`;
+  const whatsappHref = buyWhatsappHref;
 
   return (
     <div className="w-full">
@@ -370,11 +373,19 @@ export default function CourseDetailClient({
                           {displayItems.map((lec, lecIdx) => {
                             const isEnrolled = userData?.enrolled;
                             const isCompleted = userData?.completedLectureIds?.includes(lec._id);
+                            const isFree = Boolean(lec.freePreview ?? lec.isPreview);
 
                             return (
                               <div
                                 key={lec._id}
-                                className="px-5 py-3.5 sm:px-6 flex items-center justify-between gap-4 text-xs hover:bg-[#F8FAFC] transition-colors min-h-[52px]"
+                                className={`px-5 py-3.5 sm:px-6 flex items-center justify-between gap-4 text-xs transition-colors min-h-[52px] ${
+                                  !isEnrolled && !isFree ? "cursor-pointer hover:bg-[#F8FAFC]" : "hover:bg-[#F8FAFC]"
+                                }`}
+                                onClick={() => {
+                                  if (!isEnrolled && !isFree) {
+                                    setBuyDialogOpen(true);
+                                  }
+                                }}
                               >
                                 <div className="flex items-center gap-3 min-w-0">
                                   {/* Icon: Video or Document */}
@@ -390,6 +401,17 @@ export default function CourseDetailClient({
                                       >
                                         {lecIdx + 1}. {lec.title}
                                       </Link>
+                                    ) : isFree ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPreviewLecture(lec);
+                                        }}
+                                        className="font-semibold text-[#0B1B3D] hover:text-[#0066FF] transition-colors truncate block text-left"
+                                      >
+                                        {lecIdx + 1}. {lec.title}
+                                      </button>
                                     ) : (
                                       <span className="font-semibold text-[#0B1B3D] truncate block">
                                         {lecIdx + 1}. {lec.title}
@@ -403,7 +425,7 @@ export default function CourseDetailClient({
                                     {formatDuration(lec.durationSec)}
                                   </span>
 
-                                  {/* State: Watch Now for preview, locks for visitors, play/check for enrolled */}
+                                  {/* State: Watch Free for preview, lock for locked lectures, play/check for enrolled */}
                                   {isEnrolled ? (
                                     isCompleted ? (
                                       <span
@@ -421,21 +443,31 @@ export default function CourseDetailClient({
                                         <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
                                       </Link>
                                     )
-                                  ) : lec.isPreview ? (
+                                  ) : isFree ? (
                                     <button
                                       type="button"
-                                      onClick={() => setPreviewLecture(lec)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewLecture(lec);
+                                      }}
                                       className="px-3 py-1.5 rounded-full bg-[#0B2545] text-white font-semibold text-[11px] hover:bg-[#143565] transition-all shadow-sm flex items-center gap-1.5"
                                     >
-                                      <span>Watch Now</span>
+                                      <Play className="w-3 h-3 fill-white" />
+                                      <span>Watch Free</span>
                                     </button>
                                   ) : (
-                                    <div
-                                      className="w-7 h-7 rounded-full bg-[#F1F5F9] text-[#94A3B8] flex items-center justify-center"
-                                      title="Locked lecture (Enroll to watch)"
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBuyDialogOpen(true);
+                                      }}
+                                      className="w-7 h-7 rounded-full bg-[#F1F5F9] text-[#94A3B8] hover:text-[#0B1B3D] hover:bg-[#E2E8F0] flex items-center justify-center transition-colors"
+                                      title="Locked lecture (Click to buy course)"
+                                      aria-label={`Locked lecture ${lec.title}. Click to buy course.`}
                                     >
                                       <Lock className="w-3.5 h-3.5" />
-                                    </div>
+                                    </button>
                                   )}
                                 </div>
                               </div>
@@ -749,7 +781,7 @@ export default function CourseDetailClient({
               // Reference B Visitor Action Card
               <div className="space-y-4">
                 <div>
-                  <h4 className="text-base font-bold text-[#0B1B3D]">Start Learning</h4>
+                  <h4 className="text-base font-bold text-[#0B1B3D]">Buy this course</h4>
                   <p className="text-xs text-[#556987] mt-1">
                     Get full access to all video lectures, notes, mock tests, and mentor guidance.
                   </p>
@@ -757,13 +789,13 @@ export default function CourseDetailClient({
 
                 <div className="space-y-2.5 pt-1">
                   <a
-                    href={whatsappHref}
+                    href={buyWhatsappHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-3 px-4 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md min-h-[44px]"
                   >
                     <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                    <span>Enquire on WhatsApp</span>
+                    <span>Buy on WhatsApp</span>
                   </a>
 
                   <Link
@@ -943,6 +975,79 @@ export default function CourseDetailClient({
                   Video preview unavailable
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. BUY THIS COURSE MODAL DIALOG */}
+      {buyDialogOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="buy-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setBuyDialogOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setBuyDialogOpen(false);
+          }}
+        >
+          <div
+            className="relative w-full max-w-md bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setBuyDialogOpen(false)}
+              className="absolute right-4 top-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              aria-label="Close dialog"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header with lock icon */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center flex-shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 pr-6">
+                <h3 id="buy-dialog-title" className="text-base font-bold text-[#0B1B3D]">
+                  Buy this course
+                </h3>
+                <p className="text-xs text-[#556987] font-medium truncate">
+                  {course.title}
+                </p>
+              </div>
+            </div>
+
+            {/* Body text */}
+            <p className="text-xs text-[#475569] leading-relaxed">
+              This lecture is available to enrolled students. Message Sir on WhatsApp to buy this course and receive your login ID and password.
+            </p>
+
+            {/* Buttons */}
+            <div className="space-y-2.5 pt-1">
+              <a
+                href={buyWhatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md min-h-[44px]"
+              >
+                <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                <span>Buy on WhatsApp</span>
+              </a>
+
+              <div className="text-center pt-1">
+                <Link
+                  href="/student/login"
+                  onClick={() => setBuyDialogOpen(false)}
+                  className="text-xs font-semibold text-[#0066FF] hover:underline inline-flex items-center gap-1"
+                >
+                  <span>I already have a login</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>

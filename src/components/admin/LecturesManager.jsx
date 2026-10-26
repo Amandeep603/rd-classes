@@ -64,7 +64,7 @@ export default function LecturesManager({ course, lectures = [] }) {
     setDurationSec(lec.durationSec || 0);
     setDescription(lec.description || "");
     setPublished(!!lec.published);
-    setIsPreview(!!lec.isPreview);
+    setIsPreview(Boolean(lec.freePreview ?? lec.isPreview));
     setError("");
     setVimeoMsg("");
     setModalMode("edit");
@@ -108,7 +108,10 @@ export default function LecturesManager({ course, lectures = [] }) {
     fd.append("durationSec", durationSec.toString());
     fd.append("description", description);
     if (published) fd.append("published", "on");
-    if (isPreview) fd.append("isPreview", "on");
+    if (isPreview) {
+      fd.append("freePreview", "on");
+      fd.append("isPreview", "on");
+    }
 
     let res;
     if (modalMode === "create") {
@@ -231,9 +234,9 @@ export default function LecturesManager({ course, lectures = [] }) {
                     </span>
                     <h3 className="text-sm font-bold text-white mt-0.5 flex items-center gap-2">
                       <span>{lec.title}</span>
-                      {lec.isPreview && (
+                      {Boolean(lec.freePreview ?? lec.isPreview) && (
                         <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60">
-                          Preview
+                          Free
                         </span>
                       )}
                       {!lec.published && (
@@ -414,11 +417,12 @@ export default function LecturesManager({ course, lectures = [] }) {
                 <label className="flex items-center gap-2 cursor-pointer text-gray-300">
                   <input
                     type="checkbox"
+                    name="freePreview"
                     checked={isPreview}
                     onChange={(e) => setIsPreview(e.target.checked)}
                     className="accent-[#FFB800]"
                   />
-                  <span>Allow Free Preview</span>
+                  <span>Free preview</span>
                 </label>
               </div>
 
