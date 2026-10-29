@@ -166,6 +166,14 @@ export default function StudentsManagementView({
   // Open Edit Student Modal
   const handleOpenEdit = (student) => {
     setEditStudent(student);
+    let validDate = "";
+    if (student.validUntil) {
+      try {
+        validDate = new Date(student.validUntil).toISOString().split("T")[0];
+      } catch {
+        validDate = "";
+      }
+    }
     setFormData({
       name: student.name || "",
       email: student.email || "",
@@ -173,6 +181,7 @@ export default function StudentsManagementView({
       loginId: student.loginId || "",
       maxDevices: student.maxDevices || 1,
       status: student.status || "active",
+      validUntil: validDate,
       courseIds: (student.enrolledCourses || []).map((c) => c._id),
     });
     setFormError("");
@@ -431,6 +440,22 @@ export default function StudentsManagementView({
     document.body.removeChild(link);
   };
 
+  // Format last login on one line, like "30 Oct, 3:37 AM"
+  const formatLastLogin = (dateStr) => {
+    if (!dateStr) return "Never";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "Never";
+    const day = d.toLocaleDateString("en-IN", { day: "numeric", timeZone: "Asia/Kolkata" });
+    const month = d.toLocaleDateString("en-IN", { month: "short", timeZone: "Asia/Kolkata" });
+    const time = d.toLocaleTimeString("en-IN", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+    });
+    return `${day} ${month}, ${time}`;
+  };
+
   // DataTable columns definition
   const columns = [
     {
@@ -438,24 +463,15 @@ export default function StudentsManagementView({
       field: "name",
       accessor: "name",
       render: (student) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#0A192F] text-[#FFB800] font-bold flex items-center justify-center text-sm shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-[#0A192F] text-[#FFB800] font-bold flex items-center justify-center text-xs shrink-0 select-none">
             {student.name ? student.name.charAt(0).toUpperCase() : "S"}
           </div>
-          <div>
-            <div className="font-semibold text-slate-900">{student.name}</div>
-            <div className="text-xs text-slate-500 font-mono">{student.loginId}</div>
-          </div>
-        </div>
-      ),
-      cell: (student) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#0A192F] text-[#FFB800] font-bold flex items-center justify-center text-sm shrink-0">
-            {student.name ? student.name.charAt(0).toUpperCase() : "S"}
-          </div>
-          <div>
-            <div className="font-semibold text-slate-900">{student.name}</div>
-            <div className="text-xs text-slate-500 font-mono">{student.loginId}</div>
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-900 truncate max-w-[115px]" title={student.name}>
+              {student.name}
+            </div>
+            <div className="text-[11px] text-slate-500 font-mono">{student.loginId}</div>
           </div>
         </div>
       ),
@@ -465,15 +481,11 @@ export default function StudentsManagementView({
       field: "phone",
       accessor: "phone",
       render: (student) => (
-        <div className="text-sm">
-          <div className="font-medium text-slate-800">{student.phone || "—"}</div>
-          <div className="text-xs text-slate-500">{student.email || "No email"}</div>
-        </div>
-      ),
-      cell: (student) => (
-        <div className="text-sm">
-          <div className="font-medium text-slate-800">{student.phone || "—"}</div>
-          <div className="text-xs text-slate-500">{student.email || "No email"}</div>
+        <div className="text-xs">
+          <div className="font-medium text-slate-800 whitespace-nowrap">{student.phone || "—"}</div>
+          <div className="text-[11px] text-slate-500 truncate max-w-[110px]" title={student.email || ""}>
+            {student.email || "No email"}
+          </div>
         </div>
       ),
     },
@@ -487,40 +499,18 @@ export default function StudentsManagementView({
           return <span className="text-xs text-slate-400 italic">No courses</span>;
         }
         return (
-          <div className="flex flex-wrap gap-1 max-w-[200px]">
+          <div className="flex flex-wrap gap-1 max-w-[130px]">
             {courses.slice(0, 2).map((c) => (
               <span
                 key={c._id || c.slug}
-                className="inline-block px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-[150px]"
+                title={c.title}
+                className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-[100px]"
               >
                 {c.title}
               </span>
             ))}
             {courses.length > 2 && (
-              <span className="text-[11px] text-slate-500 font-medium">
-                +{courses.length - 2} more
-              </span>
-            )}
-          </div>
-        );
-      },
-      cell: (student) => {
-        const courses = student.enrolledCourses || [];
-        if (courses.length === 0) {
-          return <span className="text-xs text-slate-400 italic">No courses</span>;
-        }
-        return (
-          <div className="flex flex-wrap gap-1 max-w-[200px]">
-            {courses.slice(0, 2).map((c) => (
-              <span
-                key={c._id || c.slug}
-                className="inline-block px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-[150px]"
-              >
-                {c.title}
-              </span>
-            ))}
-            {courses.length > 2 && (
-              <span className="text-[11px] text-slate-500 font-medium">
+              <span className="text-[10px] text-slate-500 font-medium">
                 +{courses.length - 2} more
               </span>
             )}
@@ -534,112 +524,43 @@ export default function StudentsManagementView({
       accessor: "firstDevice",
       render: (student) => {
         const fd = student.firstDevice;
-        if (!fd) {
-          return <span className="text-xs text-slate-400 italic">None</span>;
-        }
-        const isMobile = fd.type === "mobile";
-        const isTablet = fd.type === "tablet";
+        const isMobile = fd?.type === "mobile";
+        const isTablet = fd?.type === "tablet";
         return (
-          <div className="flex items-center gap-1.5 text-xs text-slate-700">
-            {isMobile ? (
-              <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            ) : isTablet ? (
-              <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            ) : (
-              <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            )}
-            <span className="truncate max-w-[150px] font-medium" title={fd.label}>
-              {fd.label}
-            </span>
+          <div className="min-w-0 max-w-[110px]">
+            <div className="flex items-center gap-1.5 text-xs text-slate-700">
+              {fd ? (
+                isMobile ? (
+                  <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                ) : isTablet ? (
+                  <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                ) : (
+                  <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                )
+              ) : null}
+              <span className="truncate font-medium" title={fd ? fd.label : "No device"}>
+                {fd ? fd.label : "None"}
+              </span>
+            </div>
+            {/* Merged Device Status badge under device label */}
+            <div className="mt-1">
+              {student.deviceStatus === "pending" ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Pending
+                </span>
+              ) : student.deviceStatus === "approved" ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                  {student.approvedDeviceCount} Approved
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
+                  No Device
+                </span>
+              )}
+            </div>
           </div>
-        );
-      },
-      cell: (student) => {
-        const fd = student.firstDevice;
-        if (!fd) {
-          return <span className="text-xs text-slate-400 italic">None</span>;
-        }
-        const isMobile = fd.type === "mobile";
-        const isTablet = fd.type === "tablet";
-        return (
-          <div className="flex items-center gap-1.5 text-xs text-slate-700">
-            {isMobile ? (
-              <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            ) : isTablet ? (
-              <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            ) : (
-              <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            )}
-            <span className="truncate max-w-[150px] font-medium" title={fd.label}>
-              {fd.label}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      header: "Last Login IP",
-      field: "lastLoginIp",
-      accessor: "lastLoginIp",
-      render: (student) => (
-        <span className="text-xs text-slate-600 font-mono">
-          {student.lastLoginIp || "—"}
-        </span>
-      ),
-      cell: (student) => (
-        <span className="text-xs text-slate-600 font-mono">
-          {student.lastLoginIp || "—"}
-        </span>
-      ),
-    },
-    {
-      header: "Device Status",
-      field: "deviceStatus",
-      accessor: "deviceStatus",
-      render: (student) => {
-        if (student.deviceStatus === "pending") {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-              Pending Request
-            </span>
-          );
-        }
-        if (student.deviceStatus === "approved") {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-              {student.approvedDeviceCount} Approved
-            </span>
-          );
-        }
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-            No Device
-          </span>
-        );
-      },
-      cell: (student) => {
-        if (student.deviceStatus === "pending") {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-              Pending Request
-            </span>
-          );
-        }
-        if (student.deviceStatus === "approved") {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-              {student.approvedDeviceCount} Approved
-            </span>
-          );
-        }
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-            No Device
-          </span>
         );
       },
     },
@@ -648,28 +569,16 @@ export default function StudentsManagementView({
       field: "lastLoginAt",
       accessor: "lastLoginAt",
       render: (student) => (
-        <span className="text-xs text-slate-500">
-          {student.lastLoginAt
-            ? new Date(student.lastLoginAt).toLocaleDateString("en-IN", {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "Never"}
-        </span>
-      ),
-      cell: (student) => (
-        <span className="text-xs text-slate-500">
-          {student.lastLoginAt
-            ? new Date(student.lastLoginAt).toLocaleDateString("en-IN", {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "Never"}
-        </span>
+        <div className="whitespace-nowrap">
+          <div className="text-xs text-slate-700 font-medium whitespace-nowrap">
+            {formatLastLogin(student.lastLoginAt)}
+          </div>
+          {student.lastLoginIp && (
+            <div className="text-[10px] text-slate-400 font-mono mt-0.5" title={`IP: ${student.lastLoginIp}`}>
+              {student.lastLoginIp}
+            </div>
+          )}
+        </div>
       ),
     },
     {
@@ -677,51 +586,48 @@ export default function StudentsManagementView({
       field: "status",
       accessor: "status",
       render: (student) => (
-        <StatusBadge
-          status={student.status === "active" ? "active" : "error"}
-          label={student.status === "active" ? "Active" : "Blocked"}
-        />
-      ),
-      cell: (student) => (
-        <StatusBadge
-          status={student.status === "active" ? "active" : "error"}
-          label={student.status === "active" ? "Active" : "Blocked"}
-        />
+        <div className="whitespace-nowrap">
+          <StatusBadge
+            status={student.status === "active" ? "active" : "error"}
+            label={student.status === "active" ? "Active" : "Blocked"}
+          />
+        </div>
       ),
     },
     {
       header: "Actions",
       field: "_id",
       accessor: "_id",
+      sticky: "right",
       render: (student) => (
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-0.5 whitespace-nowrap">
           <button
             onClick={() => handleOpenDevicesDrawer(student)}
             title="View Devices"
             className="p-1.5 text-slate-500 hover:text-[#0A192F] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           >
-            <Smartphone className="w-4 h-4" />
+            <Smartphone className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleOpenEdit(student)}
             title="Edit Student"
             className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
           >
-            <Edit className="w-4 h-4" />
+            <Edit className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setResetConfirmStudent(student)}
             title="Reset Password"
             className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
           >
-            <KeyRound className="w-4 h-4" />
+            <KeyRound className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleUnlockLogin(student)}
             title="Unlock Login"
             className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
           >
-            <Unlock className="w-4 h-4" />
+            <Unlock className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleToggleBlock(student)}
@@ -733,9 +639,9 @@ export default function StudentsManagementView({
             }`}
           >
             {student.status === "active" ? (
-              <ShieldAlert className="w-4 h-4" />
+              <ShieldAlert className="w-3.5 h-3.5" />
             ) : (
-              <ShieldCheck className="w-4 h-4" />
+              <ShieldCheck className="w-3.5 h-3.5" />
             )}
           </button>
           <button
@@ -743,61 +649,7 @@ export default function StudentsManagementView({
             title="Delete Student"
             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
           >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-      cell: (student) => (
-        <div className="flex items-center justify-end gap-1">
-          <button
-            onClick={() => handleOpenDevicesDrawer(student)}
-            title="View Devices"
-            className="p-1.5 text-slate-500 hover:text-[#0A192F] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-          >
-            <Smartphone className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleOpenEdit(student)}
-            title="Edit Student"
-            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setResetConfirmStudent(student)}
-            title="Reset Password"
-            className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <KeyRound className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleUnlockLogin(student)}
-            title="Unlock Login"
-            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Unlock className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleToggleBlock(student)}
-            title={student.status === "active" ? "Block Student" : "Unblock Student"}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              student.status === "active"
-                ? "text-slate-500 hover:text-red-600 hover:bg-red-50"
-                : "text-red-600 bg-red-50 hover:bg-red-100"
-            }`}
-          >
-            {student.status === "active" ? (
-              <ShieldAlert className="w-4 h-4" />
-            ) : (
-              <ShieldCheck className="w-4 h-4" />
-            )}
-          </button>
-          <button
-            onClick={() => setDeleteConfirmStudent(student)}
-            title="Delete Student"
-            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       ),
@@ -1108,6 +960,15 @@ export default function StudentsManagementView({
               />
             </FormField>
           </div>
+
+          <FormField label="Valid Until" hint="Account & course validity date. Leave empty for unlimited.">
+            <input
+              type="date"
+              value={formData.validUntil || ""}
+              onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
+              className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+            />
+          </FormField>
 
           {availableCourses.length > 0 && (
             <FormField label="Enrolled Courses">

@@ -35,11 +35,13 @@ export async function PATCH(request, { params }) {
     if (body.maxDevices !== undefined) {
       student.maxDevices = Math.max(1, parseInt(body.maxDevices, 10) || 1);
     }
-
-    await student.save();
+    if (body.validUntil !== undefined) {
+      student.validUntil = body.validUntil ? new Date(body.validUntil) : null;
+    }
 
     // Sync course enrollments if courseIds provided
     if (Array.isArray(body.courseIds)) {
+      student.courses = body.courseIds;
       await Enrollment.deleteMany({
         $or: [{ studentId: student._id }, { userId: student._id }],
       });
@@ -49,10 +51,18 @@ export async function PATCH(request, { params }) {
           userId: student._id,
           courseId: cId,
           status: "active",
+          expiresAt: student.validUntil || null,
         }));
         await Enrollment.insertMany(enrollments, { ordered: false }).catch(() => {});
       }
+    } else if (student.validUntil !== undefined) {
+      await Enrollment.updateMany(
+        { $or: [{ studentId: student._id }, { userId: student._id }] },
+        { $set: { expiresAt: student.validUntil || null } }
+      );
     }
+
+    await student.save();
 
     try {
       await ActivityLog.create({

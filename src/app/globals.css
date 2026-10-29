@@ -525,6 +525,36 @@ a[href*="/courses?topic="] {
 [data-scroller]::-webkit-scrollbar {
   display: none !important;
 }
+/* Thin light scrollbar for admin tables & panels */
+.admin-table-scroller,
+.admin-shell .overflow-x-auto,
+[data-admin-table] {
+  scrollbar-width: thin;
+  scrollbar-color: #d9d4c7 transparent;
+}
+.admin-table-scroller::-webkit-scrollbar,
+.admin-shell .overflow-x-auto::-webkit-scrollbar,
+[data-admin-table]::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.admin-table-scroller::-webkit-scrollbar-track,
+.admin-shell .overflow-x-auto::-webkit-scrollbar-track,
+[data-admin-table]::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-table-scroller::-webkit-scrollbar-thumb,
+.admin-shell .overflow-x-auto::-webkit-scrollbar-thumb,
+[data-admin-table]::-webkit-scrollbar-thumb {
+  background-color: #d9d4c7;
+  border-radius: 9999px;
+}
+.admin-table-scroller::-webkit-scrollbar-thumb:hover,
+.admin-shell .overflow-x-auto::-webkit-scrollbar-thumb:hover,
+[data-admin-table]::-webkit-scrollbar-thumb:hover {
+  background-color: #c4beaf;
+}
+
 /* Suppress marketing navbar, progress bar and footer on student and admin routes */
 body:has(.student-shell) > header,
 body:has(.student-shell) > #contact,

@@ -45,12 +45,20 @@ export default function ResumeRevisionCard({
   let buttonText = "Start Learning";
   let showBookmark = true;
   let isNoCourse = !hasCourses;
+  let hasNoLectures = Boolean(hasCourses && (resume?.hasNoLectures || (!resume && totalLectures === 0)));
 
   if (isNoCourse) {
     title = "No course assigned yet";
     subtitle = "Please contact RD Classes on WhatsApp to assign your course.";
     buttonText = "Contact on WhatsApp";
     watchUrl = whatsappUrl;
+    showBookmark = false;
+  } else if (hasNoLectures) {
+    title = "No lectures uploaded yet";
+    subtitle = "New lectures will appear here as soon as RD Classes uploads them.";
+    positionMin = 0;
+    durationMin = 0;
+    percent = 0;
     showBookmark = false;
   } else if (resume) {
     title = resume.lectureTitle || "Continue your lecture";
@@ -191,6 +199,9 @@ export default function ResumeRevisionCard({
               <MessageCircle className="h-4 w-4 fill-white" />
               <span>Contact on WhatsApp</span>
             </a>
+          ) : hasNoLectures ? (
+            // Hide the "Resume Lecture" button when no lectures are uploaded yet
+            null
           ) : (
             <Link
               href={watchUrl}
@@ -201,7 +212,7 @@ export default function ResumeRevisionCard({
             </Link>
           )}
 
-          {!isNoCourse && (
+          {!isNoCourse && !hasNoLectures && (
             <Link
               href={allLecturesUrl}
               className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#1F2A44] hover:text-[#0B2A4A] transition-colors"

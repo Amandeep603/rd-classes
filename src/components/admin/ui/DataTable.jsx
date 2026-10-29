@@ -123,22 +123,27 @@ export default function DataTable({
       )}
 
       {/* Table Content */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto admin-table-scroller" data-admin-table>
+        <table className="w-full text-left text-sm border-collapse">
           <thead className="bg-[#FBF8F1]/80 text-xs font-bold uppercase tracking-wider text-[#6B7280] border-b border-black/5">
             <tr>
               {columns.map((col) => {
                 const key = col.field || col.accessor || col.header;
                 const fieldName = col.field || col.accessor;
+                const isStickyRight = col.sticky === "right";
                 return (
                   <th
                     key={key}
-                    className={`px-5 py-3.5 ${
+                    className={`px-2.5 py-2.5 sm:px-3 sm:py-3 ${
+                      isStickyRight
+                        ? "sticky right-0 bg-[#FBF8F1] z-20 shadow-[-6px_0_10px_rgba(0,0,0,0.05)]"
+                        : ""
+                    } ${
                       col.sortable ? "cursor-pointer select-none hover:text-[#111827]" : ""
-                    }`}
+                    } ${col.className || ""}`}
                     onClick={() => col.sortable && fieldName && handleSort(fieldName)}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className={`flex items-center gap-1.5 ${isStickyRight ? "justify-end" : ""}`}>
                       <span>{col.header}</span>
                       {col.sortable && (
                         <ArrowUpDown className="h-3 w-3 text-[#9CA3AF]" />
@@ -155,7 +160,7 @@ export default function DataTable({
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="animate-pulse">
                   {columns.map((c, j) => (
-                    <td key={j} className="px-5 py-4">
+                    <td key={j} className="px-3.5 py-3">
                       <div className="h-4 bg-black/6 rounded-md w-3/4" />
                     </td>
                   ))}
@@ -169,7 +174,7 @@ export default function DataTable({
                 return (
                   <tr
                     key={rowKey}
-                    className="hover:bg-[#FBF8F1]/40 transition-colors"
+                    className="group hover:bg-[#FBF8F1]/40 transition-colors"
                   >
                     {columns.map((col) => {
                       const key = col.field || col.accessor || col.header;
@@ -178,9 +183,17 @@ export default function DataTable({
                       const cellContent = renderFn
                         ? renderFn(row)
                         : (fieldName ? row[fieldName] : null);
+                      const isStickyRight = col.sticky === "right";
 
                       return (
-                        <td key={key} className="px-5 py-4 text-[#374151]">
+                        <td
+                          key={key}
+                          className={`px-2.5 py-2.5 sm:px-3 sm:py-3 text-xs sm:text-sm text-[#374151] ${
+                            isStickyRight
+                              ? "sticky right-0 bg-white group-hover:bg-[#fbf8f1] z-10 shadow-[-6px_0_10px_rgba(0,0,0,0.05)]"
+                              : ""
+                          } ${col.cellClassName || ""}`}
+                        >
                           {cellContent}
                         </td>
                       );

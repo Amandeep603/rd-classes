@@ -10,16 +10,18 @@ export default function SyllabusCoverageCard({ syllabus }) {
   const targetScore = syllabus?.targetScore || "100/100";
   const rewardTargetText = syllabus?.rewardTargetText || "₹5,100 Cash Reward Target";
 
-  let formattedExpiry = "2026 - 03 - 31";
+  let formattedExpiry = null;
   if (syllabus?.earliestExpiry) {
     try {
       const d = new Date(syllabus.earliestExpiry);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      formattedExpiry = `${y} - ${m} - ${day}`;
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        formattedExpiry = `${y} - ${m} - ${day}`;
+      }
     } catch {
-      formattedExpiry = "2026 - 03 - 31";
+      formattedExpiry = null;
     }
   }
 
@@ -111,10 +113,12 @@ export default function SyllabusCoverageCard({ syllabus }) {
       </div>
 
       {/* Bottom Footer: Valid until */}
-      <div className="relative z-10 pt-2 border-t border-white/10 flex items-center text-[12px] font-medium text-white/60">
-        <span>Valid until:&nbsp;</span>
-        <span className="font-semibold text-white/80">{formattedExpiry}</span>
-      </div>
+      {formattedExpiry && (
+        <div className="relative z-10 pt-2 border-t border-white/10 flex items-center text-[12px] font-medium text-white/60">
+          <span>Valid until:&nbsp;</span>
+          <span className="font-semibold text-white/80">{formattedExpiry}</span>
+        </div>
+      )}
     </div>
   );
 }

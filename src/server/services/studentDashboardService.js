@@ -21,12 +21,18 @@ export async function getStudentDashboardData(userId) {
   if (!user) return null;
 
   const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : user._id;
+  const userStrId = String(user._id || userId);
 
-  // 1. Active enrollments
+  // 1. Query enrollments using both ObjectId and string matches
+  const userQueries = [{ userId: userStrId }, { studentId: userStrId }];
+  if (userObjId) {
+    userQueries.push({ userId: userObjId }, { studentId: userObjId });
+  }
+
   const enrollments = await Enrollment.find({
     $and: [
-      { $or: [{ userId: userObjId }, { studentId: userObjId }] },
-      { status: "active" },
+      { $or: userQueries },
+      { status: { $ne: "cancelled" } },
       { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
     ],
   })
@@ -34,12 +40,54 @@ export async function getStudentDashboardData(userId) {
     .populate("courseId", "title slug status published thumbnail targetScore rewardTargetText validUntil")
     .lean();
 
-  const activeCourses = enrollments
+  // Also collect course IDs from user.courses and user.savedCourses
+  const userCourseList = [];
+  if (Array.isArray(user.courses)) {
+    for (const c of user.courses) {
+      if (c) userCourseList.push(c._id ? String(c._id) : String(c));
+    }
+  }
+  if (Array.isArray(user.savedCourses)) {
+    for (const c of user.savedCourses) {
+      if (c) userCourseList.push(String(c));
+    }
+  }
+
+  const enrolledFromEnrollments = enrollments
     .map((e) => e.courseId)
-    .filter((c) => c && (c.status === "published" || c.published !== false));
+    .filter(Boolean);
+
+  const existingCourseIdStrings = new Set(
+    enrolledFromEnrollments.map((c) => String(c._id))
+  );
+
+  const missingCourseIds = userCourseList.filter((id) => !existingCourseIdStrings.has(String(id)));
+  let directCourses = [];
+  if (missingCourseIds.length > 0) {
+    const validMissingIds = missingCourseIds.filter((id) => mongoose.isValidObjectId(id));
+    if (validMissingIds.length > 0) {
+      directCourses = await Course.find({
+        _id: { $in: validMissingIds },
+      })
+        .select("title slug status published thumbnail targetScore rewardTargetText validUntil")
+        .lean();
+    }
+  }
+
+  // Combine and deduplicate courses using String(a._id) === String(b._id)
+  const allCourses = [...enrolledFromEnrollments, ...directCourses];
+  const activeCourses = [];
+  const seenCourseIds = new Set();
+  for (const c of allCourses) {
+    const cidStr = String(c._id);
+    if (!seenCourseIds.has(cidStr)) {
+      seenCourseIds.add(cidStr);
+      activeCourses.push(c);
+    }
+  }
 
   const activeCourseIds = activeCourses.map((c) => c._id);
-  const stringCourseIds = activeCourseIds.map((id) => id.toString());
+  const stringCourseIds = activeCourseIds.map((id) => String(id));
 
   // Earliest expiry date
   let earliestExpiry = null;
@@ -236,6 +284,23 @@ export async function getStudentDashboardData(userId) {
       ? Math.min(100, Math.round((completedLectures / totalPublishedLectures) * 100))
       : 0;
 
+  if (activeCourses.length > 0 && totalPublishedLectures === 0 && !resume) {
+    const pCourse = activeCourses[0];
+    resume = {
+      hasNoLectures: true,
+      courseId: pCourse ? pCourse._id.toString() : (activeCourseIds[0] ? activeCourseIds[0].toString() : ""),
+      courseTitle: pCourse ? pCourse.title : "Comprehensive Accountancy",
+      courseSlug: pCourse ? pCourse.slug : "",
+      lectureTitle: "No lectures uploaded yet",
+      chapterPath: "New lectures will appear here as soon as RD Classes uploads them.",
+      positionSec: 0,
+      durationSec: 0,
+      percent: 0,
+      totalCourseLectures: 0,
+      bookmarked: false,
+    };
+  }
+
   // 6. Test results stats & upcoming tests count
   const testResults = await TestResult.find({
     $or: [{ userId: userObjId }, { studentId: userObjId }],
@@ -337,9 +402,10 @@ export async function getStudentDashboardData(userId) {
   const primaryCourse = activeCourses[0] || null;
   const courseReward = (primaryCourse?.rewardTargetText && primaryCourse.rewardTargetText.trim()) || null;
   const courseTarget = (primaryCourse?.targetScore && primaryCourse.targetScore.trim()) || null;
-  // Strictly only show validUntil if configured on the course by admin; otherwise null
-  const courseValidity = primaryCourse?.validUntil
-    ? new Date(primaryCourse.validUntil).toISOString()
+  // "Valid until" comes from user.validUntil || primaryCourse.validUntil || earliestExpiry. If missing, null.
+  const rawValidity = user.validUntil || primaryCourse?.validUntil || earliestExpiry || null;
+  const courseValidity = rawValidity
+    ? new Date(rawValidity).toISOString()
     : null;
 
   return {
@@ -367,7 +433,7 @@ export async function getStudentDashboardData(userId) {
     resume,
     firstLectureId,
     syllabus: {
-      courseTitle: "Board Preparation",
+      courseTitle: primaryCourse?.title || "Board Preparation",
       totalLectures: totalPublishedLectures,
       completedLectures,
       percent: coveragePercent,

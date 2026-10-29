@@ -33,27 +33,73 @@ async function StudentPortalLayoutContent({ children }) {
     setting?.whatsappNumber || setting?.whatsapp || "918368545620";
 
   // 2. Fetch Active Enrollments & Main Course
-  const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+  const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : null;
+  const userStrId = String(userId);
+  const userQueries = [{ userId: userStrId }, { studentId: userStrId }];
+  if (userObjId) {
+    userQueries.push({ userId: userObjId }, { studentId: userObjId });
+  }
+
   const enrollments = await Enrollment.find({
     $and: [
-      { $or: [{ userId: userObjId }, { studentId: userObjId }] },
-      { status: "active" },
+      { $or: userQueries },
+      { status: { $ne: "cancelled" } },
       { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
     ],
   })
     .populate("courseId", "title slug classLabel category status published")
     .lean();
 
-  const activeCourses = enrollments
+  const userCourseList = [];
+  if (Array.isArray(auth.user.courses)) {
+    for (const c of auth.user.courses) {
+      if (c) userCourseList.push(c._id ? String(c._id) : String(c));
+    }
+  }
+  if (Array.isArray(auth.user.savedCourses)) {
+    for (const c of auth.user.savedCourses) {
+      if (c) userCourseList.push(String(c));
+    }
+  }
+
+  const enrolledFromEnrollments = enrollments
     .map((e) => e.courseId)
-    .filter((c) => c && (c.status === "published" || c.published !== false));
+    .filter(Boolean);
+
+  const existingCourseIdStrings = new Set(
+    enrolledFromEnrollments.map((c) => String(c._id))
+  );
+
+  const missingCourseIds = userCourseList.filter((id) => !existingCourseIdStrings.has(String(id)));
+  let directCourses = [];
+  if (missingCourseIds.length > 0) {
+    const validMissingIds = missingCourseIds.filter((id) => mongoose.isValidObjectId(id));
+    if (validMissingIds.length > 0) {
+      directCourses = await Course.find({
+        _id: { $in: validMissingIds },
+      })
+        .select("title slug classLabel category status published")
+        .lean();
+    }
+  }
+
+  const allCourses = [...enrolledFromEnrollments, ...directCourses];
+  const activeCourses = [];
+  const seenCourseIds = new Set();
+  for (const c of allCourses) {
+    const cidStr = String(c._id);
+    if (!seenCourseIds.has(cidStr)) {
+      seenCourseIds.add(cidStr);
+      activeCourses.push(c);
+    }
+  }
 
   const mainCourse = activeCourses[0] || null;
   const subtitle = mainCourse
     ? mainCourse.title
     : auth.user.className
-    ? `Class ${auth.user.className} Accountancy`
-    : "CBSE Accountancy Syllabus";
+      ? `Class ${auth.user.className} Accountancy`
+      : "CBSE Accountancy Syllabus";
 
   const classPill =
     mainCourse?.classLabel ||

@@ -91,6 +91,16 @@ const userSchema = new Schema(
         trim: true,
       },
     ],
+    courses: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Course",
+      },
+    ],
+    validUntil: {
+      type: Date,
+      default: null,
+    },
     passwordEnc: {
       iv: { type: String, default: null },
       tag: { type: String, default: null },

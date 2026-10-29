@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   User,
   MessageCircle,
+  X,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -20,7 +21,7 @@ const NAV_ITEMS = [
   { id: "profile", label: "Profile", href: "/student/profile", icon: User },
 ];
 
-export default function StudentSidebar({ whatsappNumber }) {
+export default function StudentSidebar({ whatsappNumber, onClose, isDrawer = false }) {
   const pathname = usePathname();
 
   const cleanPhone = (whatsappNumber || "").replace(/\D/g, "");
@@ -32,19 +33,17 @@ export default function StudentSidebar({ whatsappNumber }) {
 
   return (
     <aside
-      className="hidden md:flex w-[256px] shrink-0 flex-col justify-between rounded-[28px] p-0 border border-sky-100/80 overflow-hidden relative select-none"
+      className={`flex w-[260px] shrink-0 flex-col justify-between p-0 border-r border-[#E2EEF8] relative select-none overflow-y-auto no-scrollbar ${
+        isDrawer ? "h-full rounded-r-[20px]" : "h-screen max-h-screen sticky top-0 rounded-none"
+      }`}
       style={{
         background: "linear-gradient(180deg, #E6F3FD 0%, #F3F9FE 55%, #FFFFFF 100%)",
-        boxShadow: "0 10px 30px rgba(20,60,110,0.08)",
-        height: "calc(100vh - 40px)",
-        maxHeight: "calc(100vh - 40px)",
-        position: "sticky",
-        top: "20px",
+        boxShadow: "4px 0 20px rgba(20,60,110,0.04)",
       }}
       aria-label="Student navigation"
     >
       {/* Decorative faint background leaf shapes in light blue near the bottom */}
-      <div className="pointer-events-none absolute bottom-0 right-0 w-[180px] h-[220px] overflow-hidden rounded-br-[28px] z-0 select-none opacity-40">
+      <div className="pointer-events-none absolute bottom-0 right-0 w-[180px] h-[220px] overflow-hidden z-0 select-none opacity-40">
         <svg
           viewBox="0 0 180 220"
           fill="none"
@@ -69,36 +68,48 @@ export default function StudentSidebar({ whatsappNumber }) {
 
       {/* Top section: Logo block + Menu + WhatsApp */}
       <div className="relative z-10 flex flex-col">
-        {/* Logo block (padding 24px 22px) */}
-        <Link
-          href="/student"
-          className="flex items-center gap-3 transition-opacity hover:opacity-90"
-          style={{ padding: "24px 22px 0 22px" }}
-        >
-          <div className="relative h-[56px] w-[56px] flex items-center justify-center shrink-0">
-            <Image
-              src="/images/logo-rd.png"
-              alt="RD Classes"
-              width={56}
-              height={56}
-              priority
-              className="h-[56px] w-auto object-contain select-none"
-            />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[20px] font-bold leading-tight tracking-tight text-[#1F2A44]">
-              RD Classes
+        {/* Logo block with optional drawer close button */}
+        <div className="flex items-center justify-between" style={{ padding: "20px 18px 0 18px" }}>
+          <Link
+            href="/student"
+            onClick={() => onClose?.()}
+            className="flex items-center gap-3 transition-opacity hover:opacity-90"
+          >
+            <div className="relative h-[50px] w-[50px] flex items-center justify-center shrink-0">
+              <Image
+                src="/images/logo-rd.png"
+                alt="RD Classes"
+                width={50}
+                height={50}
+                priority
+                className="h-[50px] w-auto object-contain select-none"
+              />
             </div>
-            <div className="text-[11px] font-semibold tracking-[0.12em] text-[#6B7A99] mt-0.5">
-              STUDENT PORTAL
+            <div className="min-w-0">
+              <div className="text-[19px] font-bold leading-tight tracking-tight text-[#1F2A44]">
+                RD Classes
+              </div>
+              <div className="text-[11px] font-semibold tracking-[0.12em] text-[#6B7A99] mt-0.5">
+                STUDENT PORTAL
+              </div>
             </div>
-          </div>
-        </Link>
+          </Link>
+          {isDrawer && onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close menu"
+              className="p-1.5 rounded-lg text-[#1F2A44] hover:bg-black/5 active:bg-black/10 transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
+        </div>
 
-        {/* Menu (margin-top 28px) */}
+        {/* Menu (margin-top 24px) */}
         <nav
           className="flex flex-col gap-[6px] px-[16px]"
-          style={{ marginTop: "28px" }}
+          style={{ marginTop: "24px" }}
           role="navigation"
         >
           {NAV_ITEMS.map((item) => {
@@ -112,6 +123,7 @@ export default function StudentSidebar({ whatsappNumber }) {
               <Link
                 key={item.id}
                 href={item.href}
+                onClick={() => onClose?.()}
                 aria-current={isActive ? "page" : undefined}
                 className={`group flex items-center gap-[12px] h-[46px] w-full rounded-[14px] px-[16px] text-[15px] transition-all duration-150 ${
                   isActive
@@ -148,6 +160,7 @@ export default function StudentSidebar({ whatsappNumber }) {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => onClose?.()}
               className="flex items-center gap-[12px] h-[46px] rounded-[14px] px-[16px] text-[15px] font-medium text-[#1F2A44] hover:bg-white/60 transition-colors"
             >
               <div className="flex h-[24px] w-[24px] items-center justify-center shrink-0">

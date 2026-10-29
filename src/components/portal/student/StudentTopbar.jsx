@@ -12,6 +12,7 @@ import {
   CalendarCheck,
   X,
   Search,
+  Menu,
 } from "lucide-react";
 import { logoutStudentAction } from "@/server/actions/auth.actions.js";
 
@@ -20,6 +21,7 @@ export default function StudentTopbar({
   subtitle,
   classPill,
   notifications = { announcements: [], notes: [] },
+  onOpenSidebar,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -122,7 +124,17 @@ export default function StudentTopbar({
       {/* Left: Greeting + Class Pill + Subtitle */}
       <div>
         <div className="flex items-center gap-3">
-          <h1 className="text-[26px] sm:text-[28px] font-extrabold tracking-tight text-[#1F2A44]">
+          {onOpenSidebar && (
+            <button
+              type="button"
+              onClick={onOpenSidebar}
+              aria-label="Open sidebar menu"
+              className="lg:hidden -ml-1 p-2 rounded-xl text-[#1F2A44] hover:bg-black/5 active:bg-black/10 transition-colors cursor-pointer"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          )}
+          <h1 className="text-[24px] sm:text-[28px] font-extrabold tracking-tight text-[#1F2A44]">
             Hi {studentName} <span aria-hidden="true">👋</span>
           </h1>
           <span className="inline-flex items-center rounded-full bg-[#FEF08A] px-[12px] py-[3px] text-[12px] font-semibold text-[#854D0E]">
