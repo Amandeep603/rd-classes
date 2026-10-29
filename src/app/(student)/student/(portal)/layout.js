@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import mongoose from "mongoose";
 import { connection } from "next/server";
+import { cookies } from "next/headers";
 import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
@@ -94,6 +95,19 @@ async function StudentPortalLayoutContent({ children }) {
     }
   }
 
+  const cookieStore = await cookies();
+  const selectedCourseCookie = cookieStore.get("rd_selected_course")?.value || null;
+  if (selectedCourseCookie && activeCourses.length > 1) {
+    const target = String(selectedCourseCookie).toLowerCase();
+    const idx = activeCourses.findIndex(
+      (c) => String(c._id).toLowerCase() === target || (c.slug && c.slug.toLowerCase() === target)
+    );
+    if (idx > 0) {
+      const [chosenCourse] = activeCourses.splice(idx, 1);
+      activeCourses.unshift(chosenCourse);
+    }
+  }
+
   const mainCourse = activeCourses[0] || null;
   const subtitle = mainCourse
     ? mainCourse.title
@@ -175,6 +189,11 @@ async function StudentPortalLayoutContent({ children }) {
       classPill={classPill}
       whatsappNumber={whatsappNumber}
       notifications={notifications}
+      activeCourses={activeCourses.map((c) => ({
+        _id: String(c._id),
+        title: c.title,
+        slug: c.slug,
+      }))}
     >
       <Suspense fallback={<StudentDashboardSkeleton />}>
         {children}

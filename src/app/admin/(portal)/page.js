@@ -16,6 +16,7 @@ import AdminDeviceApprovalCard from "@/components/portal/admin/AdminDeviceApprov
 import AdminRecentActivityCard from "@/components/portal/admin/AdminRecentActivityCard";
 import AdminFeaturedToppersCard from "@/components/portal/admin/AdminFeaturedToppersCard";
 import AdminResultPdfsCard from "@/components/portal/admin/AdminResultPdfsCard";
+import { formatDeviceLabel } from "@/lib/utils/deviceLabel";
 import {
   Users,
   Activity,
@@ -46,10 +47,12 @@ async function DashboardContent() {
 
   const now = new Date();
 
+  const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
+
   // 1. Stat card counts - isolated so any single failure defaults to 0 and logs
   const [
     studentsCount,
-    activeSessionsCount,
+    studentsOnlineCount,
     pendingDevicesCount,
     lecturesCount,
     notesCount,
@@ -59,13 +62,17 @@ async function DashboardContent() {
       console.error("[Dashboard] Error counting students:", err);
       return 0;
     }),
-    Session.countDocuments({
+    Session.distinct("userId", {
       expiresAt: { $gt: now },
       revoked: { $ne: true },
-    }).catch((err) => {
-      console.error("[Dashboard] Error counting active sessions:", err);
-      return 0;
-    }),
+      role: { $nin: ["admin"] },
+      lastSeenAt: { $gte: thirtyMinsAgo },
+    })
+      .then((ids) => (ids ? ids.length : 0))
+      .catch((err) => {
+        console.error("[Dashboard] Error counting students online:", err);
+        return 0;
+      }),
     Device.countDocuments({ status: "pending" }).catch((err) => {
       console.error("[Dashboard] Error counting pending devices:", err);
       return 0;
@@ -127,7 +134,11 @@ async function DashboardContent() {
       _id: r._id.toString(),
       userId: student, // card accesses req.userId for student details
       deviceId: r.deviceId,
-      label: r.deviceLabel || r.label || r.deviceName || "Personal Device",
+      label: formatDeviceLabel(r.deviceLabel || r.label || r.deviceName || "Personal Device", {
+        model: r.model,
+        os: r.os,
+        deviceType: r.deviceType,
+      }),
       userAgent: r.userAgent || "",
       ip: r.ip || "",
       status: r.status,
@@ -195,8 +206,8 @@ async function DashboardContent() {
 
         <StatCard
           icon={Activity}
-          value={activeSessionsCount}
-          label="Active Logins"
+          value={studentsOnlineCount}
+          label="Students Online"
           href="/admin/students"
           tone="blue"
         />

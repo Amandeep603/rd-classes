@@ -22,11 +22,18 @@ export function parseDeviceDetails(userAgentString, headerList) {
 
   const osName = os.name || "Unknown OS";
   const browserName = browser.name || "Browser";
-  const model = device.model || device.vendor || "";
+  const rawModel = (device.model || device.vendor || "").trim();
+  const isGenericModel = !rawModel || rawModel.length <= 1 || rawModel.toLowerCase() === "k";
+  const model = isGenericModel ? "" : rawModel;
 
   let label = `${osName} · ${browserName}`;
   if (deviceType === "mobile" || deviceType === "tablet") {
-    const mobileDevice = model ? `${model} (${osName})` : `${osName} phone`;
+    let mobileDevice = "";
+    if (isGenericModel) {
+      mobileDevice = osName === "Android" ? "Android phone" : `${osName} phone`;
+    } else {
+      mobileDevice = `${model} (${osName})`;
+    }
     label = `${mobileDevice} · ${browserName}`;
   }
 

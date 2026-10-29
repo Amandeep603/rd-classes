@@ -13,7 +13,7 @@ import { Note } from "../db/models/Note.js";
 import { User } from "../db/models/User.js";
 import { cloudinary } from "@/lib/cloudinary";
 
-export async function getStudentDashboardData(userId) {
+export async function getStudentDashboardData(userId, selectedCourseId = null) {
   await connectDB();
   const now = new Date();
 
@@ -40,10 +40,15 @@ export async function getStudentDashboardData(userId) {
     .populate("courseId", "title slug status published thumbnail targetScore rewardTargetText validUntil")
     .lean();
 
-  // Also collect course IDs from user.courses and user.savedCourses
+  // Also collect course IDs from user.courses, user.enrolledCourses and user.savedCourses
   const userCourseList = [];
   if (Array.isArray(user.courses)) {
     for (const c of user.courses) {
+      if (c) userCourseList.push(c._id ? String(c._id) : String(c));
+    }
+  }
+  if (Array.isArray(user.enrolledCourses)) {
+    for (const c of user.enrolledCourses) {
       if (c) userCourseList.push(c._id ? String(c._id) : String(c));
     }
   }
@@ -84,6 +89,27 @@ export async function getStudentDashboardData(userId) {
       seenCourseIds.add(cidStr);
       activeCourses.push(c);
     }
+  }
+
+  // If a specific course is selected, prioritize it as activeCourses[0]
+  if (selectedCourseId && activeCourses.length > 1) {
+    const target = String(selectedCourseId).toLowerCase();
+    const idx = activeCourses.findIndex(
+      (c) => String(c._id).toLowerCase() === target || (c.slug && c.slug.toLowerCase() === target)
+    );
+    if (idx > 0) {
+      const [chosenCourse] = activeCourses.splice(idx, 1);
+      activeCourses.unshift(chosenCourse);
+    }
+  }
+
+  // Server-side logging for lecture counts per enrolled course
+  for (const c of activeCourses) {
+    const count = await Lecture.countDocuments({
+      courseId: c._id,
+      status: { $ne: "archived" },
+    });
+    console.log(`[Dashboard] Course "${c.title}" (${c._id}): ${count} lectures found`);
   }
 
   const activeCourseIds = activeCourses.map((c) => c._id);
@@ -144,7 +170,7 @@ export async function getStudentDashboardData(userId) {
     // Check first lecture in case nothing has been watched
     const firstLecture = await Lecture.findOne({
       courseId: { $in: activeCourseIds },
-      $or: [{ status: "published" }, { published: true }],
+      status: { $ne: "archived" },
     })
       .sort({ position: 1, order: 1, createdAt: 1 })
       .populate("bookId", "title position")
@@ -194,12 +220,12 @@ export async function getStudentDashboardData(userId) {
     const chosen = latestProgress || fallbackProgress;
 
     const isLecPublished = (lec) =>
-      lec && (lec.status === "published" || lec.published === true || lec.published !== false);
+      Boolean(lec && lec.status !== "archived");
 
-    if (chosen?.lectureId && isLecPublished(chosen.lectureId) && (chosen?.courseId?.status === "published" || chosen?.courseId?.published !== false)) {
+    if (chosen?.lectureId && isLecPublished(chosen.lectureId) && (chosen?.courseId?.status !== "archived")) {
       const courseLecturesCount = await Lecture.countDocuments({
         courseId: chosen.courseId._id,
-        $or: [{ status: "published" }, { published: true }],
+        status: { $ne: "archived" },
       });
 
       const dur = chosen.durationSec || chosen.lectureId.durationSec || chosen.lectureId.durationSeconds || 2520;
@@ -233,7 +259,7 @@ export async function getStudentDashboardData(userId) {
     } else if (firstLecture && isLecPublished(firstLecture)) {
       const courseLecturesCount = await Lecture.countDocuments({
         courseId: firstLecture.courseId?._id || activeCourseIds[0],
-        $or: [{ status: "published" }, { published: true }],
+        status: { $ne: "archived" },
       });
 
       const dur = firstLecture.durationSec || firstLecture.durationSeconds || 2520;
@@ -269,7 +295,7 @@ export async function getStudentDashboardData(userId) {
   if (activeCourseIds.length > 0) {
     totalPublishedLectures = await Lecture.countDocuments({
       courseId: { $in: activeCourseIds },
-      $or: [{ status: "published" }, { published: true }],
+      status: { $ne: "archived" },
     });
 
     completedLectures = await Progress.countDocuments({

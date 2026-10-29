@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Dialog from "../ui/Dialog";
 import Button from "../ui/Button";
+import { formatDeviceLabel } from "@/lib/utils/deviceLabel";
 import {
   approveDeviceRequestAction,
   rejectDeviceRequestAction,
@@ -371,7 +372,7 @@ export default function AdminDeviceApprovalCard({
                         activeDevicesMap[selectedForApprove.userId?._id] || []
                       ).map((d) => (
                         <option key={d.deviceId} value={d.deviceId}>
-                          {d.label || d.deviceId}
+                          {formatDeviceLabel(d.label || d.deviceId)}
                         </option>
                       ))}
                     </select>

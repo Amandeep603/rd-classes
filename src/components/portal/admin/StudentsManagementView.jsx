@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { formatDeviceLabel } from "@/lib/utils/deviceLabel";
 import {
   Users,
   Search,
@@ -538,8 +539,8 @@ export default function StudentsManagementView({
                   <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 )
               ) : null}
-              <span className="truncate font-medium" title={fd ? fd.label : "No device"}>
-                {fd ? fd.label : "None"}
+              <span className="truncate font-medium" title={fd ? formatDeviceLabel(fd.label, { os: fd.os, deviceType: fd.type }) : "No device"}>
+                {fd ? formatDeviceLabel(fd.label, { os: fd.os, deviceType: fd.type }) : "None"}
               </span>
             </div>
             {/* Merged Device Status badge under device label */}
@@ -1379,7 +1380,11 @@ export default function StudentsManagementView({
                     <div className="flex items-center justify-between">
                       <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
                         <Smartphone className="w-4 h-4 text-slate-500" />
-                        {d.deviceLabel || d.label || "Unknown Device"}
+                        {formatDeviceLabel(d.deviceLabel || d.label || "Unknown Device", {
+                          model: d.model,
+                          os: d.os,
+                          deviceType: d.deviceType,
+                        })}
                       </div>
                       <span
                         className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${

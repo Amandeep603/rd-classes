@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/admin/ui/PageHeader";
 import Modal from "@/components/admin/ui/Modal";
+import { formatDeviceLabel } from "@/lib/utils/deviceLabel";
 
 export default function DeviceRequestsView({ initialStatus = "pending" }) {
   const [currentTab, setCurrentTab] = useState(initialStatus);
@@ -247,7 +248,11 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
           {requests.map((req) => {
             const student = req.student || {};
             const approvedDevices = req.currentApprovedDevices || [];
-            const deviceLabel = req.deviceLabel || req.label || "Unknown Device";
+            const deviceLabel = formatDeviceLabel(req.deviceLabel || req.label || "Unknown Device", {
+              model: req.model,
+              os: req.os,
+              deviceType: req.deviceType,
+            });
             const requestedDate = req.requestedAt || req.createdAt;
 
             return (
@@ -346,7 +351,11 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                             ) : (
                               <Laptop className="w-3.5 h-3.5 text-emerald-700" />
                             )}
-                            {ad.deviceLabel || ad.label || "Approved Device"}
+                            {formatDeviceLabel(ad.deviceLabel || ad.label || "Approved Device", {
+                              model: ad.model,
+                              os: ad.os,
+                              deviceType: ad.deviceType,
+                            })}
                           </span>
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
                             Active
@@ -428,7 +437,11 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
               <span className="text-slate-500 block">New Device to Approve:</span>
               <span className="font-semibold text-slate-900 text-sm block">
-                {selectedForApprove.deviceLabel || selectedForApprove.label}
+                {formatDeviceLabel(selectedForApprove.deviceLabel || selectedForApprove.label, {
+                  model: selectedForApprove.model,
+                  os: selectedForApprove.os,
+                  deviceType: selectedForApprove.deviceType,
+                })}
               </span>
               <span className="text-slate-500 font-mono text-[11px]">
                 IP: {selectedForApprove.ip || "Unknown"}
@@ -470,7 +483,11 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                       >
                         {(selectedForApprove.currentApprovedDevices || []).map((ad) => (
                           <option key={ad.deviceId} value={ad.deviceId}>
-                            {ad.deviceLabel || ad.label || "Approved Device"}
+                            {formatDeviceLabel(ad.deviceLabel || ad.label || "Approved Device", {
+                              model: ad.model,
+                              os: ad.os,
+                              deviceType: ad.deviceType,
+                            })}
                           </option>
                         ))}
                       </select>

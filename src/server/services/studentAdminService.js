@@ -10,6 +10,7 @@ import { Enrollment } from "../../lib/models/Enrollment.ts";
 import { Course } from "../../lib/models/Course.ts";
 import { ActivityLog } from "../../lib/models/ActivityLog.ts";
 import { LectureProgress } from "../../lib/models/LectureProgress.ts";
+import { formatDeviceLabel } from "@/lib/utils/deviceLabel";
 
 /**
  * Generates a 10-character strong password without confusing glyphs (0, O, 1, l, I).
@@ -639,7 +640,11 @@ export async function getStudentsListPaginated({
       firstDevice: firstDev
         ? {
             type: firstDev.deviceType || "desktop",
-            label: firstDev.deviceLabel || firstDev.label || "Device",
+            label: formatDeviceLabel(firstDev.deviceLabel || firstDev.label || "Device", {
+              model: firstDev.model,
+              os: firstDev.os,
+              deviceType: firstDev.deviceType,
+            }),
             os: firstDev.os || "",
             browser: firstDev.browser || "",
           }

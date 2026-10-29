@@ -13,6 +13,7 @@ import {
   X,
   Search,
   Menu,
+  Check,
 } from "lucide-react";
 import { logoutStudentAction } from "@/server/actions/auth.actions.js";
 
@@ -21,10 +22,12 @@ export default function StudentTopbar({
   subtitle,
   classPill,
   notifications = { announcements: [], notes: [] },
+  activeCourses = [],
   onOpenSidebar,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [courseSwitcherOpen, setCourseSwitcherOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -33,6 +36,7 @@ export default function StudentTopbar({
   const menuRef = useRef(null);
   const notifRef = useRef(null);
   const searchRef = useRef(null);
+  const switcherRef = useRef(null);
 
   // Fetch notifications from server endpoint
   const fetchNotifications = async () => {
@@ -76,10 +80,19 @@ export default function StudentTopbar({
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setSearchResults(null);
       }
+      if (switcherRef.current && !switcherRef.current.contains(e.target)) {
+        setCourseSwitcherOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleSelectCourse = (course) => {
+    document.cookie = `rd_selected_course=${course._id}; path=/; max-age=31536000; SameSite=Lax`;
+    setCourseSwitcherOpen(false);
+    window.location.reload();
+  };
 
   // Debounced search
   useEffect(() => {
@@ -141,9 +154,56 @@ export default function StudentTopbar({
             {classLabel}
           </span>
         </div>
-        <p className="mt-0.5 text-[15px] font-medium text-[#5B6577]">
-          {mainSubtitle}
-        </p>
+        {activeCourses && activeCourses.length > 1 ? (
+          <div className="relative mt-1 inline-block" ref={switcherRef}>
+            <button
+              type="button"
+              onClick={() => setCourseSwitcherOpen(!courseSwitcherOpen)}
+              aria-expanded={courseSwitcherOpen}
+              className="group inline-flex items-center gap-2 rounded-xl bg-white/80 hover:bg-white border border-[#E2EEF8] hover:border-[#CBD5E1] px-3 py-1.5 text-[14px] font-semibold text-[#1F2A44] shadow-2xs transition-colors cursor-pointer"
+            >
+              <span className="truncate max-w-[260px] sm:max-w-[360px]">{mainSubtitle}</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 text-[#6B7A99] transition-transform duration-150 ${
+                  courseSwitcherOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {courseSwitcherOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-72 rounded-2xl bg-white p-2 shadow-xl border border-black/8 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#6B7A99]">
+                  Switch Enrolled Course
+                </div>
+                <div className="space-y-1">
+                  {activeCourses.map((c) => {
+                    const isCurrent = c.title === mainSubtitle || c.slug === mainSubtitle;
+                    return (
+                      <button
+                        key={c._id}
+                        type="button"
+                        onClick={() => handleSelectCourse(c)}
+                        className={`w-full text-left rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                          isCurrent
+                            ? "bg-[#FEF9C3] text-[#854D0E] font-bold"
+                            : "text-[#1F2A44] hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="truncate">{c.title}</span>
+                        {isCurrent && (
+                          <Check className="h-3.5 w-3.5 text-[#854D0E] shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="mt-0.5 text-[15px] font-medium text-[#5B6577]">
+            {mainSubtitle}
+          </p>
+        )}
       </div>
 
       {/* Right: Search Box + Bell + Avatar Menu */}

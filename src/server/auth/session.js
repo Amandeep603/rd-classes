@@ -9,6 +9,7 @@ import { getCookie, deleteCookie, COOKIE_NAMES, COOKIE_DURATIONS } from "./cooki
 import { hashToken } from "./tokens.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const FIVE_MINS_MS = 5 * 60 * 1000;
 
 async function resolveCurrentPath(defaultFallback) {
   try {
@@ -125,14 +126,26 @@ export const getStudentAuthStatus = cache(async () => {
     return { authenticated: false, reason: "device_revoked", hadCookie: true };
   }
 
-  // Sliding renewal: extend expiresAt at most once per hour on activity
+  // Update lastSeenAt throttled to once per 5 minutes; extend expiresAt if sliding window elapsed
   const lastSeen = session.lastSeenAt ? new Date(session.lastSeenAt).getTime() : 0;
-  if (now.getTime() - lastSeen > ONE_HOUR_MS) {
-    const newExpiresAt = new Date(now.getTime() + COOKIE_DURATIONS.SESSION * 1000);
+  if (now.getTime() - lastSeen > FIVE_MINS_MS) {
+    const updateFields = { lastSeenAt: now };
+    if (now.getTime() - lastSeen > ONE_HOUR_MS) {
+      updateFields.expiresAt = new Date(now.getTime() + COOKIE_DURATIONS.SESSION * 1000);
+    }
     await Session.updateOne(
       { _id: session._id },
-      { $set: { lastSeenAt: now, expiresAt: newExpiresAt } }
+      { $set: updateFields }
     );
+
+    // Delete expired/revoked session records older than 7 days
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    Session.deleteMany({
+      $or: [
+        { expiresAt: { $lt: sevenDaysAgo } },
+        { revoked: true, updatedAt: { $lt: sevenDaysAgo } },
+      ],
+    }).catch(() => {});
   }
 
   return {

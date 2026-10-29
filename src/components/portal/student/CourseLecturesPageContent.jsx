@@ -67,10 +67,10 @@ export default async function CourseLecturesContent({ params }) {
     forbidden();
   }
 
-  // 2. Fetch published lectures (draft lectures are hidden)
+  // 2. Fetch available lectures (archived lectures are hidden)
   const rawLectures = await Lecture.find({
     courseId: course._id,
-    $or: [{ status: "published" }, { published: true }],
+    status: { $ne: "archived" },
   })
     .populate("bookId", "title position status")
     .populate("chapterId", "title position status")
@@ -78,8 +78,8 @@ export default async function CourseLecturesContent({ params }) {
     .lean();
 
   const lectures = rawLectures.filter((lec) => {
-    if (lec.bookId && lec.bookId.status === "draft") return false;
-    if (lec.chapterId && lec.chapterId.status === "draft") return false;
+    if (lec.bookId && lec.bookId.status === "archived") return false;
+    if (lec.chapterId && lec.chapterId.status === "archived") return false;
     return true;
   });
 

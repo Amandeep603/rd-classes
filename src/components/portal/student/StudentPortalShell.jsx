@@ -10,6 +10,7 @@ export default function StudentPortalShell({
   classPill,
   whatsappNumber,
   notifications,
+  activeCourses = [],
   children,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -58,6 +59,7 @@ export default function StudentPortalShell({
           subtitle={subtitle}
           classPill={classPill}
           notifications={notifications}
+          activeCourses={activeCourses}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
         <div className="portal-content-body">{children}</div>

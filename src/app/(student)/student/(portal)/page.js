@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { cookies } from "next/headers";
 import { getCurrentUser } from "@/server/auth/session.js";
 import { getStudentDashboardData } from "@/server/services/studentDashboardService.js";
 import AnnouncementBanner from "@/components/portal/student/AnnouncementBanner";
@@ -16,11 +17,14 @@ export const metadata = {
   title: "Dashboard | RD Classes Student Portal",
 };
 
-async function StudentDashboardContent() {
+async function StudentDashboardContent({ searchParams }) {
   await connection();
   const auth = await getCurrentUser();
   if (!auth?.user) return null;
-  const data = await getStudentDashboardData(auth.user._id);
+  const resolvedParams = searchParams ? await searchParams : {};
+  const cookieStore = await cookies();
+  const selectedCourse = resolvedParams.course || cookieStore.get("rd_selected_course")?.value || null;
+  const data = await getStudentDashboardData(auth.user._id, selectedCourse);
 
   if (!data) return null;
 
@@ -88,10 +92,10 @@ async function StudentDashboardContent() {
   );
 }
 
-export default function StudentDashboardPage() {
+export default async function StudentDashboardPage({ searchParams }) {
   return (
     <Suspense fallback={<StudentDashboardSkeleton />}>
-      <StudentDashboardContent />
+      <StudentDashboardContent searchParams={searchParams} />
     </Suspense>
   );
 }
