@@ -267,7 +267,7 @@ export default function PortalStudentsView({
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="rounded-md bg-neutral-100 px-1.5 py-0.2 text-[10px] font-mono font-bold text-[#6B7280]">
-                                  {student.studentCode || student.loginId}
+                                  {student.loginId}
                                 </span>
                                 {student.phone && (
                                   <span className="text-[11px] text-[#9CA3AF]">
@@ -387,7 +387,7 @@ export default function PortalStudentsView({
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-[#6B7280]">
-                    <span>{student.studentCode || student.loginId}</span>
+                    <span className="font-mono">{student.loginId}</span>
                     <span>Class {student.className || "12"}</span>
                     <span>
                       Devices: {student.deviceCount}/{student.deviceLimit}

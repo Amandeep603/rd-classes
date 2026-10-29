@@ -94,11 +94,10 @@ async function seedDemo() {
   const defaultPwdHash = await bcrypt.hash("password123", 10);
 
   const tanvi = await User.findOneAndUpdate(
-    { studentCode: "RD-2026-001" },
+    { loginId: "tanvi.agarwal" },
     {
       role: "student",
       loginId: "tanvi.agarwal",
-      studentCode: "RD-2026-001",
       name: "Tanvi Agarwal",
       className: "12",
       school: "DPS R.K. Puram",
@@ -131,7 +130,6 @@ async function seedDemo() {
     {
       role: "student",
       loginId: "vardaan.agarwal",
-      studentCode: "RD-2025-042",
       name: "Vardaan Agarwal",
       className: "12",
       passwordHash: defaultPwdHash,
@@ -148,7 +146,6 @@ async function seedDemo() {
     {
       role: "student",
       loginId: "kunal.sethi",
-      studentCode: "RD-2025-018",
       name: "Kunal Sethi",
       className: "12",
       passwordHash: defaultPwdHash,
@@ -165,7 +162,6 @@ async function seedDemo() {
     {
       role: "student",
       loginId: "aditi.prakash",
-      studentCode: "RD-2025-019",
       name: "Aditi Prakash",
       className: "12",
       passwordHash: defaultPwdHash,

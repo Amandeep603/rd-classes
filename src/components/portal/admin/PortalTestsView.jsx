@@ -442,7 +442,7 @@ export default function PortalTestsView({
                           {st.name}
                         </span>
                         <span className="text-[10px] text-[var(--portal-text-muted)] font-mono">
-                          {st.studentCode || st.loginId} • Class {st.className || "12"}
+                          {st.loginId} • Class {st.className || "12"}
                         </span>
                       </div>
                     </div>

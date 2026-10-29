@@ -11,7 +11,7 @@ export const COOKIE_NAMES = {
 
 export const COOKIE_DURATIONS = {
   SESSION: 30 * 24 * 60 * 60, // 30 days
-  ADMIN_SESSION: 8 * 60 * 60, // 8 hours
+  ADMIN_SESSION: 7 * 24 * 60 * 60, // 7 days
   DEVICE: 2 * 365 * 24 * 60 * 60, // 2 years
 };
 

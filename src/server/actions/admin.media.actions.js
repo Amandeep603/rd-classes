@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import { isStorageConfigured, getStorageDriver } from "../storage/index.js";
 import {
   registerAssetService,
@@ -11,7 +11,8 @@ import {
 } from "../services/mediaService.js";
 
 export async function checkStorageStatusAction() {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { configured: false, driver: "none", error: "Unauthorized" };
   return {
     configured: isStorageConfigured(),
     driver: getStorageDriver(),
@@ -25,7 +26,10 @@ export async function registerAssetAction({
   width = null,
   height = null,
 }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     const asset = await registerAssetService({
       url,
@@ -43,7 +47,10 @@ export async function registerAssetAction({
 }
 
 export async function archiveAssetAction(assetId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await archiveAssetService(assetId, admin.user._id);
     revalidatePath("/admin/media");
@@ -54,7 +61,10 @@ export async function archiveAssetAction(assetId) {
 }
 
 export async function restoreAssetAction(assetId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await restoreAssetService(assetId, admin.user._id);
     revalidatePath("/admin/media");
@@ -65,7 +75,10 @@ export async function restoreAssetAction(assetId) {
 }
 
 export async function deleteAssetPermanentlyAction(assetId, confirmationText) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   if (confirmationText !== "DELETE") {
     return { success: false, error: "Please type DELETE to confirm permanent deletion." };
   }

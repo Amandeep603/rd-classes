@@ -1,6 +1,24 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+const TONES = {
+  blue: {
+    bg: "bg-[#EAF4FD]",
+    border: "border-[#CFE6F7]",
+    iconChip: "bg-[#D6EAF8] text-[#1F2A44]",
+  },
+  yellow: {
+    bg: "bg-[#FFF6DA]",
+    border: "border-[#FBE7A6]",
+    iconChip: "bg-[#FDEEBA] text-[#1F2A44]",
+  },
+  peach: {
+    bg: "bg-[#FDEBDD]",
+    border: "border-[#F8CFB4]",
+    iconChip: "bg-[#FAD9C3] text-[#1F2A44]",
+  },
+};
+
 export default function StatCard({
   icon: Icon,
   value,
@@ -11,44 +29,55 @@ export default function StatCard({
   tone = "blue",
   className = "",
 }) {
+  const currentTone = TONES[tone] || TONES.blue;
+
   const content = (
     <div
-      className={`portal-stat-card flex items-center justify-between rounded-[22px] p-5 transition-all duration-200 border ${className}`}
-      data-tone={tone}
+      className={`group flex h-[96px] items-center justify-between rounded-[20px] px-6 border ${currentTone.bg} ${currentTone.border} transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs select-none ${className}`}
     >
-      <div className="flex items-center gap-4">
-        <div className="portal-stat-icon-tile flex h-14 w-14 items-center justify-center rounded-2xl shrink-0">
-          {Icon && <Icon className="h-6 w-6" />}
+      <div className="flex items-center gap-4 min-w-0">
+        {/* 52px icon chip in deeper tint with dark navy outline icon */}
+        <div
+          className={`flex h-[52px] w-[52px] items-center justify-center rounded-[16px] shrink-0 ${currentTone.iconChip}`}
+        >
+          {Icon && <Icon className="h-[22px] w-[22px] text-[#1F2A44] stroke-[2]" />}
         </div>
-        <div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[28px] font-extrabold tracking-tight text-[#111827]">
+
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-1 truncate">
+            <span className="text-[30px] font-bold tracking-tight text-[#1F2A44] leading-none">
               {value}
             </span>
             {total !== undefined && (
-              <span className="text-sm font-semibold text-[#6B7280]">
+              <span className="text-[16px] font-medium text-[#6B7A99] ml-0.5">
                 /{total}
               </span>
             )}
             {suffix && (
-              <span className="text-sm font-semibold text-[#6B7280]">
+              <span className="text-[14px] font-medium text-[#6B7A99] ml-1">
                 {suffix}
               </span>
             )}
           </div>
-          <p className="text-[14px] font-medium text-[#4B5563] mt-0.5">{label}</p>
+          <p className="text-[15px] font-medium text-[#1F2A44] truncate mt-1">
+            {label}
+          </p>
         </div>
       </div>
 
-      <div className="portal-stat-arrow flex h-10 w-10 items-center justify-center rounded-full shrink-0 shadow-sm transition-transform group-hover:translate-x-0.5">
-        <ArrowRight className="h-4 w-4" />
+      {/* 40px white circle arrow button */}
+      <div className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-white text-[#1F2A44] shadow-xs shrink-0 transition-transform duration-150 group-hover:translate-x-0.5">
+        <ArrowRight className="h-[18px] w-[18px] text-[#1F2A44] stroke-[2.2]" />
       </div>
     </div>
   );
 
   if (href) {
     return (
-      <Link href={href} className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC21A] rounded-[22px]">
+      <Link
+        href={href}
+        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] rounded-[20px]"
+      >
         {content}
       </Link>
     );

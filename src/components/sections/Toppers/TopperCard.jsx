@@ -48,9 +48,12 @@ function ScoreCounter({ score, isFeatured }) {
  * Base size: 318u x 428u for featured, 266u x 380u for side.
  */
 export default function TopperCard({ topper, isFeatured, onClick }) {
+  const topperId = topper.id || topper._id;
   const isBlue = topper.tone === "blue";
-  const clipId = `topper-card-clip-${topper.id}`;
-  const photoClipId = `topper-photo-clip-${topper.id}`;
+  const clipId = `topper-card-clip-${topperId}`;
+  const photoClipId = `topper-photo-clip-${topperId}`;
+  const photo = topper.photoUrl || topper.photo || "/images/portal/avatars/default.webp";
+  const score = topper.marks || topper.score || "100";
 
   const path100 = isFeatured ? FEATURED_CARD_PATH_100 : SIDE_CARD_PATH_100;
   const pathUnit = isFeatured ? FEATURED_CARD_PATH_UNIT : SIDE_CARD_PATH_UNIT;
@@ -87,7 +90,7 @@ export default function TopperCard({ topper, isFeatured, onClick }) {
           <clipPath id={photoClipId} clipPathUnits="objectBoundingBox">
             <path d="M 0 0 L 1 0 L 1 0.60 L 0.50 0.68 L 0 0.60 Z" />
           </clipPath>
-          <linearGradient id={`grad-card-${topper.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id={`grad-card-${topperId}`} x1="0%" y1="0%" x2="0%" y2="100%">
             {isBlue ? (
               <>
                 <stop offset="0%" stopColor="#0F1F32" />
@@ -128,7 +131,7 @@ export default function TopperCard({ topper, isFeatured, onClick }) {
         >
           <path
             d={path100}
-            fill={`url(#grad-card-${topper.id})`}
+            fill={`url(#grad-card-${topperId})`}
             stroke={borderColor}
             strokeWidth={borderWidth}
             vectorEffect="non-scaling-stroke"
@@ -160,8 +163,8 @@ export default function TopperCard({ topper, isFeatured, onClick }) {
           }}
         >
           <Image
-            src={topper.photo}
-            alt={topper.alt}
+            src={photo}
+            alt={topper.alt || topper.name}
             fill
             sizes="(max-width: 768px) 240px, 320px"
             className="object-cover object-top"
@@ -203,7 +206,7 @@ export default function TopperCard({ topper, isFeatured, onClick }) {
           }}
         >
           <span style={{ fontSize: "9.3cqw", lineHeight: 1 }}>
-            <ScoreCounter score={topper.score} isFeatured={isFeatured} />
+            <ScoreCounter score={score} isFeatured={isFeatured} />
           </span>
           <span
             style={{

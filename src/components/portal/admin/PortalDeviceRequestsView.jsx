@@ -111,12 +111,10 @@ export default function PortalDeviceRequestsView({
     if (!searchTerm.trim()) return true;
     const s = searchTerm.toLowerCase();
     const name = r.userId?.name?.toLowerCase() || "";
-    const code = r.userId?.studentCode?.toLowerCase() || "";
     const login = r.userId?.loginId?.toLowerCase() || "";
     const label = r.label?.toLowerCase() || "";
     return (
       name.includes(s) ||
-      code.includes(s) ||
       login.includes(s) ||
       label.includes(s)
     );
@@ -204,9 +202,9 @@ export default function PortalDeviceRequestsView({
                         <span className="text-sm font-bold text-[#111827]">
                           {student?.name || "Student"}
                         </span>
-                        {student?.studentCode && (
-                          <span className="rounded-md bg-white border border-black/8 px-1.5 py-0.2 text-[10px] font-bold text-[#6B7280]">
-                            {student.studentCode}
+                        {student?.loginId && (
+                          <span className="rounded-md bg-white border border-black/8 px-1.5 py-0.2 text-[10px] font-bold font-mono text-[#6B7280]">
+                            {student.loginId}
                           </span>
                         )}
                         <span

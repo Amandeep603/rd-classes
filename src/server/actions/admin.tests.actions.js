@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import connectDB from "../db/connect.js";
 import { Test } from "../db/models/Test.js";
 import { TestResult } from "../db/models/TestResult.js";
 import { logAuditEvent } from "../services/audit.js";
 
 export async function createTestAction(payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!payload.title || !payload.title.trim()) {
     return { success: false, error: "Test title is required." };
@@ -19,10 +21,17 @@ export async function createTestAction(payload) {
 
   await connectDB();
 
+  const testDate = new Date(payload.startsAt);
+  const startTime = payload.startTime || "10:00 AM";
+  const endTime = payload.endTime || "01:00 PM";
+
   const test = await Test.create({
     title: payload.title.trim(),
     kind: payload.kind?.trim() || "Sunday Mock",
-    startsAt: new Date(payload.startsAt),
+    startsAt: testDate,
+    testDate: testDate,
+    startTime: startTime.trim(),
+    endTime: endTime.trim(),
     durationMin: Number(payload.durationMin) || 180,
     syllabus: (payload.syllabus || "").trim(),
     venue: (payload.venue || "RD Classes, Sector 9 Centre").trim(),
@@ -48,7 +57,9 @@ export async function createTestAction(payload) {
 }
 
 export async function updateTestAction(id, payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!payload.title || !payload.title.trim()) {
     return { success: false, error: "Test title is required." };
@@ -56,21 +67,27 @@ export async function updateTestAction(id, payload) {
 
   await connectDB();
 
-  const test = await Test.findByIdAndUpdate(
-    id,
-    {
-      title: payload.title.trim(),
-      kind: payload.kind?.trim() || "Sunday Mock",
-      startsAt: new Date(payload.startsAt),
-      durationMin: Number(payload.durationMin) || 180,
-      syllabus: (payload.syllabus || "").trim(),
-      venue: (payload.venue || "RD Classes, Sector 9 Centre").trim(),
-      className: payload.className || "12",
-      courseId: payload.courseId || null,
-      published: payload.published !== false,
-    },
-    { new: true }
-  );
+  const testDate = payload.startsAt ? new Date(payload.startsAt) : undefined;
+
+  const updateFields = {
+    title: payload.title.trim(),
+    kind: payload.kind?.trim() || "Sunday Mock",
+    durationMin: Number(payload.durationMin) || 180,
+    syllabus: (payload.syllabus || "").trim(),
+    venue: (payload.venue || "RD Classes, Sector 9 Centre").trim(),
+    className: payload.className || "12",
+    courseId: payload.courseId || null,
+    published: payload.published !== false,
+  };
+
+  if (testDate) {
+    updateFields.startsAt = testDate;
+    updateFields.testDate = testDate;
+  }
+  if (payload.startTime) updateFields.startTime = payload.startTime.trim();
+  if (payload.endTime) updateFields.endTime = payload.endTime.trim();
+
+  const test = await Test.findByIdAndUpdate(id, updateFields, { new: true });
 
   if (!test) {
     return { success: false, error: "Test not found." };
@@ -92,7 +109,9 @@ export async function updateTestAction(id, payload) {
 }
 
 export async function deleteTestAction(id) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   await connectDB();
   const deleted = await Test.findByIdAndDelete(id);
@@ -115,7 +134,9 @@ export async function deleteTestAction(id) {
 }
 
 export async function saveTestMarksAction(testId, results = []) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!testId || !Array.isArray(results)) {
     return { success: false, error: "Invalid test marks submission." };

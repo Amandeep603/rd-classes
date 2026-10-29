@@ -339,9 +339,9 @@ export default function PortalStudentDetailView({
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-[var(--portal-text-main)]">{student.name}</h1>
-                {student.studentCode && (
+                {student.loginId && (
                   <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[var(--portal-bg-page)] border border-[var(--portal-card-border)] text-[var(--portal-text-muted)]">
-                    {student.studentCode}
+                    {student.loginId}
                   </span>
                 )}
                 {student.status === "blocked" ? (
@@ -558,10 +558,6 @@ export default function PortalStudentDetailView({
               <div className="flex justify-between py-2 border-b border-[var(--portal-card-border)]">
                 <span className="text-[var(--portal-text-muted)]">Login ID</span>
                 <span className="font-mono font-bold text-[var(--portal-text-main)]">{student.loginId}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-[var(--portal-card-border)]">
-                <span className="text-[var(--portal-text-muted)]">Student Code</span>
-                <span className="font-mono font-bold text-[var(--portal-text-main)]">{student.studentCode || "—"}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-[var(--portal-card-border)]">
                 <span className="text-[var(--portal-text-muted)]">Last Login</span>

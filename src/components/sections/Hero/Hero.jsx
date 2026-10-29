@@ -31,7 +31,7 @@ export default function Hero() {
           radial-gradient(circle 24vw at 100% 12%, rgba(175, 110, 10, 0.22) 0%, transparent 70%)
         `,
       }}
-      className="relative w-full min-h-[100svh] h-auto lg:h-[100svh] lg:min-h-[560px] overflow-x-clip select-none [isolation:isolate]"
+      className="relative w-full min-h-[calc(100svh-var(--nav-h,84px))] h-auto overflow-x-clip select-none [isolation:isolate]"
     >
       {/* ================= DESKTOP LIGHTWEIGHT GLOW DRIFT OVERLAY (Transform-only, Desktop only) ================= */}
       <div
@@ -50,49 +50,26 @@ export default function Hero() {
       </div>
 
       {/* ================= DESKTOP & LAPTOP LAYOUT (>= 1024px) ================= */}
-      <div className="hidden lg:block w-full h-full relative z-20">
-        {/* Left Content: anchored left at 6.25vw, top at 180u to center vertically */}
-        <div
-          className="absolute z-20"
-          style={{
-            left: "6.25vw",
-            top: "calc(var(--u) * 180)",
-            width: "calc(var(--u) * 650)",
-          }}
-        >
+      <div className="hidden lg:flex w-full min-h-[calc(100svh-var(--nav-h,84px))] items-center justify-between px-[6.25vw] pt-6 pb-10 relative z-20">
+        {/* Left Content */}
+        <div className="w-[48%] max-w-[620px] shrink-0">
           <HeroContent />
         </div>
 
-        {/* Right Arch Cluster: anchored with safe margins so it NEVER cuts on any screen */}
-        <div
-          className="absolute z-10 flex items-end justify-center pointer-events-none"
-          style={{
-            right: "clamp(24px, 4.5vw, 64px)",
-            bottom: "clamp(16px, 3svh, 44px)",
-            top: "calc(clamp(64px, calc(var(--u) * 88), 96px) + 2svh)",
-            maxWidth: "calc(100vw - calc(var(--u) * 650) - 12vw)",
-          }}
-        >
-          <HeroImageGrid
-            isDesktop={true}
-            style={{
-              height: "100%",
-              maxHeight: "calc(100svh - clamp(64px, calc(var(--u) * 88), 96px) - 6svh)",
-              width: "auto",
-            }}
-          />
+        {/* Right Capsule Collage: aligned right, max-w 640px */}
+        <div className="w-[48%] max-w-[640px] flex justify-end shrink-0 pointer-events-auto">
+          <HeroImageGrid className="w-full" />
         </div>
       </div>
 
       {/* ================= MOBILE & TABLET LAYOUT (< 1024px) ================= */}
-      {/* Scrollable, height auto, pb-[36px], content starts below 64px header (pt 88px) */}
-      <div className="flex lg:hidden flex-col items-center justify-start min-h-[100svh] h-auto w-full pt-[88px] pb-[36px] px-4 z-20 relative">
+      <div className="flex lg:hidden flex-col items-center justify-start w-full pt-4 pb-8 px-4 z-20 relative">
         {/* Centered Content */}
         <HeroContent />
 
-        {/* Scaled Arch Cluster showing all 5 arches completely and proportionally */}
-        <div className="w-[min(100%-24px,390px)] mx-auto mt-7 shrink-0">
-          <HeroImageGrid isDesktop={false} className="w-full" />
+        {/* Scaled Capsule Cluster: 3 cols, tablet 90% width, mobile max-w-[420px] */}
+        <div className="w-full max-w-[420px] md:max-w-none md:w-[90%] mx-auto mt-8 shrink-0">
+          <HeroImageGrid className="w-full" />
         </div>
       </div>
     </InViewSection>

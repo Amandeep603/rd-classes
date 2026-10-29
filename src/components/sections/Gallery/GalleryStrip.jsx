@@ -45,38 +45,44 @@ export default function GalleryStrip({ items, stripRef, onScrollStateChange }) {
         paddingInline: "clamp(16px, 2.5vw, calc(var(--su, 1px) * 20))",
       }}
     >
-      {items.map((item) => (
-        <div
-          key={item.id}
-          className="snap-center shrink-0 rounded-[18px] overflow-hidden relative shadow-md transition-all duration-300 hover:scale-[1.04] group [transform-origin:center] [will-change:transform]"
-          style={{
-            width: "clamp(140px, 42vw, calc(var(--su, 1px) * 188))",
-            height: "clamp(240px, 70vw, calc(var(--su, 1px) * 320))",
-            border: "1px solid rgba(15, 23, 42, 0.08)",
-            "--card-ry": `${item.ry}deg`,
-            "--card-skew": `${item.skew}deg`,
-            transform: "perspective(1200px) rotateY(var(--card-ry, 0deg)) skewY(var(--card-skew, 0deg))",
-          }}
-        >
-          <Image
-            src={item.src}
-            alt={item.alt}
-            fill
-            sizes="(max-width: 640px) 160px, (max-width: 1024px) 180px, 240px"
-            className="object-cover object-center group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-          />
+      {items.map((item) => {
+        const itemId = item._id || item.id;
+        const itemSrc = item.imageUrl || item.image || item.src;
+        const itemAlt = item.caption || item.alt || "Classroom photo";
 
-          {/* Subtle gradient vignette */}
+        return (
           <div
-            className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 opacity-50 group-hover:opacity-30 transition-opacity pointer-events-none"
-            aria-hidden="true"
-          />
+            key={itemId}
+            className="snap-center shrink-0 rounded-[18px] overflow-hidden relative shadow-md transition-all duration-300 hover:scale-[1.04] group [transform-origin:center] [will-change:transform]"
+            style={{
+              width: "clamp(140px, 42vw, calc(var(--su, 1px) * 188))",
+              height: "clamp(240px, 70vw, calc(var(--su, 1px) * 320))",
+              border: "1px solid rgba(15, 23, 42, 0.08)",
+              "--card-ry": `${item.ry || 0}deg`,
+              "--card-skew": `${item.skew || 0}deg`,
+              transform: "perspective(1200px) rotateY(var(--card-ry, 0deg)) skewY(var(--card-skew, 0deg))",
+            }}
+          >
+            <Image
+              src={itemSrc}
+              alt={itemAlt}
+              fill
+              sizes="(max-width: 640px) 160px, (max-width: 1024px) 180px, 240px"
+              className="object-cover object-center group-hover:scale-105 transition-transform duration-500"
+              loading="lazy"
+            />
 
-          {/* Accessible image alt text for screen readers */}
-          <span className="sr-only">{item.alt}</span>
-        </div>
-      ))}
+            {/* Subtle gradient vignette */}
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 opacity-50 group-hover:opacity-30 transition-opacity pointer-events-none"
+              aria-hidden="true"
+            />
+
+            {/* Accessible image alt text for screen readers */}
+            <span className="sr-only">{itemAlt}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

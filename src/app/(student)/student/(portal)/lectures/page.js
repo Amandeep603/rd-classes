@@ -1,120 +1,119 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import Link from "next/link";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
-import { Enrollment } from "@/server/db/models/Enrollment.js";
-import { Course } from "@/server/db/models/Course.js";
-import { Lecture } from "@/server/db/models/Lecture.js";
-import { Progress } from "@/server/db/models/Progress.js";
-import StudentLecturesView from "@/components/portal/student/StudentLecturesView.jsx";
-
-export const instant = false;
+import { Enrollment } from "@/lib/models/Enrollment";
+import { Course } from "@/lib/models/Course";
+import { Lecture } from "@/lib/models/Lecture";
+import { Progress } from "@/lib/models/Progress";
+import CourseCard from "@/components/courses/CourseCard";
+import { Video } from "lucide-react";
+import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "My Lectures | RD Classes Student Portal",
 };
 
-export default async function StudentLecturesPage() {
+async function StudentLecturesContent() {
   const auth = await getCurrentUser();
-  if (!auth?.user) {
-    redirect("/student/login");
-  }
-
+  if (!auth?.user) return null;
   await connectDB();
   const now = new Date();
 
-  // 1. Get student active enrollments
   const enrollments = await Enrollment.find({
     userId: auth.user._id,
     status: "active",
     $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
   })
-    .select("courseId expiresAt")
+    .select("-paymentNote")
+    .populate("courseId")
     .lean();
 
-  const enrolledCourseIds = enrollments.map((e) => e.courseId).filter(Boolean);
+  const activeCourses = await Promise.all(
+    enrollments
+      .filter((e) => e.courseId && e.courseId.published)
+      .map(async (e) => {
+        const course = e.courseId;
+        const totalLectures = await Lecture.countDocuments({
+          courseId: course._id,
+          published: true,
+        });
+        const completedLectures = await Progress.countDocuments({
+          userId: auth.user._id,
+          courseId: course._id,
+          completed: true,
+        });
 
-  // 2. Fetch published courses
-  const courses = await Course.find({
-    _id: { $in: enrolledCourseIds },
-    published: true,
-  })
-    .select("title subtitle slug classLabel tone order")
-    .sort({ order: 1 })
-    .lean();
+        const percent =
+          totalLectures > 0
+            ? Math.min(100, Math.round((completedLectures / totalLectures) * 100))
+            : 0;
 
-  const validCourseMap = {};
-  courses.forEach((c) => {
-    validCourseMap[c._id.toString()] = c;
-  });
-
-  const validCourseIds = courses.map((c) => c._id);
-
-  // 3. Fetch all published lectures for enrolled courses
-  const rawLectures = await Lecture.find({
-    courseId: { $in: validCourseIds },
-    published: true,
-  })
-    .sort({ order: 1, createdAt: 1 })
-    .select("title section durationSec courseId isPreview freePreview order")
-    .lean();
-
-  // 4. Fetch student progress records
-  const progressList = await Progress.find({
-    userId: auth.user._id,
-    courseId: { $in: validCourseIds },
-  })
-    .sort({ updatedAt: -1 })
-    .lean();
-
-  const progressMap = {};
-  let lastWatchedRecord = null;
-  progressList.forEach((p) => {
-    const key = p.lectureId.toString();
-    progressMap[key] = p;
-    if (!lastWatchedRecord && (p.currentTimeSec > 0 || p.completed)) {
-      lastWatchedRecord = p;
-    }
-  });
-
-  // 5. Enrich lectures with course title, slug, and progress
-  const lectures = rawLectures.map((l) => {
-    const course = validCourseMap[l.courseId.toString()] || {};
-    const prog = progressMap[l._id.toString()];
-    return {
-      _id: l._id.toString(),
-      title: l.title,
-      section: l.section || "General",
-      durationSec: l.durationSec || 0,
-      courseId: l.courseId.toString(),
-      courseTitle: course.title || "Course",
-      courseSlug: course.slug || "",
-      classLabel: course.classLabel || "Class 12",
-      tone: course.tone || "sky",
-      completed: !!prog?.completed,
-      currentTimeSec: prog?.currentTimeSec || 0,
-    };
-  });
-
-  // Identify last watched lecture for Resume button
-  let lastWatched = null;
-  if (lastWatchedRecord) {
-    const found = lectures.find(
-      (l) => l._id === lastWatchedRecord.lectureId.toString()
-    );
-    if (found) {
-      lastWatched = found;
-    }
-  } else if (lectures.length > 0) {
-    // Default to first uncompleted or first lecture
-    const uncompleted = lectures.find((l) => !l.completed);
-    lastWatched = uncompleted || lectures[0];
-  }
+        return {
+          _id: course._id.toString(),
+          title: course.title,
+          subtitle: course.subtitle,
+          slug: course.slug,
+          classLabel: course.classLabel || "Class 12",
+          badgeText: course.badgeText,
+          tone: course.tone || "sky",
+          illustration: course.illustration || "books-blue",
+          description: course.description,
+          thumbnail: course.thumbnail,
+          expiresAt: e.expiresAt,
+          totalLectures,
+          completedLectures,
+          percent,
+        };
+      })
+  );
 
   return (
-    <StudentLecturesView
-      courses={JSON.parse(JSON.stringify(courses))}
-      lectures={lectures}
-      lastWatched={lastWatched}
-    />
+    <div className="space-y-6">
+      {/* Page Title */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#111827]">
+            My Enrolled Courses & Lectures
+          </h1>
+          <p className="mt-1 text-sm text-[#6B7280]">
+            Select a course to view all chapters, revision notes and video lectures
+          </p>
+        </div>
+      </div>
+
+      {/* Courses Grid */}
+      {activeCourses.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {activeCourses.map((course) => (
+            <CourseCard
+              key={course._id}
+              course={course}
+              variant="student"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-[300px] flex-col items-center justify-center rounded-[22px] border border-dashed border-black/10 bg-white p-8 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mb-4 shadow-2xs">
+            <Video className="h-7 w-7" />
+          </div>
+          <h3 className="text-lg font-bold text-[#111827]">
+            No Active Courses Found
+          </h3>
+          <p className="mt-1 max-w-sm text-sm text-[#6B7280]">
+            You are not currently enrolled in any courses. Please contact RD Classes to get enrolled in your batch.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function StudentLecturesPage() {
+  return (
+    <Suspense fallback={<StudentDashboardSkeleton />}>
+      <StudentLecturesContent />
+    </Suspense>
   );
 }

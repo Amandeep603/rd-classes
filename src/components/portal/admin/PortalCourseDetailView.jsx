@@ -825,7 +825,7 @@ export default function PortalCourseDetailView({
                           {u.name}
                         </div>
                         <div className="text-xs text-[var(--portal-text-muted)] flex items-center gap-2">
-                          <span className="font-mono">{u.studentCode || u.loginId}</span>
+                          <span className="font-mono">{u.loginId}</span>
                           {u.phone && <span>• {u.phone}</span>}
                           <span>
                             • Valid until:{" "}

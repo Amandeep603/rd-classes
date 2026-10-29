@@ -71,11 +71,12 @@ export default function CourseFilters({ filters }) {
           ref={containerRef}
           role="tablist"
           aria-label="Course batch filters"
-          className="relative flex items-center overflow-x-auto sm:overflow-x-visible sm:flex-wrap sm:justify-center px-5 sm:px-0 py-2 no-scrollbar snap-x snap-mandatory"
+          className="relative flex items-center overflow-x-auto lg:overflow-x-visible flex-nowrap justify-start lg:justify-center px-4 sm:px-6 py-2 no-scrollbar snap-x snap-mandatory"
           style={{
-            gap: "clamp(8px, 1.5vw, calc(var(--su, 1px) * 12))",
+            gap: "clamp(8px, 1.2vw, 12px)",
             scrollbarWidth: "none",
             msOverflowStyle: "none",
+            WebkitOverflowScrolling: "touch",
           }}
         >
           {filters.map((filter) => {
@@ -88,18 +89,16 @@ export default function CourseFilters({ filters }) {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => handleTabClick(filter.key)}
-                className={`relative z-10 shrink-0 snap-center cursor-pointer rounded-full flex items-center justify-center select-none outline-none focus-visible:ring-2 focus-visible:ring-[#FFC21A] focus-visible:ring-offset-2 whitespace-nowrap active:scale-[0.97] transition-[background-color,color,box-shadow,transform] duration-250 ${
+                className={`relative z-10 shrink-0 snap-center cursor-pointer rounded-full flex items-center justify-center select-none outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] focus-visible:ring-offset-2 whitespace-nowrap active:scale-[0.97] transition-all duration-200 ${
                   isActive
-                    ? "bg-[#FFC21A] text-[#0F172A] font-bold shadow-[0_8px_20px_-8px_rgba(255,194,26,0.7)] border border-transparent"
-                    : "bg-white text-[#1A1A1A] font-semibold border border-[#EBE6D8] shadow-[0_2px_6px_rgba(15,23,42,0.05)] hover:border-[#FFC21A] hover:-translate-y-0.5"
+                    ? "bg-[#FFB800] text-[#0F172A] font-bold shadow-[0_6px_20px_-4px_rgba(255,184,0,0.45)] border border-transparent"
+                    : "bg-white text-[#1E293B] font-medium border border-[#EBE6D8] shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:border-[#FFB800] hover:text-[#0F172A] hover:-translate-y-0.5"
                 }`}
                 style={{
-                  height: "max(44px, calc(var(--su, 1px) * 46))",
-                  paddingLeft: "clamp(18px, 2.5vw, calc(var(--su, 1px) * 34))",
-                  paddingRight: "clamp(18px, 2.5vw, calc(var(--su, 1px) * 34))",
-                  fontSize: isActive
-                    ? "max(14px, calc(var(--su, 1px) * 17.2))"
-                    : "max(14px, calc(var(--su, 1px) * 16.7))",
+                  height: "44px",
+                  paddingLeft: "clamp(16px, 2vw, 28px)",
+                  paddingRight: "clamp(16px, 2vw, 28px)",
+                  fontSize: "14.5px",
                 }}
               >
                 {filter.label}

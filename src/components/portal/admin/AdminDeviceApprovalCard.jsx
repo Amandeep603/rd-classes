@@ -19,9 +19,16 @@ import {
   rejectDeviceRequestAction,
 } from "@/server/actions/admin.devices.actions.js";
 
+const AVATAR_TONES = [
+  { bg: "bg-[#FEF3C7]", text: "text-[#92400E]" },
+  { bg: "bg-[#E0F2FE]", text: "text-[#0369A1]" },
+  { bg: "bg-[#FFEDD5]", text: "text-[#C2410C]" },
+];
+
 export default function AdminDeviceApprovalCard({
   requests = [],
   activeDevicesMap = {},
+  error = null,
 }) {
   const [selectedForApprove, setSelectedForApprove] = useState(null);
   const [selectedForReject, setSelectedForReject] = useState(null);
@@ -117,6 +124,20 @@ export default function AdminDeviceApprovalCard({
 
   const pendingList = requests.slice(0, 3);
 
+  if (error) {
+    return (
+      <div className="rounded-[22px] border border-rose-200 bg-white p-6 sm:p-7 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)]">
+        <div className="flex items-center gap-3 text-rose-600 mb-2">
+          <ShieldAlert className="h-5 w-5" />
+          <h2 className="text-base font-extrabold">Device Approval Requests</h2>
+        </div>
+        <p className="text-xs text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">
+          {error}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-[22px] border border-black/5 bg-white p-6 sm:p-7 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)]">
       {/* Header */}
@@ -147,7 +168,7 @@ export default function AdminDeviceApprovalCard({
       {/* List */}
       {pendingList.length > 0 ? (
         <div className="space-y-4">
-          {pendingList.map((req) => {
+          {pendingList.map((req, idx) => {
             const student = req.userId;
             const initials = student?.name
               ? student.name
@@ -158,6 +179,7 @@ export default function AdminDeviceApprovalCard({
                   .toUpperCase()
               : "ST";
 
+            const tone = AVATAR_TONES[idx % AVATAR_TONES.length];
             const timeAgo = formatTimeAgo(req.createdAt);
 
             return (
@@ -167,7 +189,9 @@ export default function AdminDeviceApprovalCard({
               >
                 <div className="flex items-start sm:items-center gap-3.5 min-w-0">
                   {/* Initials Avatar */}
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-[#78350F] font-bold text-sm shrink-0 shadow-2xs">
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-full ${tone.bg} ${tone.text} font-bold text-sm shrink-0 shadow-2xs`}
+                  >
                     {initials}
                   </div>
 
@@ -176,9 +200,9 @@ export default function AdminDeviceApprovalCard({
                       <span className="text-sm font-bold text-[#111827]">
                         {student?.name || "Student"}
                       </span>
-                      {student?.studentCode && (
-                        <span className="rounded-md bg-white border border-black/8 px-1.5 py-0.2 text-[10px] font-bold text-[#6B7280]">
-                          {student.studentCode}
+                      {student?.loginId && (
+                        <span className="rounded-md bg-white border border-black/8 px-1.5 py-0.5 text-[10px] font-bold font-mono text-[#6B7280]">
+                          {student.loginId}
                         </span>
                       )}
                     </div>
@@ -208,7 +232,7 @@ export default function AdminDeviceApprovalCard({
                   <button
                     type="button"
                     onClick={() => openApproveModal(req)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-200 transition-colors shadow-2xs"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#D1FAE5] border border-[#A7F3D0]/70 px-3 py-1.5 text-xs font-bold text-[#065F46] hover:bg-[#A7F3D0] transition-colors shadow-2xs cursor-pointer select-none"
                   >
                     <Check className="h-3.5 w-3.5 stroke-[2.5]" />
                     <span>Approve</span>
@@ -220,9 +244,9 @@ export default function AdminDeviceApprovalCard({
                       setSelectedForReject(req);
                       setRejectNote("");
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-200 px-3 py-1.5 text-xs font-bold text-[#374151] hover:bg-red-100 hover:text-red-800 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-[#E5E7EB] px-3 py-1.5 text-xs font-bold text-[#374151] hover:bg-neutral-100 transition-colors shadow-2xs cursor-pointer select-none"
                   >
-                    <X className="h-3.5 w-3.5 stroke-[2.5]" />
+                    <X className="h-3.5 w-3.5 stroke-[2.2]" />
                     <span>Reject</span>
                   </button>
 

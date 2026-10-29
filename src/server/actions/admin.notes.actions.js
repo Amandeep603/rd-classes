@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import { noteCreateSchema, noteUpdateSchema } from "../validation/schemas.js";
 import {
   createNote,
@@ -19,7 +19,9 @@ import connectDB from "../db/connect.js";
  * Creates a note from admin panel.
  */
 export async function createNoteAction(payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const parsed = noteCreateSchema.safeParse(payload);
   if (!parsed.success) {
@@ -46,7 +48,9 @@ export async function createNoteAction(payload) {
  * Updates a note.
  */
 export async function updateNoteAction(noteId, payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const parsed = noteUpdateSchema.safeParse(payload);
   if (!parsed.success) {
@@ -73,7 +77,9 @@ export async function updateNoteAction(noteId, payload) {
  * Deletes a note.
  */
 export async function deleteNoteAction(noteId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   try {
     const res = await deleteNote(noteId, admin.user._id);
@@ -92,7 +98,8 @@ export async function deleteNoteAction(noteId) {
  * Attaches an existing note to a course.
  */
 export async function attachNoteToCourseAction({ noteId, courseId }) {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
 
   try {
     const note = await attachNoteToCourse(noteId, courseId);
@@ -110,7 +117,8 @@ export async function attachNoteToCourseAction({ noteId, courseId }) {
  * Detaches a note from a course.
  */
 export async function detachNoteFromCourseAction({ noteId, courseId }) {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
 
   try {
     const note = await detachNoteFromCourse(noteId, courseId);
@@ -128,7 +136,8 @@ export async function detachNoteFromCourseAction({ noteId, courseId }) {
  * Reorders notes for a course.
  */
 export async function reorderCourseNotesAction({ courseId, orderedNoteIds }) {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
 
   try {
     const res = await reorderCourseNotes(courseId, orderedNoteIds);
@@ -146,7 +155,9 @@ export async function reorderCourseNotesAction({ courseId, orderedNoteIds }) {
  * Searches existing notes to attach to a course.
  */
 export async function searchNotesForAttachmentAction(query, excludeCourseId) {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return [];
+
   await connectDB();
 
   const filter = {};

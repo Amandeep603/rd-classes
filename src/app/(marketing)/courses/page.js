@@ -41,7 +41,7 @@ export default async function CoursesPage() {
 
   return (
     <div
-      className="min-h-screen w-full bg-[#FAF6EE] text-[#0F172A] pt-[86px] pb-20 overflow-x-clip"
+      className="min-h-screen w-full bg-[#FAF6EE] text-[#0F172A] pb-14 overflow-x-clip"
       style={{
         "--su-c": "min(100vw / 1536, 1px)",
       }}
@@ -52,52 +52,70 @@ export default async function CoursesPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="w-full max-w-[1330px] mx-auto px-4 lg:px-0">
-        {/* HERO SECTION (Height ~ 238px, y: 66 to 304) */}
-        <section className="relative pt-4 sm:pt-6 pb-6 lg:pb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 lg:gap-8 min-h-[220px]">
-          {/* Left Column: Eyebrow + H1 + Subtitle (starts at x128 = container x105 + 23px) */}
-          <div className="max-w-2xl flex-1 z-10 pl-0 lg:pl-[23px]">
+      {/* HERO SECTION (min-height 340px, max-height 400px on desktop, padding 32px 0, content vertically centered) */}
+      <section className="relative w-full overflow-hidden bg-[#FBF7F0] border-b border-[#F0E6D5]/80 py-8 min-h-[340px] lg:max-h-[400px] flex items-center">
+        {/* Soft Peach/Yellow Blobs (Strictly decorative, overflow-hidden, pointer-events-none, never overlaps filter row) */}
+        <div
+          className="absolute right-[-40px] top-[15px] w-[460px] h-[460px] rounded-full pointer-events-none -z-0 opacity-65"
+          style={{
+            background: "radial-gradient(circle, #FDE68A 0%, #FEF3C7 50%, rgba(254, 243, 199, 0) 75%)",
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="absolute left-[-60px] top-[30px] w-[260px] h-[260px] rounded-full pointer-events-none -z-0 opacity-40"
+          style={{
+            background: "radial-gradient(circle, #FEF3C7 0%, rgba(254, 243, 199, 0) 70%)",
+          }}
+          aria-hidden="true"
+        />
+
+        <div className="w-full max-w-[1240px] mx-auto px-4 sm:px-6 relative z-10 flex flex-col min-[900px]:flex-row items-center justify-between gap-8 min-[900px]:gap-10">
+          {/* Left Column: Eyebrow + H1 + Subtitle (max-width 640px) */}
+          <div className="w-full max-w-[640px] flex-1">
             {/* Eyebrow */}
-            <div className="flex items-center gap-2 mb-2.5">
-              <span className="w-6 h-0.5 rounded-full bg-[#FFC21A]" />
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-5 h-0.5 rounded-full bg-[#FFB800]" />
               <span className="text-[12px] font-extrabold uppercase tracking-widest text-[#64748B]">
                 OUR COURSES
               </span>
             </div>
 
-            {/* H1 Headline (52px / line pitch 52px) */}
-            <h1 className="text-[32px] sm:text-[42px] lg:text-[52px] font-extrabold tracking-tight text-[#0F172A] leading-[1.05] lg:leading-[52px]">
+            {/* H1 Headline: clamp(30px, 3.6vw, 52px), line-height 1.05, max-width 760px, text-wrap: balance, 2 lines */}
+            <h1
+              className="font-extrabold tracking-tight text-[#0F172A] leading-[1.05] max-w-[760px] [text-wrap:balance] text-[clamp(28px,4vw,40px)] min-[1100px]:text-[clamp(30px,3.6vw,52px)]"
+            >
               Structured Courses for<br className="hidden sm:inline" />{" "}
-              <span className="text-[#FFB800]">Class 11 & 12</span>{" "}
+              <span className="text-[#FFB800]">Class 11 &amp; 12</span>{" "}
               Accountancy.
             </h1>
 
-            {/* Subtitle (18px / line pitch 26px) */}
-            <p className="mt-3 text-sm sm:text-[18px] leading-[22px] sm:leading-[26px] text-[#5B6676] max-w-[530px]">
+            {/* Subtitle */}
+            <p className="mt-3.5 text-[15px] sm:text-[17px] leading-[24px] sm:leading-[26px] text-[#5F6A7A] max-w-[560px]">
               Learn with concept clarity, practice, and personalised guidance from Ronak Sir.
               Choose the course that fits your preparation goals.
             </p>
           </div>
 
-          {/* Right Column: Hero Illustration Cluster (~500px wide + note separated on right) */}
-          <div className="w-full lg:w-auto lg:shrink-0 flex justify-center lg:justify-end z-10">
+          {/* Right Column: Hero Illustration Cluster (Restored big size, vertically centered, >=40px gap) */}
+          <div className="w-full min-[900px]:w-auto shrink-0 flex justify-center min-[900px]:justify-end items-center">
             <CoursesHeroCluster />
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* CATALOG TOOLBAR & GRID */}
-        <section className="pt-2">
-          <Suspense
-            fallback={
-              <div className="w-full py-16 text-center text-sm font-semibold text-slate-400">
-                Loading courses...
-              </div>
-            }
-          >
-            <CoursesCatalogClient initialCourses={courses} />
-          </Suspense>
-        </section>
-      </div>
+      {/* CATALOG TOOLBAR & CARDS GRID */}
+      <main className="w-full max-w-[1330px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
+        <Suspense
+          fallback={
+            <div className="w-full py-16 text-center text-sm font-semibold text-slate-400">
+              Loading courses...
+            </div>
+          }
+        >
+          <CoursesCatalogClient initialCourses={courses} />
+        </Suspense>
+      </main>
     </div>
   );
 }

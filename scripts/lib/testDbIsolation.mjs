@@ -1,46 +1,28 @@
 /**
  * Helper to ensure test and demo scripts run against an isolated test database.
- * Derives MONGODB_URI_TEST or replaces the database name in MONGODB_URI with "<name>_test".
- * Refuses execution if the resolved test database equals the production/application database.
+ * Tests must NEVER run against the real/production database.
+ * Refuses execution unless an explicit TEST_DATABASE_URI is set, and verifies
+ * that TEST_DATABASE_URI does NOT point to the production database.
  */
 
-export function deriveIsolatedTestUri(rawUri = process.env.MONGODB_URI) {
-  if (process.env.MONGODB_URI_TEST) {
-    const testUri = process.env.MONGODB_URI_TEST.trim();
-    const appDbName = extractDatabaseName(rawUri);
-    const testDbName = extractDatabaseName(testUri);
-    if (appDbName && testDbName && appDbName.toLowerCase() === testDbName.toLowerCase()) {
-      throw new Error(
-        `[TEST ISOLATION REFUSAL] MONGODB_URI_TEST uses the same database name ("${testDbName}") as MONGODB_URI! Refusing to run to protect application data.`
-      );
-    }
-    return { testUri, testDbName, appDbName };
-  }
+export function deriveIsolatedTestUri() {
+  const testUri = process.env.TEST_DATABASE_URI;
 
-  if (!rawUri) {
-    throw new Error("[TEST ISOLATION ERROR] Neither MONGODB_URI nor MONGODB_URI_TEST is configured.");
-  }
-
-  const appDbName = extractDatabaseName(rawUri) || "rdclasses";
-  const testDbName = `${appDbName}_test`;
-
-  // Parse and replace database name in connection string
-  let testUri = rawUri;
-  const questionMarkIdx = rawUri.indexOf("?");
-  const queryParams = questionMarkIdx !== -1 ? rawUri.slice(questionMarkIdx) : "";
-  const beforeQuery = questionMarkIdx !== -1 ? rawUri.slice(0, questionMarkIdx) : rawUri;
-
-  const lastSlashIdx = beforeQuery.lastIndexOf("/");
-  if (lastSlashIdx !== -1) {
-    const prefix = beforeQuery.slice(0, lastSlashIdx + 1);
-    testUri = `${prefix}${testDbName}${queryParams}`;
-  } else {
-    testUri = `${beforeQuery}/${testDbName}${queryParams}`;
-  }
-
-  if (testDbName.toLowerCase() === appDbName.toLowerCase()) {
+  if (!testUri) {
     throw new Error(
-      `[TEST ISOLATION REFUSAL] Derived test database ("${testDbName}") is identical to the application database. Refusing to run.`
+      "[TEST EXECUTION REFUSED] Tests are strictly prohibited from running against the application/real database.\n" +
+      "An explicit TEST_DATABASE_URI environment variable (pointing to a separate test database) must be set."
+    );
+  }
+
+  const rawUri = process.env.MONGODB_URI;
+  const appDbName = extractDatabaseName(rawUri);
+  const testDbName = extractDatabaseName(testUri);
+
+  if (appDbName && testDbName && appDbName.toLowerCase() === testDbName.toLowerCase()) {
+    throw new Error(
+      `[TEST EXECUTION REFUSED] TEST_DATABASE_URI points to the exact same database ("${testDbName}") as MONGODB_URI!\n` +
+      "Refusing to run tests to protect real database data."
     );
   }
 

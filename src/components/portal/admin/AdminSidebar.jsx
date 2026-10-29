@@ -21,10 +21,12 @@ import {
 } from "lucide-react";
 import { ADMIN_NAV_ITEMS } from "@/constants/adminNav";
 import { logoutAdminAction } from "@/server/actions/auth.actions.js";
+import { useAdminNotifications } from "@/hooks/useAdminNotifications";
 
 const ICONS = {
   dashboard: LayoutDashboard,
   students: Users,
+  enquiries: MessageSquare,
   devices: Smartphone,
   courses: BookOpen,
   lectures: Video,
@@ -40,76 +42,88 @@ const ICONS = {
   media: ImageIcon,
 };
 
-export default function AdminSidebar({ initialPendingCount = 0, adminUser }) {
+export default function AdminSidebar({
+  initialPendingCount = 0,
+  adminUser: initialAdminUser,
+  isMobile = false,
+}) {
   const pathname = usePathname();
-  const [pendingCount, setPendingCount] = useState(initialPendingCount);
+  const { pendingDeviceCount } = useAdminNotifications();
+  const pendingCount =
+    typeof pendingDeviceCount === "number" ? pendingDeviceCount : initialPendingCount;
+
+  const [adminUser, setAdminUser] = useState(
+    initialAdminUser || { name: "Ronak Dugar", role: "admin" }
+  );
 
   useEffect(() => {
-    let timerId = null;
-
-    const fetchPendingCount = async () => {
-      if (document.hidden) return;
-      try {
-        const res = await fetch("/api/admin/pending-count");
-        if (res.ok) {
-          const data = await res.json();
-          if (typeof data.count === "number") {
-            setPendingCount(data.count);
-          }
+    let isMounted = true;
+    fetch("/api/admin/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data?.success && data?.user) {
+          setAdminUser(data.user);
         }
-      } catch {
-        // silent fail on network glitch
-      }
-    };
-
-    timerId = setInterval(fetchPendingCount, 30000);
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        fetchPendingCount();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-
+      })
+      .catch(() => {});
     return () => {
-      if (timerId) clearInterval(timerId);
-      document.removeEventListener("visibilitychange", handleVisibility);
+      isMounted = false;
     };
   }, []);
 
+  const handleLogout = async (e) => {
+    e?.preventDefault();
+    if (window.confirm("Log out of the admin panel?")) {
+      try {
+        await fetch("/api/auth/admin-logout", { method: "POST" });
+      } catch (err) {}
+      window.location.href = "/admin-login";
+    }
+  };
+
+  const displayName = adminUser?.name || "Ronak Dugar";
+  const avatarInitial = displayName.charAt(0).toUpperCase() || "R";
+
   return (
     <aside
-      className="hidden lg:flex w-[279px] shrink-0 flex-col justify-between p-4 shadow-2xl z-30 select-none text-white"
+      className={`${
+        isMobile ? "flex w-full" : "hidden lg:flex w-[280px]"
+      } shrink-0 h-screen sticky top-0 flex-col justify-between p-4 shadow-2xl z-30 select-none text-white overflow-hidden`}
       style={{
         background: "linear-gradient(180deg, #0F1B2D 0%, #0B1424 100%)",
-        minHeight: "100vh",
-        position: "sticky",
-        top: 0,
       }}
       aria-label="Admin Navigation"
     >
-      {/* Top: Brand & Navigation */}
-      <div className="space-y-6">
-        {/* Brand */}
-        <div className="flex items-center gap-3 px-3 pt-3">
-          <div className="flex h-[44px] w-[44px] items-center justify-center rounded-xl bg-gradient-to-br from-[#FFD54A] to-[#FFC21A] text-neutral-950 font-black text-xl shadow-md">
+      {/* Top: Brand Header */}
+      <div className="shrink-0 space-y-4 pt-1 px-1">
+        <div className="flex items-center gap-3 px-2 pt-2">
+          <div className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-gradient-to-br from-[#FFD54A] to-[#FFC21A] text-neutral-950 font-black text-xl shadow-md shrink-0">
             RD
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[17px] font-black tracking-tight text-white">
+              <span className="text-[17px] font-black tracking-tight text-white truncate">
                 RD CLASSES
               </span>
               <span className="rounded-md bg-[#FFC21A]/20 px-1.5 py-0.5 text-[10px] font-extrabold text-[#FFC21A]">
                 ADMIN
               </span>
             </div>
-            <div className="text-[13px] font-medium text-slate-400">
+            <div className="text-[12px] font-medium text-slate-400 truncate">
               Management Suite
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Navigation list */}
+      {/* Middle: Scrollable Navigation List (fits screen, settings never cut off) */}
+      <div
+        className="flex-1 overflow-y-auto pr-1 my-3 space-y-1"
+        style={{
+          scrollbarWidth: "thin",
+          scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
+        }}
+      >
         <nav className="space-y-1" role="navigation">
           {ADMIN_NAV_ITEMS.filter((item) => item.enabled).map((item) => {
             const Icon = ICONS[item.icon] || LayoutDashboard;
@@ -125,24 +139,26 @@ export default function AdminSidebar({ initialPendingCount = 0, adminUser }) {
                 key={item.id}
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
-                className={`group flex items-center justify-between h-[45px] w-[244px] mx-auto rounded-[14px] px-3.5 text-[15.5px] font-medium transition-all duration-150 ${
+                className={`group flex items-center justify-between h-[44px] w-full rounded-[14px] px-3.5 text-[15px] font-medium transition-all duration-150 ${
                   isActive
                     ? "bg-[#FFC21A] text-neutral-950 font-bold shadow-[0_4px_16px_rgba(255,194,26,0.35)]"
                     : "text-slate-300 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 truncate">
                   <Icon
-                    className={`h-[20px] w-[20px] shrink-0 ${
-                      isActive ? "text-neutral-950 stroke-[2.3]" : "text-slate-400 group-hover:text-white"
+                    className={`h-[19px] w-[19px] shrink-0 ${
+                      isActive
+                        ? "text-neutral-950 stroke-[2.3]"
+                        : "text-slate-400 group-hover:text-white"
                     }`}
                   />
-                  <span>{item.label}</span>
+                  <span className="truncate">{item.label}</span>
                 </div>
 
                 {isDeviceRequests && pendingCount > 0 && (
                   <span
-                    className="flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-[#E5432D] px-1 text-[11px] font-extrabold text-white shadow-xs"
+                    className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#E5432D] px-1 text-[11px] font-extrabold text-white shadow-xs ml-2 shrink-0"
                     aria-label={`${pendingCount} pending requests`}
                   >
                     {pendingCount}
@@ -154,32 +170,35 @@ export default function AdminSidebar({ initialPendingCount = 0, adminUser }) {
         </nav>
       </div>
 
-      {/* Footer Card: User profile + Logout */}
-      <div className="rounded-[18px] bg-white/6 p-3 border border-white/8 backdrop-blur-xs flex items-center justify-between">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#FFD54A] to-[#FFC21A] text-neutral-950 font-bold text-sm shrink-0">
-            {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : "A"}
-          </div>
-          <div className="truncate">
-            <div className="text-sm font-bold text-white truncate">
-              {adminUser?.name || "Administrator"}
+      {/* Bottom Profile Card: Yellow-ring avatar "R", "Ronak Dugar", "Administrator", and Logout */}
+      <div className="shrink-0 pt-2">
+        <div className="rounded-[18px] bg-white/6 p-3 border border-white/8 backdrop-blur-xs flex items-center justify-between">
+          <div className="flex items-center gap-3 overflow-hidden min-w-0">
+            {/* Yellow circle avatar matching reference */}
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FFD54A] to-[#FFC21A] text-neutral-950 font-black text-sm shrink-0 shadow-xs">
+              RD
             </div>
-            <div className="text-xs text-slate-400">
-              Administrator
+            <div className="truncate min-w-0">
+              <div className="text-sm font-bold text-white truncate">
+                {displayName}
+              </div>
+              <div className="text-xs text-slate-400 truncate">
+                Administrator
+              </div>
             </div>
           </div>
-        </div>
 
-        <form action={logoutAdminAction}>
+          {/* Visible Logout icon button with confirmation dialog */}
           <button
-            type="submit"
+            type="button"
+            onClick={handleLogout}
             aria-label="Logout"
             title="Sign out of Admin Portal"
-            className="rounded-xl p-2 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="rounded-xl p-2 text-slate-300 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
           </button>
-        </form>
+        </div>
       </div>
     </aside>
   );

@@ -2,6 +2,8 @@ import { Plus_Jakarta_Sans, Caveat } from "next/font/google";
 import "@/styles/themes.css";
 import "./globals.css";
 
+import Script from "next/script";
+
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
@@ -87,13 +89,15 @@ export default function RootLayout({ children }) {
       suppressHydrationWarning
       className={`${plusJakartaSans.variable} ${caveat.variable} antialiased dark overflow-x-clip`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: motionInitScript }} />
-      </head>
       <body
         id="top"
         className="min-h-screen flex flex-col bg-[#0A0A0B] text-white selection:bg-[#FFB800] selection:text-[#0A0A0B] overflow-x-clip"
       >
+        <Script
+          id="motion-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: motionInitScript }}
+        />
         {children}
       </body>
     </html>

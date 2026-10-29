@@ -1,14 +1,13 @@
 import { handleUpload } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/server/auth/session.js";
+import { requireAdminApi } from "@/server/auth/session.js";
 import { getStorageDriver } from "@/server/storage/index.js";
 import { saveLocalFile } from "@/server/storage/localDriver.js";
 
 export async function POST(request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return auth.response;
+  const admin = auth;
 
   const driver = getStorageDriver();
 

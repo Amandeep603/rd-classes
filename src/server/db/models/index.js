@@ -18,3 +18,5 @@ export { Settings } from "./Settings.js";
 export { MediaAsset } from "./MediaAsset.js";
 export { EmailLog } from "./EmailLog.js";
 export { Note } from "./Note.js";
+export { Notification } from "./Notification.js";
+export { Enquiry } from "./Enquiry.js";

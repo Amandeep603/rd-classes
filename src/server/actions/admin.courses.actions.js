@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import {
   courseCreateSchema,
   courseUpdateSchema,
@@ -34,6 +34,16 @@ function parseCourseFormData(formData) {
     facultyRole: formData.get("facultyRole")?.toString().trim() || "Lead Accountancy Faculty",
     facultyAvatarAssetId: formData.get("facultyAvatarAssetId")?.toString().trim() || null,
     whatsappText: formData.get("whatsappText")?.toString().trim() || "",
+    whatsappMessageNote: formData.get("whatsappMessageNote")?.toString().trim() || formData.get("whatsappText")?.toString().trim() || "",
+    titleHighlight: formData.get("titleHighlight")?.toString().trim() || "",
+    heroBooks: (() => {
+      try {
+        const val = formData.get("heroBooks");
+        return val ? JSON.parse(val.toString()) : [];
+      } catch {
+        return [];
+      }
+    })(),
     thumbnail: formData.get("thumbnail")?.toString().trim() || "",
     published: formData.get("published") === "true" || formData.get("published") === "on",
     featured: formData.get("featured") === "true" || formData.get("featured") === "on",
@@ -63,9 +73,17 @@ function parseCourseFormData(formData) {
         return [];
       }
     })(),
+    facultyPoints: (() => {
+      try {
+        const val = formData.get("facultyPoints");
+        return val ? JSON.parse(val.toString()) : [];
+      } catch {
+        return [];
+      }
+    })(),
     facultyBullets: (() => {
       try {
-        const val = formData.get("facultyBullets");
+        const val = formData.get("facultyBullets") || formData.get("facultyPoints");
         return val ? JSON.parse(val.toString()) : [];
       } catch {
         return [];
@@ -77,7 +95,9 @@ function parseCourseFormData(formData) {
 }
 
 export async function createCourseAction(prevState, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const raw = parseCourseFormData(formData);
   const parsed = courseCreateSchema.safeParse(raw);
@@ -101,7 +121,9 @@ export async function createCourseAction(prevState, formData) {
 }
 
 export async function updateCourseAction(courseId, prevState, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const raw = parseCourseFormData(formData);
   const parsed = courseUpdateSchema.safeParse(raw);
@@ -126,7 +148,10 @@ export async function updateCourseAction(courseId, prevState, formData) {
 }
 
 export async function reorderCourseAction(courseId, direction) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await reorderCourse(courseId, direction, admin.user._id);
     revalidatePath("/admin/courses");
@@ -139,7 +164,10 @@ export async function reorderCourseAction(courseId, direction) {
 }
 
 export async function togglePublishCourseAction(courseId, published) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await updateCourse(courseId, { published }, admin.user._id);
     await invalidateCoursesCache();
@@ -154,7 +182,10 @@ export async function togglePublishCourseAction(courseId, published) {
 }
 
 export async function deleteCourseAction(courseId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await deleteCourse(courseId, admin.user._id);
     await invalidateCoursesCache();

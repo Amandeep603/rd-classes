@@ -3,24 +3,35 @@ import StudentSidebar from "./StudentSidebar";
 import StudentTopbar from "./StudentTopbar";
 import StudentMobileNav from "./StudentMobileNav";
 
-export default function StudentPortalShell({ student, subtitle, children }) {
+export default function StudentPortalShell({
+  student,
+  subtitle,
+  classPill,
+  whatsappNumber,
+  notifications,
+  children,
+}) {
   return (
     <div
-      className="student-shell min-h-screen text-[#111827] antialiased"
+      className="student-shell min-h-screen text-[#1F2A44] antialiased"
       style={{
-        background:
-          "radial-gradient(ellipse at 8% 18%, rgba(230, 243, 253, 0.75) 0%, transparent 45%), #FDF9F0",
+        background: "linear-gradient(180deg, #FFFBF2 0%, #FFFFFF 100%)",
       }}
     >
-      <div className="mx-auto flex max-w-[1536px] gap-6 p-4 sm:p-5 lg:p-6 pb-24 lg:pb-8">
-        {/* Floating rounded desktop sidebar */}
-        <Suspense fallback={<div className="hidden lg:block w-[256px] shrink-0" />}>
-          <StudentSidebar />
+      <div className="mx-auto flex max-w-[1440px] gap-6 p-5 pb-24 md:pb-5">
+        {/* Floating rounded desktop sidebar (28px radius, 256px wide) */}
+        <Suspense fallback={<div className="hidden md:block w-[256px] shrink-0" />}>
+          <StudentSidebar whatsappNumber={whatsappNumber} />
         </Suspense>
 
         {/* Main Content Area */}
         <main className="flex-1 min-w-0" role="main">
-          <StudentTopbar student={student} subtitle={subtitle} />
+          <StudentTopbar
+            student={student}
+            subtitle={subtitle}
+            classPill={classPill}
+            notifications={notifications}
+          />
           <div className="portal-content-body">{children}</div>
         </main>
       </div>

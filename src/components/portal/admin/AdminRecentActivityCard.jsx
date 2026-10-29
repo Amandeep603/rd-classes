@@ -13,7 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 
-export default function AdminRecentActivityCard({ logs = [] }) {
+export default function AdminRecentActivityCard({ logs = [], error = null }) {
   const [mountedTime, setMountedTime] = useState(0);
 
   useEffect(() => {
@@ -84,6 +84,20 @@ export default function AdminRecentActivityCard({ logs = [] }) {
   };
 
   const recentList = logs.slice(0, 4);
+
+  if (error) {
+    return (
+      <div className="rounded-[22px] border border-rose-200 bg-white p-6 sm:p-7 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)]">
+        <div className="flex items-center gap-3 text-rose-600 mb-2">
+          <Activity className="h-5 w-5" />
+          <h2 className="text-base font-extrabold">Recent Activity</h2>
+        </div>
+        <p className="text-xs text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">
+          {error}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-[22px] border border-black/5 bg-white p-6 sm:p-7 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)]">

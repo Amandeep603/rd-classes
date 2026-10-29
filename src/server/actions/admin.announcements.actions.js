@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import connectDB from "../db/connect.js";
 import { Announcement } from "../db/models/Announcement.js";
 import { logAuditEvent } from "../services/audit.js";
 
 export async function createAnnouncementAction(payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!payload.title || !payload.title.trim()) {
     return { success: false, error: "Title is required." };
@@ -25,6 +27,7 @@ export async function createAnnouncementAction(payload) {
       all: payload.audience?.all !== false,
       courseIds: Array.isArray(payload.audience?.courseIds) ? payload.audience.courseIds : [],
     },
+    pinned: Boolean(payload.pinned),
     startsAt: payload.startsAt ? new Date(payload.startsAt) : new Date(),
     endsAt: payload.endsAt ? new Date(payload.endsAt) : null,
     active: payload.active !== false,
@@ -48,7 +51,9 @@ export async function createAnnouncementAction(payload) {
 }
 
 export async function updateAnnouncementAction(id, payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!payload.title || !payload.title.trim()) {
     return { success: false, error: "Title is required." };
@@ -68,6 +73,7 @@ export async function updateAnnouncementAction(id, payload) {
         all: payload.audience?.all !== false,
         courseIds: Array.isArray(payload.audience?.courseIds) ? payload.audience.courseIds : [],
       },
+      pinned: Boolean(payload.pinned),
       startsAt: payload.startsAt ? new Date(payload.startsAt) : new Date(),
       endsAt: payload.endsAt ? new Date(payload.endsAt) : null,
       active: payload.active !== false,
@@ -96,7 +102,9 @@ export async function updateAnnouncementAction(id, payload) {
 }
 
 export async function deleteAnnouncementAction(id) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   await connectDB();
   const deleted = await Announcement.findByIdAndDelete(id);

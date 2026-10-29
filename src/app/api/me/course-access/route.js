@@ -39,16 +39,30 @@ export async function GET(request) {
       enrolled: enrollments.length > 0,
       enrolledCourseIds: enrollments.map((e) => e.courseId.toString()),
       studentName: auth.user.name,
+      role: auth.user.role,
+      student: {
+        name: auth.user.name,
+        loginId: auth.user.loginId,
+        phone: auth.user.phone,
+      },
     }, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
   }
 
   const course = await Course.findOne({ slug: slug.toLowerCase() }).select("_id slug").lean();
+  const isSaved = Array.isArray(auth.user.savedCourses) && auth.user.savedCourses.includes(slug.toLowerCase());
+
   if (!course) {
     return NextResponse.json({
       authenticated: true,
       enrolled: false,
+      saved: isSaved,
+      student: {
+        name: auth.user.name,
+        loginId: auth.user.loginId,
+        phone: auth.user.phone,
+      },
     }, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
@@ -65,7 +79,13 @@ export async function GET(request) {
     return NextResponse.json({
       authenticated: true,
       enrolled: false,
+      saved: isSaved,
       studentName: auth.user.name,
+      student: {
+        name: auth.user.name,
+        loginId: auth.user.loginId,
+        phone: auth.user.phone,
+      },
     }, {
       headers: { "Cache-Control": "private, no-store, max-age=0" },
     });
@@ -76,7 +96,7 @@ export async function GET(request) {
   const [totalLectures, progressRecords, courseNotes] = await Promise.all([
     Lecture.countDocuments({ courseId: course._id, published: true }),
     Progress.find({ userId: auth.user._id, courseId: course._id }).lean(),
-    Note.find({ courseIds: course._id, published: true })
+    Note.find({ $or: [{ courseId: course._id }, { courseIds: course._id }], published: true })
       .sort({ order: 1, createdAt: -1 })
       .lean(),
   ]);
@@ -103,7 +123,13 @@ export async function GET(request) {
   return NextResponse.json({
     authenticated: true,
     enrolled: true,
+    saved: isSaved,
     studentName: auth.user.name,
+    student: {
+      name: auth.user.name,
+      loginId: auth.user.loginId,
+      phone: auth.user.phone,
+    },
     totalLectures,
     completedLectures: completedIds.length,
     progressPercent: percent,
@@ -113,4 +139,36 @@ export async function GET(request) {
   }, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
+}
+
+export async function POST(request) {
+  const auth = await getCurrentUser();
+  if (!auth || auth.user.role !== "student") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { slug, action } = await request.json();
+    if (!slug) {
+      return NextResponse.json({ error: "Course slug is required" }, { status: 400 });
+    }
+
+    await connectDB();
+    const { User } = await import("@/server/db/models/User.js");
+
+    const normalizedSlug = slug.toLowerCase().trim();
+    if (action === "save") {
+      await User.findByIdAndUpdate(auth.user._id, {
+        $addToSet: { savedCourses: normalizedSlug },
+      });
+      return NextResponse.json({ success: true, saved: true });
+    } else {
+      await User.findByIdAndUpdate(auth.user._id, {
+        $pull: { savedCourses: normalizedSlug },
+      });
+      return NextResponse.json({ success: true, saved: false });
+    }
+  } catch (err) {
+    return NextResponse.json({ error: err?.message || "Failed to update saved courses" }, { status: 500 });
+  }
 }

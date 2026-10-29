@@ -96,6 +96,9 @@ export const courseSchema = z
     facultyRole: z.string().max(100).optional().default("Lead Accountancy Faculty"),
     facultyAvatarAssetId: z.string().nullable().optional().default(null),
     whatsappText: z.string().max(500).optional().default(""),
+    whatsappMessageNote: z.string().max(500).optional().default(""),
+    titleHighlight: z.string().max(100).optional().default(""),
+    heroBooks: z.array(z.string()).max(5).optional().default([]),
     thumbnail: z.string().optional().default(""),
     published: z.boolean().optional().default(false),
     featured: z.boolean().optional().default(false),
@@ -103,22 +106,27 @@ export const courseSchema = z
     about: z.string().optional().default(""),
     highlights: z
       .array(
-        z.object({
-          icon: z.string().default("video"),
-          text: z.string().default(""),
-        })
+        z.union([
+          z.string(),
+          z.object({
+            icon: z.string().optional().default("video"),
+            text: z.string().optional().default(""),
+            label: z.string().optional().default(""),
+          }),
+        ])
       )
-      .max(4)
       .optional()
       .default([]),
     includes: z
       .array(
-        z.object({
-          icon: z.string().default("check"),
-          text: z.string().default(""),
-        })
+        z.union([
+          z.string(),
+          z.object({
+            icon: z.string().optional().default("check"),
+            text: z.string().optional().default(""),
+          }),
+        ])
       )
-      .max(8)
       .optional()
       .default([]),
     faqs: z
@@ -130,7 +138,8 @@ export const courseSchema = z
       )
       .optional()
       .default([]),
-    facultyBullets: z.array(z.string()).max(4).optional().default([]),
+    facultyPoints: z.array(z.string()).optional().default([]),
+    facultyBullets: z.array(z.string()).optional().default([]),
     facultyProfileUrl: z.string().optional().default(""),
     heroIllustration: z.enum(["books-subjects", "books-light"]).optional().default("books-subjects"),
   })

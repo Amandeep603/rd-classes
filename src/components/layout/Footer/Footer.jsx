@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -10,6 +10,7 @@ import {
   Mail,
 } from "lucide-react";
 import FooterWave from "./FooterWave";
+import CurrentYear from "./CurrentYear";
 import {
   WhatsAppIcon,
   InstagramIcon,
@@ -23,6 +24,8 @@ import {
   FOOTER_SOCIALS,
 } from "@/constants/footer";
 
+import { getCachedSettings } from "@/server/services/settingService.js";
+
 const SOCIAL_ICON_MAP = {
   Instagram: InstagramIcon,
   YouTube: YouTubeIcon,
@@ -30,51 +33,36 @@ const SOCIAL_ICON_MAP = {
   WhatsApp: WhatsAppIcon,
 };
 
-export default async function Footer() {
-  "use cache";
-  const currentYear = new Date().getFullYear();
+function FooterColumns({ dbSetting }) {
+  const instituteName = dbSetting?.instituteName || "RD Classes for Accountancy";
+  const phone = dbSetting?.phone || FOOTER_CONTACT.phoneDisplay;
+  const phoneTel = (dbSetting?.phone || FOOTER_CONTACT.phoneTel).replace(/[^\d+]/g, "");
+  const whatsappNum = (dbSetting?.whatsapp || "918368545620").replace(/\D/g, "");
+  const email = dbSetting?.email || FOOTER_CONTACT.email;
+  const address = dbSetting?.address || "SCF 59-60, 2nd Floor, Sector 9,\nFaridabad, Haryana 121006";
+
+  const socials = FOOTER_SOCIALS.map((social) => {
+    let href = social.href;
+    if (dbSetting?.socialLinks) {
+      if (social.platform === "Instagram" && dbSetting.socialLinks.instagram) {
+        href = dbSetting.socialLinks.instagram;
+      } else if (social.platform === "YouTube" && dbSetting.socialLinks.youtube) {
+        href = dbSetting.socialLinks.youtube;
+      } else if (social.platform === "Facebook" && dbSetting.socialLinks.facebook) {
+        href = dbSetting.socialLinks.facebook;
+      } else if (social.platform === "Telegram" && dbSetting.socialLinks.telegram) {
+        href = dbSetting.socialLinks.telegram;
+      } else if (social.platform === "WhatsApp" && whatsappNum) {
+        href = `https://wa.me/${whatsappNum}`;
+      }
+    }
+    return { ...social, href };
+  });
 
   return (
-    <footer
-      id="contact"
-      aria-label="Site Footer and Contact Information"
-      className="u-scope relative w-full bg-[#121212] text-white [isolation:isolate] overflow-hidden"
+    <div
+      className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[1100px]:grid-cols-[409fr_349fr_329fr_354fr] gap-8 min-[1100px]:gap-0 items-start"
     >
-      {/* 165u Wave Transition Band */}
-      <FooterWave />
-
-      {/* Main Footer Container (max-width 1600u capped, padding-inline 79u) */}
-      <div
-        className="relative z-10 w-full max-w-[calc(var(--su,1px)*1600)] mx-auto"
-        style={{
-          paddingLeft: "clamp(16px, 4.5vw, calc(var(--su, 1px) * 79))",
-          paddingRight: "clamp(16px, 4.5vw, calc(var(--su, 1px) * 79))",
-          paddingTop: "clamp(32px, 4vw, calc(var(--su, 1px) * 44))",
-        }}
-      >
-        {/* Large Faint Graduation Cap Watermark (Bottom-Right, Decorative) */}
-        <div
-          className="absolute -bottom-10 -right-10 pointer-events-none opacity-8 text-[#1A1A1A] select-none -z-10"
-          aria-hidden="true"
-        >
-          <svg
-            viewBox="0 0 200 200"
-            className="w-96 h-96 fill-current text-white/5"
-          >
-            <polygon points="100,20 180,60 100,100 20,60" />
-            <path d="M 50 80 Q 100 120 150 80 L 150 115 Q 100 155 50 115 Z" />
-            <path d="M 100 60 Q 160 80 170 120" stroke="currentColor" strokeWidth="6" fill="none" />
-            <polygon points="165,120 175,120 170,145" />
-          </svg>
-        </div>
-
-        {/* 4-Column Grid:
-            Desktop (>=1100px): grid-template-columns: 409fr 349fr 329fr 354fr
-            Mobile (<1100px): single column stack, Courses & Quick Links side-by-side from 520px
-        */}
-        <div
-          className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[1100px]:grid-cols-[409fr_349fr_329fr_354fr] gap-8 min-[1100px]:gap-0 items-start"
-        >
           {/* Column 1: Brand [79..488) -> 409fr (padding-right: 77u) */}
           <div className="col-span-1 min-[520px]:col-span-2 min-[1100px]:col-span-1 flex flex-col items-center min-[1100px]:items-start text-center min-[1100px]:text-left pr-0 min-[1100px]:pr-[calc(var(--su,1px)*77)]">
             {/* Logo (187u wide) */}
@@ -94,7 +82,7 @@ export default async function Footer() {
               className="mt-4 min-[1100px]:mt-[calc(var(--su,1px)*18)] text-white/75 font-normal leading-[1.45] text-balance"
               style={{ fontSize: "clamp(14px, 1.6vw, calc(var(--su, 1px) * 17))" }}
             >
-              Faridabad&apos;s premier Accountancy coaching institute for CBSE Class 11 &amp; 12, founded and personally taught by Ronak Dugar in Sector 9.
+              Faridabad&apos;s premier Accountancy coaching institute for CBSE Class 11 &amp; 12, founded and personally taught by {dbSetting?.ownerName || "Ronak Dugar"} in Sector 9.
             </p>
 
             {/* Reward Pill (332u x 46u) */}
@@ -118,7 +106,7 @@ export default async function Footer() {
             <div
               className="mt-5 min-[1100px]:mt-[calc(var(--su,1px)*20)] flex items-center gap-3 min-[1100px]:gap-[calc(var(--su,1px)*14)]"
             >
-              {FOOTER_SOCIALS.map((social) => {
+              {socials.map((social) => {
                 const Icon = SOCIAL_ICON_MAP[social.platform];
                 return (
                   <a
@@ -265,10 +253,8 @@ export default async function Footer() {
               {/* Address */}
               <div className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-[#F5B400] shrink-0 mt-0.5" />
-                <span className="text-[#D1D5DB] leading-snug whitespace-nowrap">
-                  SCF 59-60, 2nd Floor, Sector 9,
-                  <br />
-                  Faridabad, Haryana 121006
+                <span className="text-[#D1D5DB] leading-snug whitespace-pre-line">
+                  {address}
                 </span>
               </div>
 
@@ -276,10 +262,10 @@ export default async function Footer() {
               <div className="flex items-center gap-3">
                 <Phone className="w-5 h-5 text-[#F5B400] shrink-0" />
                 <a
-                  href={`tel:${FOOTER_CONTACT.phoneTel}`}
+                  href={`tel:${phoneTel}`}
                   className="text-[#D1D5DB] [@media(hover:hover)]:hover:text-[#FFC21A] transition-colors whitespace-nowrap flex items-center"
                 >
-                  {FOOTER_CONTACT.phoneDisplay}
+                  {phone}
                 </a>
               </div>
 
@@ -287,17 +273,17 @@ export default async function Footer() {
               <div className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-[#F5B400] shrink-0" />
                 <a
-                  href={`mailto:${FOOTER_CONTACT.email}`}
+                  href={`mailto:${email}`}
                   className="text-[#D1D5DB] [@media(hover:hover)]:hover:text-[#FFC21A] transition-colors whitespace-nowrap flex items-center"
                 >
-                  {FOOTER_CONTACT.email}
+                  {email}
                 </a>
               </div>
 
               {/* Google Maps Directions Button */}
               <div className="pt-2">
                 <a
-                  href={FOOTER_CONTACT.mapsUrl}
+                  href={dbSetting?.googleMapsUrl || FOOTER_CONTACT.mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group inline-flex items-center justify-center gap-2 rounded-full font-bold border border-[#E8B000] text-[#FFC21A] transition-all duration-300 [@media(hover:hover)]:hover:bg-[#FFC21A] [@media(hover:hover)]:hover:text-[#121212] active:scale-95 whitespace-nowrap"
@@ -315,6 +301,53 @@ export default async function Footer() {
             </div>
           </div>
         </div>
+  );
+}
+
+async function FooterDbColumns() {
+  const dbSetting = await getCachedSettings();
+  return <FooterColumns dbSetting={dbSetting} />;
+}
+
+export default function Footer() {
+  return (
+    <footer
+      id="contact"
+      aria-label="Site Footer and Contact Information"
+      className="u-scope relative w-full bg-[#121212] text-white [isolation:isolate] overflow-hidden"
+    >
+      {/* 165u Wave Transition Band */}
+      <FooterWave />
+
+      {/* Main Footer Container (max-width 1600u capped, padding-inline 79u) */}
+      <div
+        className="relative z-10 w-full max-w-[calc(var(--su,1px)*1600)] mx-auto"
+        style={{
+          paddingLeft: "clamp(16px, 4.5vw, calc(var(--su, 1px) * 79))",
+          paddingRight: "clamp(16px, 4.5vw, calc(var(--su, 1px) * 79))",
+          paddingTop: "clamp(32px, 4vw, calc(var(--su, 1px) * 44))",
+        }}
+      >
+        {/* Large Faint Graduation Cap Watermark (Bottom-Right, Decorative) */}
+        <div
+          className="absolute -bottom-10 -right-10 pointer-events-none opacity-8 text-[#1A1A1A] select-none -z-10"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 200 200"
+            className="w-96 h-96 fill-current text-white/5"
+          >
+            <polygon points="100,20 180,60 100,100 20,60" />
+            <path d="M 50 80 Q 100 120 150 80 L 150 115 Q 100 155 50 115 Z" />
+            <path d="M 100 60 Q 160 80 170 120" stroke="currentColor" strokeWidth="6" fill="none" />
+            <polygon points="165,120 175,120 170,145" />
+          </svg>
+        </div>
+
+        {/* 4-Column Grid inside Suspense */}
+        <Suspense fallback={<FooterColumns dbSetting={null} />}>
+          <FooterDbColumns />
+        </Suspense>
 
         {/* Bottom Bar: Divider at y557 + Copyright + Meta + Back to Top */}
         <div
@@ -327,7 +360,7 @@ export default async function Footer() {
         >
           {/* Copyright */}
           <div>
-            &copy; {currentYear} RD Classes for Accountancy. All rights reserved. Directed by Ronak Dugar.
+            &copy; <CurrentYear /> RD Classes for Accountancy. All rights reserved. Directed by Ronak Dugar.
           </div>
 
           {/* Right Meta + Back to Top */}

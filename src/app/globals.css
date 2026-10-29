@@ -10,6 +10,9 @@
   /* Scaling unit: min(100vw / 1600, max(100svh, 560px) / 900), capped at 1.1px for hero */
   --u: min(min(100vw / 1600, max(100svh, 560px) / 900), 1.1px);
 
+  /* Global Navbar Height */
+  --nav-h: 84px;
+
   /* Section desktop scaling unit: 1u = 1px on 1600px canvas, capped at 1px on desktop */
   --su: min(100vw / 1600, 1px);
 
@@ -27,6 +30,14 @@
   --color-arch-yellow: #F8BA0D;
   --color-arch-orange: #F57506;
   --color-arch-teal: #0B9FBA;
+
+  /* Course Detail Design Tokens */
+  --color-navy: #0B2A4A;
+  --color-ink: #1B2B4B;
+  --color-muted: #6B7385;
+  --color-border: rgba(20, 30, 60, 0.06);
+  --color-surface: #FFFFFF;
+  --color-soft-blue: #EAF2FE;
 }
 
 @theme inline {
@@ -37,6 +48,12 @@
   --color-brand-cyan: var(--color-accent-cyan);
   --color-brand-secondary: var(--color-text-secondary);
   --color-brand-smallcaps: var(--color-text-smallcaps);
+  --color-course-navy: var(--color-navy);
+  --color-course-ink: var(--color-ink);
+  --color-course-muted: var(--color-muted);
+  --color-course-border: var(--color-border);
+  --color-course-surface: var(--color-surface);
+  --color-course-soft-blue: var(--color-soft-blue);
 }
 
 html {
@@ -311,11 +328,39 @@ html[data-motion="full"] .animate-arch-card {
   animation: archEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@media (min-width: 768px) {
-  html[data-motion="full"] .animate-arch-float-desktop,
-  html[data-motion="full"] .md\:animate-arch-float-mobile {
-    animation: archFloatDesktop 7.5s ease-in-out infinite;
+/* ================= HERO STUDENT CAPSULE CARDS ================= */
+@keyframes heroCapsuleFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-capsule-card {
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+  animation: heroCapsuleFadeUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-capsule-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+html[data-motion="reduce"] .hero-capsule-card {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
 }
 
 @keyframes statCircleDrift {
@@ -354,6 +399,10 @@ html[data-motion="full"] .animate-card-fade-up {
 
 html[data-motion="full"] .animate-terms-marquee {
   animation: termsMarquee 38s linear infinite;
+}
+
+.animate-filter-card {
+  animation: filterFadeIn 350ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 html[data-motion="full"] .animate-filter-card {

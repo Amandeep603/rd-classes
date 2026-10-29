@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import { deviceApproveSchema } from "../validation/schemas.js";
 import {
   approveDeviceRequest,
@@ -13,7 +13,9 @@ import {
 } from "../auth/deviceService.js";
 
 export async function approveDeviceRequestAction(requestId, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const raw = {
     mode: formData.get("mode") || "add",
@@ -40,7 +42,9 @@ export async function approveDeviceRequestAction(requestId, formData) {
 }
 
 export async function rejectDeviceRequestAction(requestId, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const note = formData.get("note") || "";
 
   try {
@@ -54,7 +58,10 @@ export async function rejectDeviceRequestAction(requestId, formData) {
 }
 
 export async function removeDeviceAction(userId, deviceId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await removeDevice(userId, deviceId, admin.user._id);
     revalidatePath(`/admin/students/${userId}`);
@@ -66,7 +73,10 @@ export async function removeDeviceAction(userId, deviceId) {
 }
 
 export async function resetAllDevicesAction(userId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await resetAllDevices(userId, admin.user._id);
     revalidatePath(`/admin/students/${userId}`);
@@ -78,7 +88,10 @@ export async function resetAllDevicesAction(userId) {
 }
 
 export async function setDeviceLimitAction(userId, limit) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await setDeviceLimit(userId, Number(limit), admin.user._id);
     revalidatePath(`/admin/students/${userId}`);
@@ -90,7 +103,10 @@ export async function setDeviceLimitAction(userId, limit) {
 }
 
 export async function logoutAllSessionsAction(userId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+
   try {
     await logoutAllSessions(userId, admin.user._id);
     revalidatePath(`/admin/students/${userId}`);

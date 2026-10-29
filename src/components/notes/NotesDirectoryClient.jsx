@@ -1,452 +1,313 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
 import {
   Search,
-  FileText,
-  Lock,
-  Download,
-  ExternalLink,
-  MessageCircle,
-  LogIn,
   X,
-  BookOpen,
-  ArrowRight,
-  Sparkles,
-  CheckCircle2,
+  FileText,
+  SlidersHorizontal,
+  ChevronDown,
 } from "lucide-react";
-
-const KIND_META = {
-  notes: {
-    label: "Concept Notes",
-    bg: "bg-blue-50 text-blue-700 border-blue-200",
-    dot: "bg-blue-600",
-  },
-  practice: {
-    label: "Practice Sheets",
-    bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    dot: "bg-emerald-600",
-  },
-  formula: {
-    label: "Formula Cards",
-    bg: "bg-amber-50 text-amber-800 border-amber-200",
-    dot: "bg-amber-600",
-  },
-  paper: {
-    label: "Board Papers",
-    bg: "bg-purple-50 text-purple-700 border-purple-200",
-    dot: "bg-purple-600",
-  },
-};
+import NoteCard from "./NoteCard";
+import PdfViewerModal from "./PdfViewerModal";
+import AccessDialog from "@/components/courses/AccessDialog";
 
 export default function NotesDirectoryClient({
   notes = [],
   courses = [],
-  siteWhatsapp = "+919876543210",
+  siteWhatsapp = "918368545620",
 }) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedKind, setSelectedKind] = useState("all");
+  const [selectedCourseId, setSelectedCourseId] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedNoteForBuy, setSelectedNoteForBuy] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
 
-  // User access state
-  const [userAccess, setUserAccess] = useState({
-    authenticated: false,
-    enrolledCourseIds: [],
-    loading: true,
-  });
+  // Modals state
+  const [viewingPdfNote, setViewingPdfNote] = useState(null);
+  const [accessNote, setAccessNote] = useState(null);
+
+  // User access state (student enrollment)
+  const [userData, setUserData] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function checkAccess() {
+    async function fetchUserAccess() {
       try {
         const res = await fetch("/api/me/course-access");
         if (res.ok) {
           const data = await res.json();
           if (!cancelled && data.authenticated) {
-            setUserAccess({
-              authenticated: true,
-              enrolledCourseIds: data.enrolledCourseIds || [],
-              loading: false,
-            });
-            return;
+            setUserData(data);
           }
         }
       } catch {
-        // Visitor mode fallback
-      }
-      if (!cancelled) {
-        setUserAccess((prev) => ({ ...prev, loading: false }));
+        // Fallback to visitor mode
       }
     }
-    checkAccess();
+    fetchUserAccess();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const cleanPhone = siteWhatsapp.replace(/[^0-9]/g, "");
-
-  // Filter notes
-  const filteredNotes = useMemo(() => {
-    return notes.filter((note) => {
-      // Kind filter
-      if (selectedKind !== "all" && note.kind !== selectedKind) {
-        return false;
-      }
-
-      // Category filter (Class 12 / Class 11 via linked courses)
-      if (selectedCategory !== "all") {
-        const hasMatchingCourse = note.courses?.some((c) => {
-          if (selectedCategory === "class12") {
-            return c.category === "class12" || c.title?.toLowerCase().includes("12");
-          }
-          if (selectedCategory === "class11") {
-            return c.category === "class11" || c.title?.toLowerCase().includes("11");
-          }
-          return false;
-        });
-        if (!hasMatchingCourse) return false;
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesTitle = note.title?.toLowerCase().includes(q);
-        const matchesSection = note.section?.toLowerCase().includes(q);
-        const matchesCourse = note.courses?.some((c) =>
-          c.title?.toLowerCase().includes(q)
-        );
-        return matchesTitle || matchesSection || matchesCourse;
-      }
-
-      return true;
-    });
-  }, [notes, selectedKind, selectedCategory, searchQuery]);
-
-  // Counts for kind filter chips
-  const kindCounts = useMemo(() => {
-    const counts = { all: notes.length };
+  // Compute courses that actually have at least 1 published note
+  const coursesWithNotes = useMemo(() => {
+    const courseMap = new Map();
     for (const note of notes) {
-      counts[note.kind] = (counts[note.kind] || 0) + 1;
-    }
-    return counts;
-  }, [notes]);
+      const cList = Array.isArray(note.courses)
+        ? note.courses
+        : Array.isArray(note.courseIds)
+        ? note.courseIds
+        : [];
 
-  const getBuyWhatsappHref = (note) => {
-    const courseTitle = note.courses?.[0]?.title || "RD Classes Accountancy";
-    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-      `Hello RD Classes, I want to access the note: "${note.title}" from course: ${courseTitle}. Please share enrollment details.`
-    )}`;
+      for (const c of cList) {
+        if (!c) continue;
+        const id = (c._id || c).toString();
+        if (!courseMap.has(id)) {
+          // Find course title & theme from courses list
+          const fullCourse = courses.find((orig) => orig._id.toString() === id);
+          courseMap.set(id, {
+            _id: id,
+            title: fullCourse?.title || c.title || "Course",
+            theme: fullCourse?.theme || fullCourse?.tone || c.theme || "blue",
+          });
+        }
+      }
+    }
+    return Array.from(courseMap.values());
+  }, [notes, courses]);
+
+  // Combined Filtering and Sorting
+  const filteredNotes = useMemo(() => {
+    let result = notes;
+
+    // 1. Filter by Course
+    if (selectedCourseId !== "all") {
+      result = result.filter((n) => {
+        const noteCids = (n.courses || n.courseIds || []).map((c) =>
+          (c._id || c).toString()
+        );
+        return noteCids.includes(selectedCourseId);
+      });
+    }
+
+    // 2. Filter by Category
+    if (selectedCategory !== "all") {
+      result = result.filter(
+        (n) => (n.category || n.kind) === selectedCategory
+      );
+    }
+
+    // 3. Filter by Search Query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((n) => {
+        const titleMatch = (n.title || "").toLowerCase().includes(q);
+        const descMatch = (n.description || "").toLowerCase().includes(q);
+        const bookMatch = (n.book || "").toLowerCase().includes(q);
+        const chapterMatch = (n.chapter || "").toLowerCase().includes(q);
+        const sectionMatch = (n.section || "").toLowerCase().includes(q);
+        return titleMatch || descMatch || bookMatch || chapterMatch || sectionMatch;
+      });
+    }
+
+    // 4. Sort
+    return [...result].sort((a, b) => {
+      if (sortBy === "title-asc") {
+        return (a.title || "").localeCompare(b.title || "");
+      }
+      // default: newest
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [notes, selectedCourseId, selectedCategory, searchQuery, sortBy]);
+
+  const hasActiveFilters =
+    selectedCourseId !== "all" ||
+    selectedCategory !== "all" ||
+    searchQuery.trim() !== "" ||
+    sortBy !== "newest";
+
+  const handleClearFilters = () => {
+    setSelectedCourseId("all");
+    setSelectedCategory("all");
+    setSearchQuery("");
+    setSortBy("newest");
   };
 
   return (
-    <div className="space-y-8">
-      {/* 1. FILTER & SEARCH CONTROL BAR */}
-      <div className="flex flex-col gap-5 bg-white p-5 sm:p-6 rounded-2xl border border-[#E2E8F0] shadow-xs">
-        {/* Top row: Search input + Class/Category selector */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          {/* Curriculum Search */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+    <div className="w-full space-y-8">
+      {/* 1. SINGLE-LINE RESPONSIVE FILTER ROW */}
+      <div className="p-3 sm:p-4 rounded-2xl bg-white border border-[#E8ECEF] shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Left: Course Tabs */}
+        <div
+          role="tablist"
+          aria-label="Filter by course"
+          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5"
+        >
+          {/* All Tab */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedCourseId === "all"}
+            onClick={() => setSelectedCourseId("all")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+              selectedCourseId === "all"
+                ? "bg-[#0B1B3D] text-white shadow-xs"
+                : "bg-[#F8FAFC] text-[#556987] hover:bg-[#F1F5F9] hover:text-[#0B1B3D]"
+            }`}
+          >
+            <span>All Courses</span>
+            <span className="ml-1.5 text-[10px] opacity-80 font-mono">
+              ({notes.length})
+            </span>
+          </button>
+
+          {/* One tab per course with published notes */}
+          {coursesWithNotes.map((course) => {
+            const isSelected = selectedCourseId === course._id;
+            return (
+              <button
+                key={course._id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setSelectedCourseId(course._id)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                  isSelected
+                    ? "bg-[#0B1B3D] text-white shadow-xs"
+                    : "bg-[#F8FAFC] text-[#556987] hover:bg-[#F1F5F9] hover:text-[#0B1B3D]"
+                }`}
+              >
+                <span>{course.title}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: Dropdowns + Search Input */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Category Dropdown */}
+          <div className="relative flex-1 sm:flex-initial">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full sm:w-auto appearance-none pl-3 pr-8 py-2 bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl text-xs font-semibold text-[#0B1B3D] focus:outline-none focus:border-[#FFB800] transition-colors cursor-pointer min-h-[38px]"
+              aria-label="Filter by category"
+            >
+              <option value="all">All Categories</option>
+              <option value="notes">Concept Notes</option>
+              <option value="formula-sheet">Formula Sheets</option>
+              <option value="practice-questions">Practice Questions</option>
+              <option value="previous-papers">Previous Papers</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" />
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="relative flex-1 sm:flex-initial">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full sm:w-auto appearance-none pl-3 pr-8 py-2 bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl text-xs font-semibold text-[#0B1B3D] focus:outline-none focus:border-[#FFB800] transition-colors cursor-pointer min-h-[38px]"
+              aria-label="Sort notes"
+            >
+              <option value="newest">Newest First</option>
+              <option value="title-asc">Title A-Z</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" />
+          </div>
+
+          {/* Search Input */}
+          <div className="relative w-full sm:w-56">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by note title, chapter name, or course..."
-              className="w-full pl-10 pr-10 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs sm:text-sm text-[#0B1B3D] placeholder-[#94A3B8] focus:outline-none focus:border-[#FFB800] focus:ring-1 focus:ring-[#FFB800] transition-all min-h-[44px]"
+              placeholder="Search notes..."
+              className="w-full pl-9 pr-7 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0B1B3D] placeholder-[#94A3B8] focus:outline-none focus:border-[#FFB800] focus:bg-white transition-all min-h-[38px]"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
                 aria-label="Clear search"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
             )}
           </div>
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 bg-[#F1F5F9] p-1 rounded-xl self-start sm:self-auto overflow-x-auto no-scrollbar">
-            {[
-              { id: "all", label: "All Classes" },
-              { id: "class12", label: "Class 12" },
-              { id: "class11", label: "Class 11" },
-            ].map((cat) => {
-              const active = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                    active
-                      ? "bg-white text-[#0B1B3D] shadow-xs"
-                      : "text-[#64748B] hover:text-[#0B1B3D]"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Bottom row: Kind filter chips */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-[#F1F5F9]">
-          {[
-            { id: "all", label: "All Materials" },
-            { id: "notes", label: "Concept Notes" },
-            { id: "practice", label: "Practice Sheets" },
-            { id: "formula", label: "Formula Cards" },
-            { id: "paper", label: "Board Papers" },
-          ].map((chip) => {
-            const count = kindCounts[chip.id] || 0;
-            const isSelected = selectedKind === chip.id;
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => setSelectedKind(chip.id)}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[38px] ${
-                  isSelected
-                    ? "bg-[#0B2545] text-white shadow-xs"
-                    : "bg-white border border-[#E2E8F0] text-[#556987] hover:border-[#CBD5E1]"
-                }`}
-              >
-                <span>{chip.label}</span>
-                <span
-                  className={`text-[10px] rounded-full px-1.5 py-0.2 font-mono ${
-                    isSelected
-                      ? "bg-white/20 text-white"
-                      : "bg-neutral-100 text-neutral-600"
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* 2. NOTES GRID */}
+      {/* 2. CARDS GRID (3 / 2 / 1 Columns, Equal Heights) */}
       {filteredNotes.length === 0 ? (
-        <div className="rounded-2xl border border-[#E2E8F0] bg-white p-12 text-center space-y-3 shadow-xs">
-          <div className="w-12 h-12 rounded-full bg-[#F1F5F9] text-[#94A3B8] flex items-center justify-center mx-auto mb-2">
-            <FileText className="w-6 h-6" />
+        // Empty state
+        <div className="p-12 sm:p-16 text-center bg-white rounded-3xl border border-[#E8ECEF] shadow-xs space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-[#FAF6EE] text-[#D97706] flex items-center justify-center mx-auto shadow-2xs">
+            <FileText className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-[#0B1B3D]">No study materials found</h3>
-          <p className="text-xs text-[#64748B] max-w-md mx-auto">
-            {searchQuery
-              ? `No notes match your search "${searchQuery}". Try a different keyword or reset filters.`
-              : "No study materials have been published in this category yet. Check back soon!"}
+          <h3 className="text-lg font-bold text-[#0B1B3D]">
+            Notes will appear here soon.
+          </h3>
+          <p className="text-xs text-[#556987] max-w-sm mx-auto">
+            {hasActiveFilters
+              ? "No notes matched your selected filters or search query."
+              : "Study materials for this section are currently being organized."}
           </p>
-          {(searchQuery || selectedKind !== "all" || selectedCategory !== "all") && (
+          {hasActiveFilters && (
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSelectedKind("all");
-                setSelectedCategory("all");
-              }}
-              className="mt-2 text-xs font-bold text-[#0066FF] hover:underline cursor-pointer"
+              onClick={handleClearFilters}
+              className="mt-2 px-4 py-2 rounded-xl bg-[#0B1B3D] text-white text-xs font-bold hover:bg-[#152B52] transition-colors cursor-pointer"
             >
-              Reset all filters
+              Clear all filters
             </button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredNotes.map((note) => {
-            const meta = KIND_META[note.kind] || KIND_META.notes;
-
-            // Check if user has active enrollment in any linked course
-            const isEnrolled =
-              userAccess.authenticated &&
-              note.courses?.some((c) =>
-                userAccess.enrolledCourseIds.includes(c._id)
-              );
-
-            const streamUrl = `/api/notes/${note._id}/stream`;
-            const primaryCourse = note.courses?.[0];
-
-            return (
-              <div
-                key={note._id}
-                className="group rounded-2xl border border-[#E2E8F0] bg-white p-5 hover:border-[#CBD5E1] transition-all shadow-xs hover:shadow-md flex flex-col justify-between space-y-4"
-              >
-                <div className="space-y-3">
-                  {/* Top metadata pill row */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-md border ${meta.bg}`}
-                    >
-                      {meta.label}
-                    </span>
-
-                    <span className="text-[11px] font-mono text-[#64748B] flex items-center gap-1">
-                      {note.source === "link" ? (
-                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                          External Link
-                        </span>
-                      ) : note.pageCount > 0 ? (
-                        <span>{note.pageCount} Pages • PDF</span>
-                      ) : (
-                        <span>PDF Note</span>
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Title & Section */}
-                  <div>
-                    <h3 className="text-sm sm:text-base font-bold text-[#0B1B3D] group-hover:text-[#0066FF] transition-colors line-clamp-2 leading-snug">
-                      {note.title}
-                    </h3>
-                    {note.section && (
-                      <p className="text-xs text-[#64748B] font-medium mt-1">
-                        Chapter: {note.section}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Linked Course badges */}
-                  {note.courses && note.courses.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      {note.courses.map((course) => (
-                        <Link
-                          key={course._id}
-                          href={`/courses/${course.slug}#notes`}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0B2545] bg-[#F1F5F9] hover:bg-[#E2E8F0] px-2.5 py-1 rounded-lg transition-colors truncate max-w-[240px]"
-                          title={course.title}
-                        >
-                          <BookOpen className="w-3 h-3 text-[#FFB800] flex-shrink-0" />
-                          <span className="truncate">{course.title}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer Action Row */}
-                <div className="pt-3 border-t border-[#F1F5F9] flex items-center justify-between gap-3">
-                  {isEnrolled ? (
-                    <a
-                      href={streamUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#0066FF] hover:bg-[#0052CC] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm min-h-[40px]"
-                    >
-                      {note.source === "link" ? (
-                        <>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>Open Resource</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-3.5 h-3.5" />
-                          <span>View Note (PDF)</span>
-                        </>
-                      )}
-                    </a>
-                  ) : (
-                    <div className="w-full flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs text-[#64748B] font-semibold">
-                        <Lock className="w-3.5 h-3.5 text-[#D97706]" />
-                        <span>Enrolled Only</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedNoteForBuy(note)}
-                        className="py-2 px-3.5 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer min-h-[38px]"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
-                        <span>Buy Course</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch transition-opacity duration-300">
+          {filteredNotes.map((note) => (
+            <NoteCard
+              key={note._id}
+              note={note}
+              userData={userData}
+              onViewPdf={(n) => setViewingPdfNote(n)}
+              onOpenAccess={(n) => setAccessNote(n)}
+            />
+          ))}
         </div>
       )}
 
-      {/* 3. BUY COURSE TO UNLOCK NOTE MODAL DIALOG */}
-      {selectedNoteForBuy && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="buy-note-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setSelectedNoteForBuy(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setSelectedNoteForBuy(null);
-          }}
-        >
-          <div
-            className="relative w-full max-w-md bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setSelectedNoteForBuy(null)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              aria-label="Close dialog"
-            >
-              <X className="w-4 h-4" />
-            </button>
+      {/* 3. PDF VIEWER MODAL */}
+      {viewingPdfNote && (
+        <PdfViewerModal
+          note={viewingPdfNote}
+          onClose={() => setViewingPdfNote(null)}
+        />
+      )}
 
-            {/* Header with lock icon */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center flex-shrink-0">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 pr-6">
-                <h3 id="buy-note-title" className="text-base font-bold text-[#0B1B3D]">
-                  Unlock Study Material
-                </h3>
-                <p className="text-xs text-[#556987] font-medium truncate">
-                  {selectedNoteForBuy.title}
-                </p>
-              </div>
-            </div>
-
-            {/* Description */}
-            <p className="text-xs text-[#475569] leading-relaxed">
-              This study note is part of the course curriculum. Message Sir on WhatsApp to buy the course, unlock all chapters, video lectures, and receive your student login ID.
-            </p>
-
-            {/* Buttons */}
-            <div className="space-y-2.5 pt-1">
-              <a
-                href={getBuyWhatsappHref(selectedNoteForBuy)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-3 px-4 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md min-h-[44px]"
-              >
-                <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                <span>Buy Course on WhatsApp</span>
-              </a>
-
-              <div className="text-center pt-1">
-                <Link
-                  href="/student/login"
-                  onClick={() => setSelectedNoteForBuy(null)}
-                  className="text-xs font-semibold text-[#0066FF] hover:underline inline-flex items-center gap-1"
-                >
-                  <span>I already have a login</span>
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* 4. WHATSAPP ACCESS DIALOG */}
+      {accessNote && (
+        <AccessDialog
+          isOpen={true}
+          onClose={() => setAccessNote(null)}
+          course={
+            accessNote.courses?.[0] || {
+              _id: accessNote.courseId || accessNote._id,
+              title: "RD Classes Study Material",
+              slug: "notes",
+              classLabel: "Class 11 & 12",
+              theme: "blue",
+            }
+          }
+          lockedLectureTitle={`Note: ${accessNote.title}`}
+          userData={userData}
+          siteWhatsapp={siteWhatsapp}
+        />
       )}
     </div>
   );

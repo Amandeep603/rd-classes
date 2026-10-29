@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
-import { DeviceRequest } from "@/server/db/models/DeviceRequest.js";
+import { Device } from "@/lib/models/Device";
 
 export async function GET() {
   try {
@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     await connectDB();
-    const count = await DeviceRequest.countDocuments({ status: "pending" });
+    const count = await Device.countDocuments({ status: "pending" });
     return NextResponse.json({ count });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

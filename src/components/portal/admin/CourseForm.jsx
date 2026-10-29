@@ -117,13 +117,22 @@ export default function CourseForm({ course = null, mode = "new" }) {
   const [order, setOrder] = useState(course?.order ?? 0);
 
   // Phase C1 Fields
+  const [titleHighlight, setTitleHighlight] = useState(course?.titleHighlight || course?.subtitle || "");
+  const [heroBooks, setHeroBooks] = useState(
+    course?.heroBooks && course.heroBooks.length > 0
+      ? course.heroBooks
+      : ["PARTNERSHIP", "COMPANY ACCOUNTS", "FINANCIAL STATEMENTS"]
+  );
+  const [whatsappMessageNote, setWhatsappMessageNote] = useState(
+    course?.whatsappMessageNote || course?.whatsappText || ""
+  );
   const [about, setAbout] = useState(course?.about || "");
   const [heroIllustration, setHeroIllustration] = useState(
     course?.heroIllustration || "books-subjects"
   );
   const [highlights, setHighlights] = useState(
     course?.highlights && course.highlights.length > 0
-      ? course.highlights
+      ? course.highlights.map((h) => ({ icon: h.icon || "video", text: h.text || h.label || "" }))
       : [
           { icon: "video", text: "136 HD Lectures" },
           { icon: "notes", text: "Chapter-wise Notes" },
@@ -133,7 +142,7 @@ export default function CourseForm({ course = null, mode = "new" }) {
   );
   const [includes, setIncludes] = useState(
     course?.includes && course.includes.length > 0
-      ? course.includes
+      ? course.includes.map((inc) => (typeof inc === "string" ? { icon: "check", text: inc } : inc))
       : [
           { icon: "video", text: "136 HD Video Lectures" },
           { icon: "notes", text: "Chapter-wise Notes (PDF)" },
@@ -156,6 +165,18 @@ export default function CourseForm({ course = null, mode = "new" }) {
             q: "Can I watch lectures offline or on mobile?",
             a: "Yes, you can access all high-definition lectures on mobile or desktop anytime.",
           },
+        ]
+  );
+  const [facultyPoints, setFacultyPoints] = useState(
+    course?.facultyPoints && course.facultyPoints.length > 0
+      ? course.facultyPoints
+      : course?.facultyBullets && course.facultyBullets.length > 0
+      ? course.facultyBullets
+      : [
+          "10+ years of teaching experience",
+          "Specialized in Class 11 & 12 Accountancy",
+          "Concept-based and exam-oriented approach",
+          "Trusted by thousands of students",
         ]
   );
   const [facultyBullets, setFacultyBullets] = useState(
@@ -255,13 +276,17 @@ export default function CourseForm({ course = null, mode = "new" }) {
       fd.append("order", String(order));
     }
 
-    // Phase C1 Fields
+    // Phase C1 Fields & Course Page Content
+    fd.append("titleHighlight", titleHighlight);
+    fd.append("heroBooks", JSON.stringify(heroBooks.filter(Boolean)));
+    fd.append("whatsappMessageNote", whatsappMessageNote);
     fd.append("about", about);
     fd.append("heroIllustration", heroIllustration);
     fd.append("highlights", JSON.stringify(highlights.filter((h) => h.text.trim())));
-    fd.append("includes", JSON.stringify(includes.filter((inc) => inc.text.trim())));
+    fd.append("includes", JSON.stringify(includes.map((inc) => inc.text.trim()).filter(Boolean)));
     fd.append("faqs", JSON.stringify(faqs.filter((f) => f.q.trim() && f.a.trim())));
-    fd.append("facultyBullets", JSON.stringify(facultyBullets.filter((b) => b.trim())));
+    fd.append("facultyPoints", JSON.stringify(facultyPoints.filter((b) => b.trim())));
+    fd.append("facultyBullets", JSON.stringify(facultyPoints.filter((b) => b.trim())));
     fd.append("facultyProfileUrl", facultyProfileUrl);
 
     try {
@@ -412,12 +437,84 @@ export default function CourseForm({ course = null, mode = "new" }) {
 
           <div className="h-px w-full bg-slate-100" />
 
-          {/* Section 2: Phase C1 Detail Page Content */}
+          {/* Section 2: Course Page Content */}
           <div className="space-y-6">
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#111827] flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-[#0066FF]" />
-              <span>Detail Page Content (/courses/[slug])</span>
+              <span>Course page content</span>
             </h3>
+
+            {/* Title Highlight */}
+            <div>
+              <label className="block text-xs font-bold text-[#374151] mb-1">
+                Title Highlight (the part of the title to show with yellow highlight)
+              </label>
+              <input
+                type="text"
+                value={titleHighlight}
+                onChange={(e) => setTitleHighlight(e.target.value)}
+                placeholder="e.g. (Full Year)"
+                className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#FFC21A] focus:outline-none"
+              />
+            </div>
+
+            {/* Hero 3D Books */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-[#374151]">
+                  Hero 3D Books (up to 3 book spine labels for the 3D stack)
+                </label>
+                {heroBooks.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setHeroBooks([...heroBooks, ""])}
+                    className="text-xs font-bold text-[#0066FF] hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Book Label
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {heroBooks.map((bTitle, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={bTitle}
+                      onChange={(e) => {
+                        const next = [...heroBooks];
+                        next[idx] = e.target.value;
+                        setHeroBooks(next);
+                      }}
+                      placeholder={`Book ${idx + 1}`}
+                      className="flex-1 rounded-xl border border-black/10 bg-white px-3 py-1.5 text-xs text-[#111827] uppercase font-bold"
+                    />
+                    {heroBooks.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setHeroBooks(heroBooks.filter((_, i) => i !== idx))}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* WhatsApp Message Note */}
+            <div>
+              <label className="block text-xs font-bold text-[#374151] mb-1">
+                WhatsApp Message Note (extra custom line for the enquiry draft)
+              </label>
+              <input
+                type="text"
+                value={whatsappMessageNote}
+                onChange={(e) => setWhatsappMessageNote(e.target.value)}
+                placeholder="e.g. Please share fee details and trial lecture access for Class 12 Accountancy."
+                className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-[#111827] focus:border-[#FFC21A] focus:outline-none"
+              />
+            </div>
 
             {/* Hero Illustration */}
             <div>
@@ -597,31 +694,62 @@ export default function CourseForm({ course = null, mode = "new" }) {
               </div>
             </div>
 
-            {/* Faculty Bullets & Profile Link */}
-            <div className="space-y-2">
+            {/* Faculty Information */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1">
+                    Faculty Name
+                  </label>
+                  <input
+                    type="text"
+                    value={facultyName}
+                    onChange={(e) => setFacultyName(e.target.value)}
+                    placeholder="Ronak Dugar"
+                    className="w-full rounded-xl border border-black/10 bg-white px-3 py-1.5 text-xs text-[#111827]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#374151] mb-1">
+                    Faculty Role
+                  </label>
+                  <input
+                    type="text"
+                    value={facultyRole}
+                    onChange={(e) => setFacultyRole(e.target.value)}
+                    placeholder="Lead Accountancy Faculty"
+                    className="w-full rounded-xl border border-black/10 bg-white px-3 py-1.5 text-xs text-[#111827]"
+                  />
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-[#374151]">
-                  Faculty Experience Bullets (up to 4)
+                  Faculty Experience Points (up to 4)
                 </label>
-                {facultyBullets.length < 4 && (
+                {facultyPoints.length < 4 && (
                   <button
                     type="button"
-                    onClick={() => setFacultyBullets([...facultyBullets, ""])}
+                    onClick={() => {
+                      setFacultyPoints([...facultyPoints, ""]);
+                      setFacultyBullets([...facultyPoints, ""]);
+                    }}
                     className="text-xs font-bold text-[#0066FF] hover:underline flex items-center gap-1"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add Bullet
+                    <Plus className="w-3.5 h-3.5" /> Add Point
                   </button>
                 )}
               </div>
               <div className="space-y-2">
-                {facultyBullets.map((bullet, idx) => (
+                {facultyPoints.map((bullet, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <input
                       type="text"
                       value={bullet}
                       onChange={(e) => {
-                        const next = [...facultyBullets];
+                        const next = [...facultyPoints];
                         next[idx] = e.target.value;
+                        setFacultyPoints(next);
                         setFacultyBullets(next);
                       }}
                       placeholder="e.g. 10+ years of teaching experience"
@@ -629,9 +757,11 @@ export default function CourseForm({ course = null, mode = "new" }) {
                     />
                     <button
                       type="button"
-                      onClick={() =>
-                        setFacultyBullets(facultyBullets.filter((_, i) => i !== idx))
-                      }
+                      onClick={() => {
+                        const next = facultyPoints.filter((_, i) => i !== idx);
+                        setFacultyPoints(next);
+                        setFacultyBullets(next);
+                      }}
                       className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

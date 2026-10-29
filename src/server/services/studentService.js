@@ -226,12 +226,11 @@ export async function createStudent(
   adminId
 ) {
   await connectDB();
-  const { getNextStudentCode } = await import("./studentCodeService.js");
+  const { getNextLoginId } = await import("./studentCodeService.js");
   const { Course } = await import("../db/models/Course.js");
 
-  const studentCode = await getNextStudentCode();
-  const defaultLoginId = studentCode.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const normalizedLoginId = (loginId || defaultLoginId).trim().toLowerCase();
+  const generatedLoginId = await getNextLoginId();
+  const normalizedLoginId = (loginId || generatedLoginId).trim();
 
   const existing = await User.findOne({ loginId: normalizedLoginId });
   if (existing) {
@@ -243,12 +242,11 @@ export async function createStudent(
 
   const student = await User.create({
     role: "student",
-    studentCode,
     name: name.trim(),
     className: className || "12",
     school: (school || "").trim(),
-    phone: phone ? phone.trim() : "",
-    email: email ? email.trim().toLowerCase() : "",
+    phone: phone && phone.trim() ? phone.trim() : undefined,
+    email: email && email.trim() ? email.trim().toLowerCase() : undefined,
     loginId: normalizedLoginId,
     passwordHash,
     passwordEnc,
@@ -321,7 +319,6 @@ export async function createStudent(
     targetType: "student",
     targetId: student._id.toString(),
     meta: {
-      studentCode: student.studentCode,
       loginId: student.loginId,
       name: student.name,
       deviceLimit: student.deviceLimit,
@@ -332,7 +329,6 @@ export async function createStudent(
   return {
     student: {
       _id: student._id.toString(),
-      studentCode: student.studentCode,
       name: student.name,
       loginId: student.loginId,
       className: student.className,
@@ -562,7 +558,7 @@ export async function resetStudentPasswordAndEmail(
 export async function importStudentsFromCSV({ rows = [], adminId }) {
   await connectDB();
   const { Course } = await import("../db/models/Course.js");
-  const { getNextStudentCode } = await import("./studentCodeService.js");
+  const { getNextLoginId } = await import("./studentCodeService.js");
 
   const availableCourses = await Course.find({ published: true })
     .select("_id title slug")
@@ -653,12 +649,11 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
     }
 
     // Login ID
-    let rawLoginId = (row.loginId || "").toString().trim().toLowerCase();
-    const studentCode = await getNextStudentCode();
+    let rawLoginId = (row.loginId || "").toString().trim();
     let loginId = rawLoginId;
 
     if (!loginId) {
-      loginId = studentCode.toLowerCase().replace(/[^a-z0-9]/g, "");
+      loginId = await getNextLoginId();
     }
 
     if (seenLoginIdsInBatch.has(loginId)) {
@@ -688,12 +683,11 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
       const passwordEnc = encryptPassword(rawPassword);
       const student = await User.create({
         role: "student",
-        studentCode,
         name,
         className,
         school,
-        phone,
-        email,
+        phone: phone || undefined,
+        email: email || undefined,
         loginId,
         passwordHash,
         passwordEnc,

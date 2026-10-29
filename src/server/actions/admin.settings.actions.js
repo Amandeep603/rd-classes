@@ -2,14 +2,16 @@
 
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import connectDB from "../db/connect.js";
 import { Settings } from "../db/models/Settings.js";
 import { User } from "../db/models/User.js";
 import { logAuditEvent } from "../services/audit.js";
 
 export async function updateSettingsAction(payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   await connectDB();
 
@@ -56,7 +58,9 @@ export async function updateSettingsAction(payload) {
 }
 
 export async function updateAdminPasswordAction({ currentPassword, newPassword }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!newPassword || newPassword.length < 8) {
     return { success: false, error: "New password must be at least 8 characters." };

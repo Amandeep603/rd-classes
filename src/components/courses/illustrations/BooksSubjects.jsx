@@ -1,4 +1,7 @@
-export default function BooksSubjects({ className = "" }) {
+export default function BooksSubjects({ className = "", heroBooks = [] }) {
+  const topBook = heroBooks[0] || "PARTNERSHIP";
+  const midBook = heroBooks[1] || "COMPANY ACCOUNTS";
+  const btmBook = heroBooks[2] || "FINANCIAL STATEMENTS";
   return (
     <svg
       viewBox="0 0 420 300"
@@ -44,7 +47,7 @@ export default function BooksSubjects({ className = "" }) {
             letterSpacing="2.2"
             textAnchor="middle"
           >
-            FINANCIAL STATEMENTS
+            {btmBook}
           </text>
           {/* Pages Edge on the right */}
           <rect x="272" y="5" width="8" height="38" rx="2" fill="#F8FAFC" />
@@ -69,7 +72,7 @@ export default function BooksSubjects({ className = "" }) {
             letterSpacing="2"
             textAnchor="middle"
           >
-            COMPANY ACCOUNTS
+            {midBook}
           </text>
           {/* Pages Edge on the right */}
           <rect x="267" y="5" width="8" height="36" rx="2" fill="#FFFFFF" />
@@ -95,7 +98,7 @@ export default function BooksSubjects({ className = "" }) {
             letterSpacing="2.5"
             textAnchor="middle"
           >
-            PARTNERSHIP
+            {topBook}
           </text>
           {/* Pages Edge on the right */}
           <rect x="257" y="5" width="8" height="36" rx="2" fill="#F1F5F9" />

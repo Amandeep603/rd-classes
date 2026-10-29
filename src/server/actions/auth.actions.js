@@ -8,11 +8,24 @@ import {
   logoutUser,
 } from "../auth/authService.js";
 
+function getSafeRedirectUrl(url, fallback) {
+  if (
+    typeof url === "string" &&
+    url.startsWith("/") &&
+    !url.startsWith("//") &&
+    !url.startsWith("/\\")
+  ) {
+    return url;
+  }
+  return fallback;
+}
+
 export async function loginStudentAction(prevState, formData) {
   const raw = {
     loginId: formData.get("loginId"),
     password: formData.get("password"),
   };
+  const nextParam = formData.get("next");
 
   const parsed = loginSchema.safeParse(raw);
   if (!parsed.success) {
@@ -33,13 +46,18 @@ export async function loginStudentAction(prevState, formData) {
   }
 
   if (!result.success) {
-    if (result.redirectTo) {
-      redirect(result.redirectTo);
+    if (result.pendingApproval) {
+      return {
+        success: false,
+        pendingApproval: true,
+        message: result.message,
+      };
     }
     return { success: false, error: result.error };
   }
 
-  redirect(result.redirectTo || "/student");
+  const destination = getSafeRedirectUrl(nextParam, result.redirectTo || "/student");
+  redirect(destination);
 }
 
 export async function loginAdminAction(prevState, formData) {
@@ -47,6 +65,7 @@ export async function loginAdminAction(prevState, formData) {
     loginId: formData.get("loginId"),
     password: formData.get("password"),
   };
+  const nextParam = formData.get("next");
 
   const parsed = loginSchema.safeParse(raw);
   if (!parsed.success) {
@@ -70,17 +89,18 @@ export async function loginAdminAction(prevState, formData) {
     return { success: false, error: result.error };
   }
 
-  redirect(result.redirectTo || "/admin");
+  const destination = getSafeRedirectUrl(nextParam, result.redirectTo || "/admin");
+  redirect(destination);
 }
 
 export async function logoutStudentAction() {
   await logoutUser("student");
-  redirect("/student/login");
+  redirect("/student-login");
 }
 
 export async function logoutAdminAction() {
   await logoutUser("admin");
-  redirect("/admin/login");
+  redirect("/admin-login");
 }
 
 export async function updateStudentDeviceNoteAction(requestId, note) {
@@ -100,4 +120,3 @@ export async function updateStudentDeviceNoteAction(requestId, note) {
     return { success: false, error: err.message };
   }
 }
-

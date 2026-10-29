@@ -13,6 +13,7 @@ export const SITE_CONFIG = {
   navLinks: [
     { label: "Home", href: "/" },
     { label: "Courses", href: "/courses" },
+    { label: "Lectures", href: "/lectures" },
     { label: "Notes", href: "/notes" },
     { label: "Results", href: "/results" },
     { label: "Gallery", href: "/gallery" },

@@ -1,43 +1,53 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
-import { Settings } from "@/server/db/models/Settings.js";
-import PortalSettingsView from "@/components/portal/admin/PortalSettingsView.jsx";
-
-export const instant = false;
+import { Setting } from "@/lib/models/Setting";
+import PortalSettingsView from "@/components/portal/admin/PortalSettingsView";
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
-  title: "Settings | RD Classes Admin",
+  title: "Settings | Admin Portal",
 };
 
-export default async function AdminSettingsPage() {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function SettingsContent() {
+  const auth = await requireAdmin();
 
   await connectDB();
-
-  let settings = await Settings.findOne().lean();
+  let settings = await Setting.findOne().lean();
   if (!settings) {
     settings = {
-      workspaceName: "Ronak Sir Workspace",
-      whatsappNumber: "+91 99999 99999",
-      defaultDeviceLimit: 1,
-      watermarkEnabled: true,
-      rewardTargetText: "₹5,100 Cash Reward Target",
+      instituteName: "RD Classes",
+      phone: "+91 83685 45620",
+      whatsapp: "918368545620",
+      email: "contact@rdclasses.com",
+      address: "SCF 59-60, 2nd Floor, Sector 9, Faridabad, Haryana 121006",
+      socialLinks: {
+        instagram: "https://instagram.com",
+        youtube: "https://youtube.com",
+        telegram: "https://telegram.org",
+      },
+      defaultMaxDevices: 1,
     };
   }
 
-  const serializedSettings = JSON.parse(JSON.stringify(settings));
+  const serialized = JSON.parse(JSON.stringify(settings));
 
   return (
     <PortalSettingsView
-      settings={serializedSettings}
+      initialSettings={serialized}
       admin={{
         name: auth.user.name,
         loginId: auth.user.loginId,
+        email: auth.user.email,
       }}
     />
+  );
+}
+
+export default function AdminSettingsPage() {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <SettingsContent />
+    </Suspense>
   );
 }

@@ -1,22 +1,26 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { requireAdmin } from "@/server/auth/session.js";
 import CourseForm from "@/components/portal/admin/CourseForm.jsx";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "New Course | RD Classes Admin",
 };
 
-export default async function AdminNewCoursePage() {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function NewCourseContent() {
+  await requireAdmin();
 
   return (
     <div className="portal-page-container">
       <CourseForm mode="new" />
     </div>
+  );
+}
+
+export default function AdminNewCoursePage() {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <NewCourseContent />
+    </Suspense>
   );
 }

@@ -1,18 +1,18 @@
+import { Suspense } from "react";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { Course } from "@/server/db/models/Course.js";
 import { getStudentAccessibleNotes } from "@/server/services/noteService.js";
 import PortalNotesView from "@/components/portal/student/PortalNotesView";
-
-export const instant = false;
+import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Notes & Handouts | RD Classes Student Portal",
   description: "Browse and download chapter notes, practice sheets, and board papers for your enrolled courses.",
 };
 
-export default async function StudentNotesPage() {
+async function StudentNotesContent() {
   const auth = await getCurrentUser();
   if (!auth?.user) return null;
 
@@ -50,6 +50,7 @@ export default async function StudentNotesPage() {
     contentType: note.contentType || "application/pdf",
     fileSize: note.fileSize || 0,
     pageCount: note.pageCount || null,
+    book: note.book || note.section || "General Handout",
     section: note.section || "",
     published: note.published,
     courseIds: (note.courseIds || []).map((c) => ({
@@ -65,5 +66,13 @@ export default async function StudentNotesPage() {
       initialNotes={serializedNotes}
       activeCourses={activeCourses}
     />
+  );
+}
+
+export default function StudentNotesPage() {
+  return (
+    <Suspense fallback={<StudentDashboardSkeleton />}>
+      <StudentNotesContent />
+    </Suspense>
   );
 }

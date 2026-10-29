@@ -7,6 +7,7 @@ import { Enrollment } from "../db/models/Enrollment.js";
 import { Progress } from "../db/models/Progress.js";
 import { Settings } from "../db/models/Settings.js";
 import { logAuditEvent } from "./audit.js";
+import { createAdminNotification } from "./notificationService.js";
 
 export function slugify(text) {
   return text
@@ -21,15 +22,25 @@ export function slugify(text) {
 }
 
 /**
- * Invalidates cached courses tag using Next 16 updateTag / revalidateTag API.
+ * Invalidates cached courses tag using Next.js revalidateTag / revalidatePath API.
  */
 export async function invalidateCoursesCache() {
   try {
-    const cacheModule = await import("next/cache");
-    if (typeof cacheModule.updateTag === "function") {
-      cacheModule.updateTag("courses");
-    } else if (typeof cacheModule.revalidateTag === "function") {
-      cacheModule.revalidateTag("courses", "max");
+    const { revalidatePath, revalidateTag } = await import("next/cache");
+    if (typeof revalidateTag === "function") {
+      try {
+        revalidateTag("courses");
+      } catch (tErr) {
+        // Tag invalidation
+      }
+    }
+    if (typeof revalidatePath === "function") {
+      try {
+        revalidatePath("/courses");
+        revalidatePath("/");
+      } catch (pErr) {
+        // Path invalidation
+      }
     }
   } catch (err) {
     console.warn("Could not invalidate courses tag:", err?.message || err);
@@ -45,14 +56,16 @@ export async function getCachedPublicCourses() {
   cacheTag("courses");
   cacheLife("max");
   await connectDB();
-  const courses = await Course.find({ published: true })
-    .sort({ order: 1, createdAt: 1 })
+  const courses = await Course.find({
+    $or: [{ status: "published" }, { published: true }],
+  })
+    .sort({ homeOrder: 1, sortOrder: 1, order: 1, createdAt: 1 })
     .lean();
   return JSON.parse(JSON.stringify(courses));
 }
 
 /**
- * Cached function for featured home courses.
+ * Cached function for featured home courses (max 6, showOnHome=true, ordered by homeOrder).
  * Tagged with cacheTag("courses") and cacheLife("max").
  */
 export async function getCachedFeaturedCourses() {
@@ -60,8 +73,13 @@ export async function getCachedFeaturedCourses() {
   cacheTag("courses");
   cacheLife("max");
   await connectDB();
-  const courses = await Course.find({ published: true, featured: true })
-    .sort({ order: 1, createdAt: 1 })
+  const courses = await Course.find({
+    $and: [
+      { $or: [{ status: "published" }, { published: true }] },
+      { $or: [{ showOnHome: true }, { featured: true }] },
+    ],
+  })
+    .sort({ homeOrder: 1, sortOrder: 1, order: 1, createdAt: 1 })
     .limit(6)
     .lean();
   return JSON.parse(JSON.stringify(courses));
@@ -77,13 +95,17 @@ export async function getCachedCourseBySlug(slug) {
   await connectDB();
   const course = await Course.findOne({
     slug: slug.toLowerCase(),
-    published: true,
+    $or: [{ status: "published" }, { published: true }],
   }).lean();
   return course ? JSON.parse(JSON.stringify(course)) : null;
 }
 
+import { isLectureFree } from "./lectureService.js";
+
 /**
  * Cached public lecture outlines for a course.
+ * Server-enforced: locked lectures expose only id, title, chapter, book, duration, isFree, locked.
+ * Provider IDs, video URLs, and tokens are NEVER exposed in page HTML or props for non-enrolled users.
  */
 export async function getCachedCourseLectures(courseId) {
   "use cache";
@@ -92,23 +114,28 @@ export async function getCachedCourseLectures(courseId) {
   await connectDB();
   const lectures = await Lecture.find({
     courseId,
-    published: true,
+    $or: [{ status: "published" }, { published: true }],
   })
-    .sort({ order: 1, createdAt: 1 })
-    .select("title section durationSec order isPreview freePreview vimeoId")
+    .sort({ order: 1, position: 1, createdAt: 1 })
+    .select("title chapter section book durationSeconds durationSec position order isFreePreview freePreview isPreview")
     .lean();
 
   const sanitized = lectures.map((lec) => {
-    const isFree = Boolean(lec.freePreview || lec.isPreview);
+    const isFree = isLectureFree(lec, lectures);
     return {
+      id: lec._id.toString(),
       _id: lec._id.toString(),
       title: lec.title,
-      section: lec.section || "General",
-      durationSec: lec.durationSec || 0,
-      order: lec.order || 0,
+      chapter: lec.chapter || lec.section || "General",
+      section: lec.section || lec.chapter || "General",
+      book: lec.book || "",
+      duration: lec.durationSeconds || lec.durationSec || 0,
+      durationSec: lec.durationSeconds || lec.durationSec || 0,
+      order: lec.position !== undefined ? lec.position : (lec.order || 0),
+      isFree,
       freePreview: isFree,
       isPreview: isFree,
-      vimeoId: isFree ? lec.vimeoId : undefined,
+      locked: !isFree,
     };
   });
 
@@ -144,29 +171,16 @@ export async function getCachedRelatedCourses(courseId, category) {
   cacheLife("max");
   await connectDB();
 
-  const sameCategory = await Course.find({
+  const courses = await Course.find({
     _id: { $ne: courseId },
-    category,
     published: true,
   })
     .sort({ order: 1, createdAt: 1 })
-    .limit(3)
+    .limit(8)
     .lean();
 
-  let related = [...sameCategory];
-  if (related.length < 3) {
-    const others = await Course.find({
-      _id: { $nin: [courseId, ...related.map((c) => c._id)] },
-      published: true,
-    })
-      .sort({ order: 1, createdAt: 1 })
-      .limit(3 - related.length)
-      .lean();
-    related = [...related, ...others];
-  }
-
   const withLectureCounts = await Promise.all(
-    related.map(async (c) => {
+    courses.map(async (c) => {
       const lectureCount = await Lecture.countDocuments({
         courseId: c._id,
         published: true,
@@ -178,6 +192,7 @@ export async function getCachedRelatedCourses(courseId, category) {
         slug: c.slug,
         category: c.category,
         tone: c.tone,
+        theme: c.theme || c.tone || "blue",
         lectureCount,
       };
     })
@@ -191,7 +206,9 @@ export async function getCachedRelatedCourses(courseId, category) {
  */
 export async function getAdminCourses() {
   await connectDB();
-  const courses = await Course.find().sort({ order: 1, createdAt: -1 }).lean();
+  const courses = await Course.find({
+    slug: { $not: /^e2e-/ }
+  }).sort({ homeOrder: 1, sortOrder: 1, order: 1, createdAt: 1 }).lean();
 
   const coursesWithStats = await Promise.all(
     courses.map(async (c) => {
@@ -261,20 +278,33 @@ export async function createCourse(data, adminId) {
     classLabel: (data.classLabel || "Class 12").trim(),
     badgeText: (data.badgeText || "").trim(),
     badgeVariant: data.badgeVariant || "crown-navy",
-    tone: assignedTone,
+    theme: data.theme || assignedTone || "blue",
+    tone: data.theme || assignedTone || "sky",
     illustration: data.illustration || "books-blue",
+    illustrationKey: (data.illustrationKey || "").trim(),
+    illustrationUrl: (data.illustrationUrl || "").trim(),
     illustrationAssetId: data.illustrationAssetId || null,
     description: (data.description || "").trim(),
+    metaLeft: (data.metaLeft || "").trim(),
+    metaRight: (data.metaRight || "").trim(),
     metaIcon: data.metaIcon || "video",
     metaText: (data.metaText || "").trim(),
+    rating: typeof data.rating === "number" ? data.rating : 4.8,
+    ratingCount: typeof data.ratingCount === "number" ? data.ratingCount : 0,
+    categories: Array.isArray(data.categories) ? data.categories : [],
+    price: data.price !== undefined ? data.price : 0,
+    status: data.status || (data.published ? "published" : "draft"),
+    showOnHome: Boolean(data.showOnHome ?? data.featured),
+    homeOrder: typeof data.homeOrder === "number" ? data.homeOrder : nextOrder,
+    sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : nextOrder,
     language: (data.language || "Bilingual").trim(),
     facultyName: (data.facultyName || "Ronak Dugar").trim(),
     facultyRole: (data.facultyRole || "Lead Accountancy Faculty").trim(),
     facultyAvatarAssetId: data.facultyAvatarAssetId || null,
     whatsappText: (data.whatsappText || "").trim(),
     thumbnail: (data.thumbnail || "").trim(),
-    published: !!data.published,
-    featured: !!data.featured,
+    published: data.status === "published" || !!data.published,
+    featured: Boolean(data.showOnHome ?? data.featured),
     order: data.order !== undefined && data.order !== null && !isNaN(Number(data.order)) ? Number(data.order) : nextOrder,
     about: (data.about || "").trim(),
     highlights: Array.isArray(data.highlights) ? data.highlights : [],
@@ -291,6 +321,14 @@ export async function createCourse(data, adminId) {
     targetType: "course",
     targetId: course._id.toString(),
     meta: { title: course.title, slug: course.slug },
+  });
+
+  await createAdminNotification({
+    type: "course_created",
+    title: "Course Created",
+    message: `Course "${course.title}" was created`,
+    link: `/admin/courses/${course._id}`,
+    entityId: course._id.toString(),
   });
 
   await invalidateCoursesCache();
@@ -329,21 +367,47 @@ export async function updateCourse(courseId, data, adminId) {
   if (data.classLabel !== undefined) course.classLabel = data.classLabel.trim();
   if (data.badgeText !== undefined) course.badgeText = (data.badgeText || "").trim();
   if (data.badgeVariant !== undefined) course.badgeVariant = data.badgeVariant;
-  if (data.tone !== undefined) course.tone = data.tone;
+  if (data.theme !== undefined) {
+    course.theme = data.theme;
+    course.tone = data.theme;
+  }
+  if (data.tone !== undefined && !data.theme) course.tone = data.tone;
   if (data.illustration !== undefined) course.illustration = data.illustration;
+  if (data.illustrationKey !== undefined) course.illustrationKey = data.illustrationKey.trim();
+  if (data.illustrationUrl !== undefined) course.illustrationUrl = data.illustrationUrl.trim();
   if (data.illustrationAssetId !== undefined) course.illustrationAssetId = data.illustrationAssetId;
   if (typeof data.description === "string") course.description = data.description.trim();
+  if (data.metaLeft !== undefined) course.metaLeft = (data.metaLeft || "").trim();
+  if (data.metaRight !== undefined) course.metaRight = (data.metaRight || "").trim();
   if (data.metaIcon !== undefined) course.metaIcon = data.metaIcon;
   if (data.metaText !== undefined) course.metaText = (data.metaText || "").trim();
+  if (data.rating !== undefined) course.rating = Number(data.rating);
+  if (data.ratingCount !== undefined) course.ratingCount = Number(data.ratingCount);
+  if (Array.isArray(data.categories)) course.categories = data.categories;
+  if (data.price !== undefined) course.price = data.price;
+  if (data.status !== undefined) {
+    course.status = data.status;
+    course.published = data.status === "published";
+  } else if (typeof data.published === "boolean") {
+    course.published = data.published;
+    course.status = data.published ? "published" : "draft";
+  }
+  if (typeof data.showOnHome === "boolean") {
+    course.showOnHome = data.showOnHome;
+    course.featured = data.showOnHome;
+  } else if (typeof data.featured === "boolean") {
+    course.featured = data.featured;
+    course.showOnHome = data.featured;
+  }
+  if (typeof data.homeOrder === "number") course.homeOrder = data.homeOrder;
+  if (typeof data.sortOrder === "number") course.sortOrder = data.sortOrder;
+  if (typeof data.order === "number") course.order = data.order;
   if (data.language !== undefined) course.language = (data.language || "Bilingual").trim();
   if (data.facultyName !== undefined) course.facultyName = (data.facultyName || "Ronak Dugar").trim();
   if (data.facultyRole !== undefined) course.facultyRole = (data.facultyRole || "Lead Accountancy Faculty").trim();
   if (data.facultyAvatarAssetId !== undefined) course.facultyAvatarAssetId = data.facultyAvatarAssetId;
   if (data.whatsappText !== undefined) course.whatsappText = (data.whatsappText || "").trim();
   if (typeof data.thumbnail === "string") course.thumbnail = data.thumbnail.trim();
-  if (typeof data.published === "boolean") course.published = data.published;
-  if (typeof data.featured === "boolean") course.featured = data.featured;
-  if (typeof data.order === "number") course.order = data.order;
   if (data.about !== undefined) course.about = (data.about || "").trim();
   if (Array.isArray(data.highlights)) course.highlights = data.highlights;
   if (Array.isArray(data.includes)) course.includes = data.includes;
@@ -362,9 +426,56 @@ export async function updateCourse(courseId, data, adminId) {
     meta: { title: course.title },
   });
 
+  await createAdminNotification({
+    type: "course_updated",
+    title: "Course Updated",
+    message: `Course "${course.title}" was updated`,
+    link: `/admin/courses/${course._id}`,
+    entityId: course._id.toString(),
+  });
+
   await invalidateCoursesCache();
 
   return course;
+}
+
+/**
+ * Duplicates a course.
+ */
+export async function duplicateCourse(courseId, adminId) {
+  await connectDB();
+  const source = await Course.findById(courseId).lean();
+  if (!source) throw new Error("Course not found.");
+
+  let baseSlug = `${source.slug}-copy`;
+  let slug = baseSlug;
+  let counter = 1;
+  while (await Course.exists({ slug })) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  const { _id, createdAt, updatedAt, __v, ...rest } = source;
+  const duplicate = await Course.create({
+    ...rest,
+    title: `${source.title} (Copy)`,
+    slug,
+    status: "draft",
+    published: false,
+    showOnHome: false,
+    featured: false,
+  });
+
+  await logAuditEvent({
+    actorId: adminId,
+    action: "course.duplicated",
+    targetType: "course",
+    targetId: duplicate._id.toString(),
+    meta: { sourceId: courseId, title: duplicate.title, slug: duplicate.slug },
+  });
+
+  await invalidateCoursesCache();
+  return duplicate;
 }
 
 /**

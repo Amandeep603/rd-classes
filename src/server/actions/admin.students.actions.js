@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import connectDB from "../db/connect.js";
+import { requireAdminApi } from "../auth/session.js";
 import {
   studentCreateSchema,
   studentUpdateSchema,
@@ -39,7 +40,9 @@ function checkRevealRateLimit(adminId) {
 }
 
 export async function createStudentAction(prevState, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const courseIdsRaw = formData.getAll("courseIds");
   const raw = {
@@ -77,7 +80,9 @@ export async function createStudentAction(prevState, formData) {
 }
 
 export async function createStudentWizardAction(payload) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   if (!payload?.name || typeof payload.name !== "string" || !payload.name.trim()) {
     return { success: false, error: "Student name is required." };
@@ -118,7 +123,9 @@ export async function createStudentWizardAction(payload) {
 
 
 export async function updateStudentProfileAction(studentId, prevState, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const raw = {
     name: formData.get("name"),
@@ -145,7 +152,9 @@ export async function updateStudentProfileAction(studentId, prevState, formData)
 }
 
 export async function blockStudentAction(studentId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   try {
     await blockStudent(studentId, admin.user._id);
     revalidatePath(`/admin/students/${studentId}`);
@@ -157,7 +166,9 @@ export async function blockStudentAction(studentId) {
 }
 
 export async function unblockStudentAction(studentId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   try {
     await unblockStudent(studentId, admin.user._id);
     revalidatePath(`/admin/students/${studentId}`);
@@ -169,7 +180,9 @@ export async function unblockStudentAction(studentId) {
 }
 
 export async function resetStudentPasswordAction(studentId, prevState, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const raw = {
     newPassword: formData.get("newPassword"),
@@ -199,7 +212,9 @@ export async function resetStudentPasswordAction(studentId, prevState, formData)
 }
 
 export async function enrollStudentAction(userId, courseId, expiresAt = null) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { enrollStudentInCourse } = await import("../services/enrollmentService.js");
   try {
     await enrollStudentInCourse({
@@ -216,7 +231,9 @@ export async function enrollStudentAction(userId, courseId, expiresAt = null) {
 }
 
 export async function revokeEnrollmentAction(enrollmentId, userId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { revokeEnrollment } = await import("../services/enrollmentService.js");
   try {
     await revokeEnrollment(enrollmentId, admin.user._id);
@@ -232,7 +249,10 @@ export async function revokeEnrollmentAction(enrollmentId, userId) {
  * Never stores or logs the password.
  */
 export async function sendCredentialsEmailAction(studentId, { password }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+  await connectDB();
   if (!password || typeof password !== "string") {
     return { success: false, error: "Password is required to send credentials." };
   }
@@ -311,7 +331,9 @@ export async function sendCredentialsEmailAction(studentId, { password }) {
  * Resets a student's password, emails the new password, and shows it ONCE to the admin.
  */
 export async function resetStudentPasswordAndEmailAction(studentId, revokeSessions = true) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { resetStudentPasswordAndEmail } = await import("../services/studentService.js");
 
   try {
@@ -331,7 +353,8 @@ export async function resetStudentPasswordAndEmailAction(studentId, revokeSessio
  * Checks email configuration status and daily limits.
  */
 export async function checkEmailConfigAction() {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { isConfigured: false, error: "Unauthorized" };
   const { isEmailConfigured, checkDailyQuota, getEmailConfig } = await import(
     "../email/emailConfig.js"
   );
@@ -352,7 +375,9 @@ export async function checkEmailConfigAction() {
  * Sends a test email to the specified recipient.
  */
 export async function sendTestEmailAction(toEmail) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { isEmailConfigured, getEmailConfig } = await import("../email/emailConfig.js");
   const { sendEmail } = await import("../email/emailService.js");
   const { renderTestTemplate } = await import("../email/templates/deviceApproved.js");
@@ -401,7 +426,9 @@ export async function sendTestEmailAction(toEmail) {
  * Bulk imports students from parsed CSV rows.
  */
 export async function importStudentsFromCSVAction({ rows }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { importStudentsFromCSV } = await import("../services/studentService.js");
 
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -427,7 +454,10 @@ export async function importStudentsFromCSVAction({ rows }) {
  * Plaintext passwords are provided from client memory (returned once from import).
  */
 export async function sendBulkImportCredentialsChunkAction({ items, batchId }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+  await connectDB();
   const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
   const { sendEmail } = await import("../email/emailService.js");
   const { renderCredentialsTemplate } = await import("../email/templates/credentials.js");
@@ -525,7 +555,8 @@ export async function sendBulkImportCredentialsChunkAction({ items, batchId }) {
  * Checks whether the credential encryption key is properly configured in environment.
  */
 export async function checkCredentialEncryptionConfigAction() {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { configured: false, error: "Unauthorized" };
   return { configured: isEncryptionKeyConfigured() };
 }
 
@@ -534,7 +565,10 @@ export async function checkCredentialEncryptionConfigAction() {
  * Requires admin re-authentication, rate limited to 5/minute, and audits access.
  */
 export async function revealStudentPasswordAction({ studentId, adminPassword }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+  await connectDB();
 
   if (!checkRevealRateLimit(admin.user._id)) {
     return {
@@ -607,7 +641,10 @@ export async function revealStudentPasswordAction({ studentId, adminPassword }) 
  * WITHOUT resetting the student's password.
  */
 export async function sendStudentCredentialsAction({ studentId, sendEmail: wantEmail = true }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+  await connectDB();
   const { User } = await import("../db/models/User.js");
   const { Enrollment } = await import("../db/models/Enrollment.js");
   const { Course } = await import("../db/models/Course.js");
@@ -717,7 +754,10 @@ export async function bulkResetAndEmailCredentialsChunkAction({
   batchId,
   autoResetMissing = true,
 }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
+  await connectDB();
   const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
   const { resetStudentPasswordAndEmail } = await import("../services/studentService.js");
   const { User } = await import("../db/models/User.js");

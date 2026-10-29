@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireStudent } from "../auth/session.js";
+import { requireStudentApi } from "../auth/session.js";
 import { progressSaveSchema } from "../validation/schemas.js";
 import { saveLectureProgress } from "../services/progressService.js";
 import connectDB from "../db/connect.js";
@@ -9,7 +9,8 @@ import { Progress } from "../db/models/Progress.js";
 import { Lecture } from "../db/models/Lecture.js";
 
 export async function saveProgressAction(payload) {
-  const auth = await requireStudent();
+  const auth = await requireStudentApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
 
   const parsed = progressSaveSchema.safeParse(payload);
   if (!parsed.success) {
@@ -31,7 +32,9 @@ export async function saveProgressAction(payload) {
 }
 
 export async function markLectureCompleteAction(lectureId) {
-  const auth = await requireStudent();
+  const auth = await requireStudentApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+
   try {
     const result = await saveLectureProgress({
       userId: auth.user._id,
@@ -48,7 +51,9 @@ export async function markLectureCompleteAction(lectureId) {
 }
 
 export async function toggleBookmarkAction(lectureId) {
-  const auth = await requireStudent();
+  const auth = await requireStudentApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+
   await connectDB();
 
   const lecture = await Lecture.findById(lectureId).lean();

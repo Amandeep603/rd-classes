@@ -1,5 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer/Footer";
+import Footer from "@/components/layout/Footer/Footer.jsx";
 import ScrollProgressBar from "@/components/ui/ScrollProgressBar";
 import { FOOTER_CONTACT } from "@/constants/footer";
 
@@ -43,7 +43,7 @@ export default function MarketingLayout({ children }) {
       />
       <ScrollProgressBar />
       <Navbar />
-      <div className="flex-1 w-full flex flex-col">{children}</div>
+      <div className="flex-1 w-full flex flex-col pt-[var(--nav-h,84px)]">{children}</div>
       <Footer />
     </>
   );

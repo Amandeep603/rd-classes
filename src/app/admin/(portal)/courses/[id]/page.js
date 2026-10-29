@@ -1,12 +1,12 @@
-import { redirect, notFound } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { notFound } from "next/navigation";
+import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { getAdminLecturesByCourse } from "@/server/services/lectureService.js";
 import PortalCourseDetailView from "@/components/portal/admin/PortalCourseDetailView.jsx";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
@@ -17,11 +17,8 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function AdminCourseLecturesPage({ params }) {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function CourseLecturesContent({ params }) {
+  await requireAdmin();
 
   const { id } = await params;
   await connectDB();
@@ -32,7 +29,7 @@ export default async function AdminCourseLecturesPage({ params }) {
     Course.findById(id).lean(),
     getAdminLecturesByCourse(id),
     Enrollment.find({ courseId: id })
-      .populate("userId", "name studentCode loginId phone")
+      .populate("studentId", "name loginId phone")
       .lean(),
     getNotesForCourse(id),
   ]);
@@ -56,3 +53,10 @@ export default async function AdminCourseLecturesPage({ params }) {
   );
 }
 
+export default function AdminCourseLecturesPage(props) {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <CourseLecturesContent params={props.params} />
+    </Suspense>
+  );
+}

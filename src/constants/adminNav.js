@@ -1,6 +1,5 @@
 /**
  * Admin Portal Navigation Configuration
- * Feature flags govern visibility of admin modules.
  */
 
 export const adminNavItems = [
@@ -16,6 +15,13 @@ export const adminNavItems = [
     label: "Students",
     href: "/admin/students",
     icon: "students",
+    enabled: true,
+  },
+  {
+    id: "enquiries",
+    label: "Enquiries",
+    href: "/admin/enquiries",
+    icon: "enquiries",
     enabled: true,
   },
   {
@@ -41,10 +47,45 @@ export const adminNavItems = [
     enabled: true,
   },
   {
+    id: "notes",
+    label: "Notes",
+    href: "/admin/notes",
+    icon: "notes",
+    enabled: true,
+  },
+  {
     id: "tests",
     label: "Tests",
     href: "/admin/tests",
     icon: "tests",
+    enabled: true,
+  },
+  {
+    id: "toppers",
+    label: "Toppers",
+    href: "/admin/toppers",
+    icon: "toppers",
+    enabled: true,
+  },
+  {
+    id: "results",
+    label: "Result PDFs",
+    href: "/admin/result-pdfs",
+    icon: "results",
+    enabled: true,
+  },
+  {
+    id: "gallery",
+    label: "Gallery",
+    href: "/admin/gallery",
+    icon: "gallery",
+    enabled: true,
+  },
+  {
+    id: "reviews",
+    label: "Reviews",
+    href: "/admin/reviews",
+    icon: "reviews",
     enabled: true,
   },
   {
@@ -66,51 +107,9 @@ export const adminNavItems = [
     label: "Activity",
     href: "/admin/activity",
     icon: "activity",
-    enabled: true,
-  },
-  // Feature-gated modules (hidden behind flags until arrival in next prompts)
-  {
-    id: "notes",
-    label: "Notes",
-    href: "/admin/notes",
-    icon: "notes",
-    enabled: true,
-  },
-  {
-    id: "toppers",
-    label: "Toppers",
-    href: "/admin/toppers",
-    icon: "toppers",
     enabled: false,
-  },
-  {
-    id: "results",
-    label: "Result PDFs",
-    href: "/admin/results",
-    icon: "results",
-    enabled: false,
-  },
-  {
-    id: "gallery",
-    label: "Gallery",
-    href: "/admin/gallery",
-    icon: "gallery",
-    enabled: false,
-  },
-  {
-    id: "reviews",
-    label: "Reviews",
-    href: "/admin/reviews",
-    icon: "reviews",
-    enabled: false,
-  },
-  {
-    id: "media",
-    label: "Media",
-    href: "/admin/media",
-    icon: "media",
-    enabled: true,
   },
 ];
 
 export const ADMIN_NAV_ITEMS = adminNavItems;
+export default adminNavItems;

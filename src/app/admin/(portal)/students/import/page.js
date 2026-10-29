@@ -1,15 +1,15 @@
+import { Suspense } from "react";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import CSVImportWizard from "@/components/portal/admin/CSVImportWizard";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Bulk CSV Import | RD Classes Admin",
 };
 
-export default async function AdminStudentImportPage() {
+async function ImportContent() {
   await getCurrentUser();
   await connectDB();
 
@@ -20,4 +20,12 @@ export default async function AdminStudentImportPage() {
   const serializedCourses = JSON.parse(JSON.stringify(availableCourses));
 
   return <CSVImportWizard availableCourses={serializedCourses} />;
+}
+
+export default function AdminStudentImportPage() {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <ImportContent />
+    </Suspense>
+  );
 }

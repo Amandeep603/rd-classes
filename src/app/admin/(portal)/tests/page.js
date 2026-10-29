@@ -1,23 +1,19 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Test } from "@/server/db/models/Test.js";
 import { TestResult } from "@/server/db/models/TestResult.js";
 import { Course } from "@/server/db/models/Course.js";
 import { User } from "@/server/db/models/User.js";
 import PortalTestsView from "@/components/portal/admin/PortalTestsView.jsx";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Mock Tests & Marks | RD Classes Admin",
 };
 
-export default async function AdminTestsPage() {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function TestsContent() {
+  await requireAdmin();
 
   await connectDB();
 
@@ -25,7 +21,7 @@ export default async function AdminTestsPage() {
     Test.find().sort({ startsAt: -1 }).lean(),
     Course.find().select("title").sort({ order: 1 }).lean(),
     User.find({ role: "student" })
-      .select("name studentCode loginId className")
+      .select("name loginId className")
       .sort({ name: 1 })
       .lean(),
     TestResult.find().lean(),
@@ -53,5 +49,13 @@ export default async function AdminTestsPage() {
       students={serializedStudents}
       initialResultsMap={resultsMap}
     />
+  );
+}
+
+export default function AdminTestsPage() {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <TestsContent />
+    </Suspense>
   );
 }

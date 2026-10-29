@@ -1,28 +1,49 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import { SITE_CONFIG } from "@/constants/site";
 import MobileMenu from "./MobileMenu";
+import NavbarAuthPill from "./NavbarAuthPill";
 
 /**
- * Primary fixed navigation header replicating the design specification.
- * - Fixed overlay over hero at y=0
- * - Transitions to solid #0A0A0A with blur and border after 80px scroll
- * - Left: White rounded tile with original brand logo
- * - Center: Dynamic nav items including 'More' dropdown
- * - Right: 'Student Login' ghost link + yellow WhatsApp 'Enquire Now ->' button
- * - Breakpoint: < 1200px shows compact Enquire + hamburger drawer
+ * Primary fixed navigation header:
+ * - Position: fixed at top: 0, width: 100%, z-index: 1000 on ALL pages.
+ * - Solid dark background (#0A0A0A / rgba(10,10,10,0.96) with backdrop blur) at all times.
+ * - Scroll polish beyond 20px: subtle border, shadow, height transitions from 84px to 72px.
+ * - Left: White rounded tile with original brand logo.
+ * - Center: Dynamic nav items with active yellow (#FFB800) underline + solid dark More dropdown.
+ * - Right: Student Login link + yellow (#FFB800) Enquire Now button.
+ * - Mobile: Dark header bar + solid dark slide-down menu.
  */
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [enquireHref, setEnquireHref] = useState(SITE_CONFIG.cta.enquire.href);
   const dropdownRef = useRef(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings?.whatsapp) {
+          const num = data.settings.whatsapp.replace(/\D/g, "");
+          if (num) {
+            setEnquireHref(
+              `https://wa.me/${num}?text=${encodeURIComponent(
+                SITE_CONFIG.contact.enquiryMessage
+              )}`
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let ticking = false;
@@ -30,7 +51,7 @@ export default function Navbar() {
     const handleScroll = () => {
       if (!ticking) {
         requestAnimationFrame(() => {
-          const scrolled = window.scrollY > 80;
+          const scrolled = window.scrollY > 20;
           if (scrolled !== wasScrolled) {
             wasScrolled = scrolled;
             setIsScrolled(scrolled);
@@ -67,40 +88,27 @@ export default function Navbar() {
     return () => window.removeEventListener("resize", handleResize);
   }, [mobileMenuOpen]);
 
-  const isSolid = pathname !== "/" || isScrolled;
-
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 w-full transition-colors duration-200 flex items-center px-5 lg:px-[6.25vw] h-[64px] lg:h-[clamp(64px,calc(var(--u)*88),96px)] ${
-          isSolid
-            ? "bg-[#0A0A0A] border-b border-white/[0.08]"
-            : "bg-transparent border-none"
+        className={`fixed top-0 left-0 right-0 z-[1000] w-full flex items-center px-5 lg:px-[6.25vw] transition-all duration-300 ease-in-out ${
+          isScrolled
+            ? "h-[72px] border-b border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.25)]"
+            : "h-[84px] border-b border-white/[0.08] shadow-none"
         }`}
-        style={
-          isSolid
-            ? {
-                backgroundColor: "#0A0A0A",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-                boxShadow: "none",
-                backdropFilter: "none",
-                WebkitBackdropFilter: "none",
-              }
-            : {
-                backgroundColor: "transparent",
-                border: "none",
-                boxShadow: "none",
-                backdropFilter: "none",
-                WebkitBackdropFilter: "none",
-                backgroundImage: "none",
-              }
-        }
+        style={{
+          backgroundColor: "rgba(10, 10, 10, 0.96)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
       >
         <div className="w-full flex items-center justify-between">
           {/* Left: Original Logo Tile */}
           <Link
             href="/"
-            className="inline-flex items-center justify-center bg-white px-[6px] py-[3px] rounded-[12px] shadow-md hover:opacity-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] shrink-0 h-[44px] lg:h-[clamp(44px,calc(var(--u)*62),62px)]"
+            className={`inline-flex items-center justify-center bg-white px-[6px] py-[3px] rounded-[12px] shadow-md hover:opacity-95 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] shrink-0 ${
+              isScrolled ? "h-[46px] lg:h-[50px]" : "h-[50px] lg:h-[56px]"
+            }`}
             aria-label="RD Classes Home"
           >
             <div className="relative h-full flex items-center">
@@ -121,7 +129,7 @@ export default function Navbar() {
             aria-label="Primary"
             className="hidden min-[1200px]:flex items-center"
             style={{
-              gap: "clamp(18px, calc(var(--u) * 28), 36px)",
+              gap: "clamp(18px, 1.8vw, 36px)",
             }}
           >
             {SITE_CONFIG.navLinks.map((link) => {
@@ -134,7 +142,7 @@ export default function Navbar() {
                       onClick={() => setDropdownOpen((prev) => !prev)}
                       className="flex items-center gap-1 font-medium text-white/90 hover:text-[#FFB800] transition-colors py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] rounded-sm cursor-pointer"
                       style={{
-                        fontSize: "max(13px, calc(var(--u) * 16))",
+                        fontSize: "15px",
                       }}
                       aria-expanded={dropdownOpen}
                       aria-haspopup="true"
@@ -147,15 +155,15 @@ export default function Navbar() {
                       />
                     </button>
 
-                    {/* Dropdown Menu */}
+                    {/* Dropdown Menu: Solid dark background with white text */}
                     {dropdownOpen && (
-                      <div className="absolute top-full left-0 mt-2 w-36 py-2 bg-[#0A0A0A]/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-xl flex flex-col z-50">
+                      <div className="absolute top-full left-0 mt-3 w-44 py-2 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-col z-[1010]">
                         {link.children.map((child) => (
                           <Link
                             key={child.href}
                             href={child.href}
                             onClick={() => setDropdownOpen(false)}
-                            className="px-4 py-2 text-sm text-white/80 hover:text-[#FFB800] hover:bg-white/5 transition-colors"
+                            className="px-4 py-2.5 text-sm font-medium text-white/90 hover:text-[#FFB800] hover:bg-white/5 transition-colors"
                           >
                             {child.label}
                           </Link>
@@ -179,9 +187,8 @@ export default function Navbar() {
                       ? "text-white"
                       : "text-white/90 hover:text-[#FFB800]"
                   }`}
-
                   style={{
-                    fontSize: "max(13px, calc(var(--u) * 16))",
+                    fontSize: "15px",
                   }}
                 >
                   <span>{link.label}</span>
@@ -200,30 +207,24 @@ export default function Navbar() {
           <div
             className="hidden min-[1200px]:flex items-center"
             style={{
-              gap: "clamp(16px, calc(var(--u) * 24), 32px)",
+              gap: "clamp(16px, 1.5vw, 28px)",
             }}
           >
-            <Link
-              href={SITE_CONFIG.cta.studentLogin.href}
-              className="font-medium text-white/90 hover:text-[#FFB800] transition-colors whitespace-nowrap py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] rounded-sm"
-              style={{
-                fontSize: "max(13px, calc(var(--u) * 16))",
-              }}
+            <Suspense
+              fallback={
+                <div className="w-[98px] h-[34px] rounded-lg bg-white/5 animate-pulse shrink-0" />
+              }
             >
-              {SITE_CONFIG.cta.studentLogin.label}
-            </Link>
+              <NavbarAuthPill />
+            </Suspense>
 
             <a
-              href={SITE_CONFIG.cta.enquire.href}
+              href={enquireHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex items-center justify-center bg-[#FFB800] hover:bg-[#FFC933] active:bg-[#E5A600] text-[#0A0A0A] font-bold shadow-sm transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A] whitespace-nowrap"
+              className="group inline-flex items-center justify-center bg-[#FFB800] hover:bg-[#FFC933] active:bg-[#E5A600] text-[#0A0A0A] font-bold shadow-sm transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A] whitespace-nowrap px-6 rounded-lg text-[15px]"
               style={{
-                height: "clamp(42px, calc(var(--u) * 48), 54px)",
-                paddingLeft: "calc(var(--u) * 26)",
-                paddingRight: "calc(var(--u) * 26)",
-                borderRadius: "calc(var(--u) * 8)",
-                fontSize: "max(14px, calc(var(--u) * 16))",
+                height: isScrolled ? "44px" : "48px",
               }}
             >
               <span>{SITE_CONFIG.cta.enquire.label}</span>
@@ -237,7 +238,7 @@ export default function Navbar() {
           {/* Tablet & Mobile Right Bar (<1200px) */}
           <div className="min-[1200px]:hidden flex items-center gap-3">
             <a
-              href={SITE_CONFIG.cta.enquire.href}
+              href={enquireHref}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center bg-[#FFB800] hover:bg-[#FFC933] text-[#0A0A0A] font-bold text-xs sm:text-sm h-10 px-3.5 sm:px-4 rounded-md shadow-sm transition-colors"
@@ -269,6 +270,8 @@ export default function Navbar() {
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         currentPath={pathname}
+        isScrolled={isScrolled}
+        enquireHref={enquireHref}
       />
     </>
   );

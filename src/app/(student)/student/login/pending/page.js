@@ -41,7 +41,7 @@ export default async function PendingPage({ searchParams }) {
     <PendingDeviceView
       initialRequest={request}
       studentName={student?.name || "Student"}
-      studentCode={student?.studentCode || ""}
+      loginId={student?.loginId || ""}
     />
   );
 }

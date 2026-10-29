@@ -54,6 +54,15 @@ export async function createNote(data, adminId) {
     },
   });
 
+  const { createAdminNotification } = await import("./notificationService.js");
+  await createAdminNotification({
+    type: "note_uploaded",
+    title: "Note Uploaded",
+    message: `Note "${note.title}" was uploaded`,
+    link: "/admin/notes",
+    entityId: note._id.toString(),
+  });
+
   return note.toObject();
 }
 
@@ -188,8 +197,11 @@ export async function getCachedNotesForCourse(courseId) {
   cacheTag("courses");
   cacheLife("max");
   await connectDB();
-  const notes = await Note.find({ courseIds: courseId, published: true })
-    .select("_id title kind source pageCount section")
+  const notes = await Note.find({
+    $or: [{ courseId }, { courseIds: courseId }],
+    published: true,
+  })
+    .select("_id title kind category source pageCount section book chapter isFree")
     .sort({ order: 1, createdAt: -1 })
     .lean();
   return JSON.parse(JSON.stringify(notes));
@@ -204,18 +216,24 @@ export async function getCachedPublicNotes() {
   cacheLife("max");
   await connectDB();
   const notes = await Note.find({ published: true })
-    .populate("courseIds", "title slug tone category")
-    .select("_id title kind source pageCount section courseIds createdAt")
-    .sort({ order: 1, createdAt: -1 })
+    .populate("courseIds", "title slug theme tone category")
+    .select("_id title description category kind book chapter sizeBytes fileSize pageCount isFree section courseIds createdAt")
+    .sort({ sortOrder: 1, order: 1, createdAt: -1 })
     .lean();
 
   const sanitized = notes.map((n) => ({
     _id: n._id.toString(),
     title: n.title,
-    kind: n.kind,
-    source: n.source,
+    description: n.description || "",
+    category: n.category || n.kind || "notes",
+    kind: n.kind || n.category || "notes",
+    book: n.book || "",
+    chapter: n.chapter || "",
+    fileSize: n.sizeBytes || n.fileSize || 0,
+    sizeBytes: n.sizeBytes || n.fileSize || 0,
     pageCount: n.pageCount || 0,
     section: n.section || "General",
+    isFree: Boolean(n.isFree),
     courses: Array.isArray(n.courseIds)
       ? n.courseIds
           .filter(Boolean)
@@ -223,7 +241,8 @@ export async function getCachedPublicNotes() {
             _id: c._id.toString(),
             title: c.title,
             slug: c.slug,
-            tone: c.tone,
+            theme: c.theme || c.tone || "blue",
+            tone: c.tone || c.theme || "blue",
             category: c.category,
           }))
       : [],
@@ -329,9 +348,8 @@ export async function getStudentAccessibleNotes(userId, { courseId = "", kind = 
  */
 export async function checkNoteAccess(noteId, user) {
   await connectDB();
-  if (!user) return { allowed: false, reason: "unauthenticated" };
 
-  if (user.role === "admin") {
+  if (user?.role === "admin") {
     const note = await Note.findById(noteId).lean();
     if (!note) return { allowed: false, reason: "not_found" };
     return { allowed: true, note };
@@ -340,10 +358,24 @@ export async function checkNoteAccess(noteId, user) {
   const note = await Note.findOne({ _id: noteId, published: true }).lean();
   if (!note) return { allowed: false, reason: "not_found" };
 
+  // Rule 1: Free note is accessible to everyone (including non-logged-in visitors)
+  if (note.isFree) {
+    return { allowed: true, note };
+  }
+
+  // Rule 2: If locked, user must be authenticated
+  if (!user) return { allowed: false, reason: "unauthenticated" };
+
+  // Rule 3: Enrolled student in any attached course (courseIds or courseId)
   const now = new Date();
+  const allCourseIds = [
+    ...(Array.isArray(note.courseIds) ? note.courseIds : []),
+    ...(note.courseId ? [note.courseId] : []),
+  ];
+
   const activeEnrollment = await Enrollment.findOne({
     userId: user._id,
-    courseId: { $in: note.courseIds },
+    courseId: { $in: allCourseIds },
     status: "active",
     $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
   }).lean();

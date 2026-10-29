@@ -18,7 +18,7 @@ import StandaloneAuthBar from "./StandaloneAuthBar";
 export default function PendingDeviceView({
   initialRequest,
   studentName = "Student",
-  studentCode = "",
+  loginId = "",
 }) {
   const [status, setStatus] = useState(initialRequest?.status || "pending");
   const [rejectReason, setRejectReason] = useState(initialRequest?.note || "");
@@ -84,7 +84,7 @@ export default function PendingDeviceView({
   const whatsappPhone =
     SITE_CONFIG?.contact?.whatsapp?.replace(/\D/g, "") || "919999999999";
   const whatsappMsg = `Hello Sir, I have requested device approval for the RD Classes portal.\nStudent: ${studentName}${
-    studentCode ? ` (${studentCode})` : ""
+    loginId ? ` (${loginId})` : ""
   }\nDevice: ${deviceLabel}`;
   const whatsappUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
     whatsappMsg

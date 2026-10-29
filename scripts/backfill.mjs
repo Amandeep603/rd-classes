@@ -53,20 +53,20 @@ async function run() {
     console.log("✓ Initialized default Settings singleton.");
   }
 
-  // 2. Backfill studentCodes
-  const studentsWithoutCode = await User.find({
+  // 2. Backfill loginIds if missing
+  const studentsWithoutLoginId = await User.find({
     role: "student",
-    $or: [{ studentCode: null }, { studentCode: { $exists: false } }],
+    $or: [{ loginId: null }, { loginId: { $exists: false } }],
   }).sort({ createdAt: 1 });
 
-  console.log(`Found ${studentsWithoutCode.length} students without studentCode.`);
+  console.log(`Found ${studentsWithoutLoginId.length} students without loginId.`);
 
   const currentYear = new Date().getFullYear();
-  for (const student of studentsWithoutCode) {
+  for (const student of studentsWithoutLoginId) {
     const studentYear = student.createdAt
       ? new Date(student.createdAt).getFullYear()
       : currentYear;
-    const counterId = `studentCode:${studentYear}`;
+    const counterId = `studentLoginId:${studentYear}`;
 
     const counter = await Counter.findByIdAndUpdate(
       counterId,
@@ -77,12 +77,12 @@ async function run() {
     const seqNumber = String(counter.seq).padStart(3, "0");
     const generatedCode = `RD-${studentYear}-${seqNumber}`;
 
-    student.studentCode = generatedCode;
+    student.loginId = generatedCode;
     if (!student.className) {
       student.className = "12";
     }
     await student.save();
-    console.log(`✓ Backfilled ${student.loginId} -> ${generatedCode}`);
+    console.log(`✓ Backfilled ${student.name} -> ${generatedCode}`);
   }
 
   console.log("Backfill completed successfully.");

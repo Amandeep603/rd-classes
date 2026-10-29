@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { requireAdmin } from "../auth/session.js";
+import { requireAdminApi } from "../auth/session.js";
 import {
   lectureCreateSchema,
   lectureUpdateSchema,
@@ -16,7 +16,9 @@ import {
 import { fetchVimeoMetadata } from "../services/vimeo.js";
 
 export async function createLectureAction(courseId, prevState, formData) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const isFreeExplicit = formData.has("freePreview")
     ? formData.get("freePreview") === "on"
@@ -60,7 +62,9 @@ export async function updateLectureAction(
   prevState,
   formData
 ) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
 
   const isFreeExplicit = formData.has("freePreview")
     ? formData.get("freePreview") === "on"
@@ -100,7 +104,9 @@ export async function updateLectureAction(
 }
 
 export async function deleteLectureAction(lectureId, courseId) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   try {
     await deleteLecture(lectureId, admin.user._id);
     revalidatePath(`/admin/courses/${courseId}`);
@@ -112,7 +118,9 @@ export async function deleteLectureAction(lectureId, courseId) {
 }
 
 export async function reorderLecturesAction(courseId, orderedIds) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   try {
     await reorderLectures(courseId, orderedIds, admin.user._id);
     revalidatePath(`/admin/courses/${courseId}`);
@@ -124,7 +132,8 @@ export async function reorderLecturesAction(courseId, orderedIds) {
 }
 
 export async function fetchVimeoMetadataAction(vimeoId) {
-  await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
   return fetchVimeoMetadata(vimeoId);
 }
 
@@ -137,7 +146,9 @@ export async function bulkAddLecturesToCourseAction({
   section = "General",
   titlePrefix = "",
 }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { parseVimeoUrl, fetchVimeoMetadata } = await import("../services/vimeo.js");
   const { Lecture } = await import("../db/models/Lecture.js");
   const { logAuditEvent } = await import("../services/audit.js");
@@ -286,7 +297,9 @@ export async function bulkAddLecturesToCourseAction({
  * Moves a lecture to a different section within the course.
  */
 export async function moveLectureToSectionAction({ lectureId, courseId, newSection }) {
-  const admin = await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
+  const admin = auth;
   const { Lecture } = await import("../db/models/Lecture.js");
   const { logAuditEvent } = await import("../services/audit.js");
   const connectDB = (await import("../db/connect.js")).default;

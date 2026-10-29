@@ -1,4 +1,5 @@
 import "server-only";
+import mongoose from "mongoose";
 import connectDB from "../db/connect.js";
 import { Lecture } from "../db/models/Lecture.js";
 import { Course } from "../db/models/Course.js";
@@ -6,13 +7,69 @@ import { Enrollment } from "../db/models/Enrollment.js";
 import { Progress } from "../db/models/Progress.js";
 import { parseVimeoUrl } from "./vimeo.js";
 import { logAuditEvent } from "./audit.js";
+import { createAdminNotification } from "./notificationService.js";
+
+/**
+ * Server helper to determine if a lecture is free preview.
+ * Rule:
+ * 1. If any published lecture in courseLectures is explicitly marked as free (isFreePreview/freePreview/isPreview === true),
+ *    then only those explicitly marked lectures are free (the auto rule stops).
+ * 2. If NO lecture in courseLectures is marked free, the first published lecture (lowest book, chapter, position/order)
+ *    is treated as free automatically.
+ */
+export function isLectureFree(lecture, courseLectures = []) {
+  if (!lecture) return false;
+
+  const isMarkedFree = (l) =>
+    Boolean(l.isFreePreview || l.freePreview || l.isPreview);
+
+  const hasAnyExplicitFree = courseLectures.some((l) => isMarkedFree(l));
+
+  if (hasAnyExplicitFree) {
+    return isMarkedFree(lecture);
+  }
+
+  // Auto-rule: When no free lecture is set, the first published lecture is free automatically
+  const published = courseLectures
+    .filter((l) => l.published !== false && l.status !== "draft")
+    .sort((a, b) => {
+      const bookA = (a.book || "").trim();
+      const bookB = (b.book || "").trim();
+      if (bookA && bookB && bookA !== bookB) {
+        return bookA.localeCompare(bookB, undefined, { numeric: true });
+      }
+      const chapA = (a.chapter || a.section || "").trim();
+      const chapB = (b.chapter || b.section || "").trim();
+      if (chapA && chapB && chapA !== chapB) {
+        return chapA.localeCompare(chapB, undefined, { numeric: true });
+      }
+      const posA = a.position !== undefined ? a.position : (a.order ?? 0);
+      const posB = b.position !== undefined ? b.position : (b.order ?? 0);
+      return posA - posB;
+    });
+
+  if (published.length > 0) {
+    const firstPublished = published[0];
+    const lecId = lecture._id ? lecture._id.toString() : lecture.id ? lecture.id.toString() : "";
+    const firstId = firstPublished._id ? firstPublished._id.toString() : firstPublished.id ? firstPublished.id.toString() : "";
+    if (lecId && firstId && lecId === firstId) {
+      return true;
+    }
+  }
+
+  return isMarkedFree(lecture);
+}
 
 /**
  * Returns all lectures for a course (admin view).
  */
 export async function getAdminLecturesByCourse(courseId) {
   await connectDB();
-  return Lecture.find({ courseId }).sort({ order: 1, createdAt: 1 }).lean();
+  const lectures = await Lecture.find({ courseId }).sort({ order: 1, createdAt: 1 }).lean();
+  return lectures.map((lec) => ({
+    ...lec,
+    isFreePreview: isLectureFree(lec, lectures),
+  }));
 }
 
 /**
@@ -101,6 +158,14 @@ export async function createLecture(data, adminId) {
     targetType: "lecture",
     targetId: lecture._id.toString(),
     meta: { title: lecture.title, courseId: data.courseId },
+  });
+
+  await createAdminNotification({
+    type: "lecture_added",
+    title: "Lecture Added",
+    message: `Lecture "${lecture.title}" added to "${course.title}"`,
+    link: `/admin/courses/${course._id}`,
+    entityId: lecture._id.toString(),
   });
 
   return lecture;
@@ -269,16 +334,39 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
     return null;
   }
 
-  // Check enrollment or free preview
-  const now = new Date();
-  const enrollment = await Enrollment.findOne({
-    userId: studentId,
+  // Check enrollment or free preview using isLectureFree
+  const allCourseLectures = await Lecture.find({
     courseId: lecture.courseId,
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    published: true,
   }).lean();
+  const isFree = isLectureFree(lecture, allCourseLectures);
 
-  const isFree = Boolean(lecture.freePreview || lecture.isPreview);
+  let enrollment = null;
+  if (studentId) {
+    const now = new Date();
+    const studentIdObj = mongoose.Types.ObjectId.isValid(studentId)
+      ? new mongoose.Types.ObjectId(studentId)
+      : studentId;
+
+    enrollment = await Enrollment.findOne({
+      $and: [
+        {
+          $or: [
+            { userId: studentIdObj },
+            { studentId: studentIdObj },
+            { userId: studentId },
+            { studentId: studentId },
+          ],
+        },
+        { courseId: lecture.courseId },
+        { status: "active" },
+        {
+          $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+        },
+      ],
+    }).lean();
+  }
+
   if (!enrollment && !isFree) {
     return null;
   }

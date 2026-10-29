@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getStudentAuthStatus } from "@/server/auth/session.js";
 import StudentLoginForm from "@/components/portal/auth/StudentLoginForm";
 
 export const instant = false;
@@ -13,8 +13,8 @@ export const metadata = {
 };
 
 export default async function StudentLoginPage() {
-  const auth = await getCurrentUser();
-  if (auth && auth.user.role === "student") {
+  const auth = await getStudentAuthStatus();
+  if (auth && auth.authenticated && auth.user.role === "student") {
     redirect("/student");
   }
 

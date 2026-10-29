@@ -1,9 +1,5 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
-import connectDB from "@/server/db/connect.js";
-import { Settings } from "@/server/db/models/Settings.js";
-import { DeviceRequest } from "@/server/db/models/DeviceRequest.js";
+import { requireAdmin } from "@/server/auth/session.js";
 import AdminPortalShell from "@/components/portal/admin/AdminPortalShell";
 import { AdminDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 
@@ -15,28 +11,18 @@ export const metadata = {
   },
 };
 
-export default async function AdminPortalLayout({ children }) {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function AdminPortalAuthGuard({ children }) {
+  await requireAdmin();
+  return children;
+}
 
-  await connectDB();
-  const [settings, pendingCount] = await Promise.all([
-    Settings.findOne().lean(),
-    DeviceRequest.countDocuments({ status: "pending" }),
-  ]);
-
-  const workspaceName = settings?.workspaceName || "Ronak Sir Workspace";
-
+export default function AdminPortalLayout({ children }) {
   return (
-    <AdminPortalShell
-      adminUser={auth.user}
-      initialPendingCount={pendingCount}
-      workspaceName={workspaceName}
-    >
+    <AdminPortalShell>
       <Suspense fallback={<AdminDashboardSkeleton />}>
-        {children}
+        <AdminPortalAuthGuard>
+          {children}
+        </AdminPortalAuthGuard>
       </Suspense>
     </AdminPortalShell>
   );

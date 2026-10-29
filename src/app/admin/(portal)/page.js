@@ -1,129 +1,191 @@
-import { getCurrentUser } from "@/server/auth/session.js";
-import connectDB from "@/server/db/connect.js";
-import { User } from "@/server/db/models/User.js";
-import { DeviceRequest } from "@/server/db/models/DeviceRequest.js";
-import { Device } from "@/server/db/models/Device.js";
-import { Session } from "@/server/db/models/Session.js";
-import { Course } from "@/server/db/models/Course.js";
-import { Lecture } from "@/server/db/models/Lecture.js";
-import { Enrollment } from "@/server/db/models/Enrollment.js";
-import { Announcement } from "@/server/db/models/Announcement.js";
-import { AuditLog } from "@/server/db/models/AuditLog.js";
-import { Note } from "@/server/db/models/Note.js";
+import { requireAdmin } from "@/server/auth/session.js";
+import connectDB from "@/lib/mongodb";
+import {
+  User,
+  Device,
+  Session,
+  Lecture,
+  Note,
+  Topper,
+  ResultPdf,
+  ActivityLog,
+} from "@/lib/models";
 import AdminWelcomeBanner from "@/components/portal/admin/AdminWelcomeBanner";
-import AdminSetupChecklistCard from "@/components/portal/admin/AdminSetupChecklistCard";
-import StatTile from "@/components/portal/ui/StatTile";
+import StatCard from "@/components/admin/ui/StatCard";
 import AdminDeviceApprovalCard from "@/components/portal/admin/AdminDeviceApprovalCard";
 import AdminRecentActivityCard from "@/components/portal/admin/AdminRecentActivityCard";
-import AdminCoursesOverviewCard from "@/components/portal/admin/AdminCoursesOverviewCard";
-import AdminAnnouncementsCard from "@/components/portal/admin/AdminAnnouncementsCard";
+import AdminFeaturedToppersCard from "@/components/portal/admin/AdminFeaturedToppersCard";
+import AdminResultPdfsCard from "@/components/portal/admin/AdminResultPdfsCard";
 import {
   Users,
   Activity,
   Smartphone,
   Video,
-  BookOpen,
+  FileText,
   Award,
 } from "lucide-react";
 
-export const instant = false;
+import { Suspense } from "react";
+import { AdminDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Admin Dashboard | RD Classes",
 };
 
-export default async function AdminDashboardPage() {
-  const auth = await getCurrentUser();
+export default function AdminDashboardPage() {
+  return (
+    <Suspense fallback={<AdminDashboardSkeleton />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+async function DashboardContent() {
+  const auth = await requireAdmin();
   await connectDB();
 
+  const now = new Date();
+
+  // 1. Stat card counts - isolated so any single failure defaults to 0 and logs
   const [
     studentsCount,
-    pendingRequestsCount,
     activeSessionsCount,
-    coursesCount,
+    pendingDevicesCount,
     lecturesCount,
-    enrollmentsCount,
     notesCount,
-    pendingRequests,
-    recentLogs,
-    allCourses,
-    activeAnnouncements,
+    toppersCount,
   ] = await Promise.all([
-    User.countDocuments({ role: "student" }),
-    DeviceRequest.countDocuments({ status: "pending" }),
-    Session.countDocuments(),
-    Course.countDocuments({ published: true }),
-    Lecture.countDocuments({ published: true }),
-    Enrollment.countDocuments({ status: "active" }),
-    Note.countDocuments({ published: true }),
-    DeviceRequest.find({ status: "pending" })
-      .populate("userId", "name loginId studentCode deviceCount deviceLimit")
-      .sort({ createdAt: -1 })
-      .limit(6)
-      .lean(),
-    AuditLog.find()
-      .sort({ at: -1 })
-      .limit(8)
-      .populate("actorId", "name loginId")
-      .lean(),
-    Course.find({ published: true }).select("_id title slug published").lean(),
-    Announcement.find({ active: true }).sort({ startsAt: -1 }).limit(5).lean(),
+    User.countDocuments({ role: "student" }).catch((err) => {
+      console.error("[Dashboard] Error counting students:", err);
+      return 0;
+    }),
+    Session.countDocuments({
+      expiresAt: { $gt: now },
+      revoked: { $ne: true },
+    }).catch((err) => {
+      console.error("[Dashboard] Error counting active sessions:", err);
+      return 0;
+    }),
+    Device.countDocuments({ status: "pending" }).catch((err) => {
+      console.error("[Dashboard] Error counting pending devices:", err);
+      return 0;
+    }),
+    Lecture.countDocuments().catch((err) => {
+      console.error("[Dashboard] Error counting lectures:", err);
+      return 0;
+    }),
+    Note.countDocuments().catch((err) => {
+      console.error("[Dashboard] Error counting notes:", err);
+      return 0;
+    }),
+    Topper.countDocuments().catch((err) => {
+      console.error("[Dashboard] Error counting toppers:", err);
+      return 0;
+    }),
   ]);
 
-  // Map active devices for pending students
-  const studentIds = pendingRequests.map((r) => r.userId?._id).filter(Boolean);
-  const activeDevices = await Device.find({ userId: { $in: studentIds } }).lean();
+  // 2. Panel Queries - isolated so failures show an inline error inside that panel only
+  let pendingRequests = [];
+  let pendingRequestsError = null;
+  let activeDevicesMap = {};
 
-  const activeDevicesMap = {};
-  for (const d of activeDevices) {
-    const sId = d.userId.toString();
-    if (!activeDevicesMap[sId]) activeDevicesMap[sId] = [];
-    activeDevicesMap[sId].push(d);
+  try {
+    pendingRequests = await Device.find({ status: "pending" })
+      .populate("studentId", "name loginId deviceCount maxDevices deviceLimit")
+      .sort({ requestedAt: -1, createdAt: -1 })
+      .limit(6)
+      .lean();
+
+    // Map active devices for pending students
+    const studentIds = pendingRequests
+      .map((r) => r.studentId?._id || r.studentId)
+      .filter(Boolean);
+
+    if (studentIds.length > 0) {
+      const activeDevices = await Device.find({
+        studentId: { $in: studentIds },
+        status: { $in: ["approved", "active"] },
+      }).lean();
+
+      for (const d of activeDevices) {
+        const sId = (d.studentId?._id || d.studentId)?.toString();
+        if (sId) {
+          if (!activeDevicesMap[sId]) activeDevicesMap[sId] = [];
+          activeDevicesMap[sId].push(d);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Dashboard] Error loading pending devices:", err);
+    pendingRequestsError = err?.message || "Failed to load device requests";
   }
 
-  // Count lectures and students per course
-  const coursesWithCounts = await Promise.all(
-    allCourses.map(async (c) => {
-      const [lecCount, studCount] = await Promise.all([
-        Lecture.countDocuments({ courseId: c._id, published: true }),
-        Enrollment.countDocuments({ courseId: c._id, status: "active" }),
-      ]);
-      return {
-        _id: c._id.toString(),
-        title: c.title,
-        slug: c.slug,
-        published: c.published,
-        lecturesCount: lecCount,
-        studentsCount: studCount,
-      };
-    })
-  );
+  // Format pending requests for DeviceApprovalCard compatibility
+  const normalizedPendingRequests = pendingRequests.map((r) => {
+    const student = r.studentId || null;
+    return {
+      _id: r._id.toString(),
+      userId: student, // card accesses req.userId for student details
+      deviceId: r.deviceId,
+      label: r.deviceLabel || r.label || r.deviceName || "Personal Device",
+      userAgent: r.userAgent || "",
+      ip: r.ip || "",
+      status: r.status,
+      requestedAt: r.requestedAt || r.createdAt,
+      studentNote: r.studentNote || "",
+    };
+  });
 
-  const serializedRequests = JSON.parse(JSON.stringify(pendingRequests));
+  let recentLogs = [];
+  let recentLogsError = null;
+  try {
+    recentLogs = await ActivityLog.find()
+      .sort({ createdAt: -1, at: -1 })
+      .limit(6)
+      .populate("actorId", "name loginId")
+      .lean();
+  } catch (err) {
+    console.error("[Dashboard] Error loading recent activity:", err);
+    recentLogsError = err?.message || "Failed to load recent activity logs";
+  }
+
+  let featuredToppers = [];
+  let toppersError = null;
+  try {
+    featuredToppers = await Topper.find({ featured: true })
+      .sort({ year: -1, marks: -1 })
+      .limit(4)
+      .lean();
+  } catch (err) {
+    console.error("[Dashboard] Error loading featured toppers:", err);
+    toppersError = err?.message || "Failed to load featured toppers";
+  }
+
+  let resultPdfs = [];
+  let resultPdfsError = null;
+  try {
+    resultPdfs = await ResultPdf.find()
+      .sort({ year: -1, createdAt: -1 })
+      .limit(4)
+      .lean();
+  } catch (err) {
+    console.error("[Dashboard] Error loading result PDFs:", err);
+    resultPdfsError = err?.message || "Failed to load result PDFs";
+  }
+
+  const serializedRequests = JSON.parse(JSON.stringify(normalizedPendingRequests));
   const serializedLogs = JSON.parse(JSON.stringify(recentLogs));
-  const serializedAnnouncements = JSON.parse(
-    JSON.stringify(activeAnnouncements)
-  );
+  const serializedToppers = JSON.parse(JSON.stringify(featuredToppers));
+  const serializedPdfs = JSON.parse(JSON.stringify(resultPdfs));
 
   return (
     <div className="space-y-6">
       {/* 1. Welcome Banner */}
-      <AdminWelcomeBanner
-        adminName={auth?.user?.name || "Ronak Sir"}
-        courses={coursesWithCounts}
-      />
+      <AdminWelcomeBanner adminName={auth?.user?.name || "Ronak Sir"} />
 
-      {/* 1.5 Quick Setup Checklist (renders when setup is incomplete) */}
-      <AdminSetupChecklistCard
-        coursesCount={coursesCount}
-        lecturesCount={lecturesCount}
-        studentsCount={studentsCount}
-        notesCount={notesCount}
-      />
-
-      {/* 2. Six Stat Tiles */}
+      {/* 2. Six Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatTile
+        <StatCard
           icon={Users}
           value={studentsCount}
           label="Total Students"
@@ -131,7 +193,7 @@ export default async function AdminDashboardPage() {
           tone="yellow"
         />
 
-        <StatTile
+        <StatCard
           icon={Activity}
           value={activeSessionsCount}
           label="Active Logins"
@@ -139,56 +201,66 @@ export default async function AdminDashboardPage() {
           tone="blue"
         />
 
-        <StatTile
+        <StatCard
           icon={Smartphone}
-          value={pendingRequestsCount}
+          value={pendingDevicesCount}
           label="Pending Devices"
           href="/admin/device-requests"
           tone="red"
         />
 
-        <StatTile
+        <StatCard
           icon={Video}
           value={lecturesCount}
           label="Recorded Videos"
-          href="/admin/courses"
+          href="/admin/lectures"
           tone="indigo"
         />
 
-        <StatTile
-          icon={BookOpen}
-          value={coursesCount}
-          label="Active Courses"
-          href="/admin/courses"
+        <StatCard
+          icon={FileText}
+          value={notesCount}
+          label="Chapter Notes"
+          href="/admin/notes"
           tone="green"
         />
 
-        <StatTile
+        <StatCard
           icon={Award}
-          value={enrollmentsCount}
-          label="Enrolments"
-          href="/admin/students"
+          value={toppersCount}
+          label="Board Toppers"
+          href="/admin/toppers"
           tone="purple"
         />
       </div>
 
-      {/* 3. Main 2-Column Layout */}
+      {/* 3. Main 2-Column Panels Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (763 wide): Device Approval Requests + Recent Activity */}
+        {/* Left Column (7 cols): Device Approval Requests + Recent Activity */}
         <div className="lg:col-span-7 space-y-6">
           <AdminDeviceApprovalCard
             requests={serializedRequests}
             activeDevicesMap={activeDevicesMap}
+            error={pendingRequestsError}
           />
 
-          <AdminRecentActivityCard logs={serializedLogs} />
+          <AdminRecentActivityCard
+            logs={serializedLogs}
+            error={recentLogsError}
+          />
         </div>
 
-        {/* Right Column (416 wide): Courses Overview + Announcements */}
+        {/* Right Column (5 cols): Featured Toppers + Result PDFs */}
         <div className="lg:col-span-5 space-y-6">
-          <AdminCoursesOverviewCard courses={coursesWithCounts} />
+          <AdminFeaturedToppersCard
+            toppers={serializedToppers}
+            error={toppersError}
+          />
 
-          <AdminAnnouncementsCard announcements={serializedAnnouncements} />
+          <AdminResultPdfsCard
+            pdfs={serializedPdfs}
+            error={resultPdfsError}
+          />
         </div>
       </div>
     </div>

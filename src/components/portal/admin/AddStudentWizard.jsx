@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Dialog from "../ui/Dialog";
 import Button from "../ui/Button";
 import CopyButton from "../ui/CopyButton";
@@ -40,14 +40,15 @@ export default function AddStudentWizard({
   isOpen,
   onClose,
   courses = [],
+  initialValues = null,
 }) {
   const [step, setStep] = useState(1); // 1, 2, 3, or 4 (success)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   // Step 1: Details
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(initialValues?.name || "");
+  const [phone, setPhone] = useState(initialValues?.phone || "");
   const [email, setEmail] = useState("");
   const [className, setClassName] = useState("12");
   const [school, setSchool] = useState("");
@@ -55,11 +56,22 @@ export default function AddStudentWizard({
   // Step 2: Courses & Payment
   const currentYear = new Date().getFullYear();
   const defaultExpiryStr = `${currentYear + 1}-03-31`;
-  const [selectedCourses, setSelectedCourses] = useState([]);
+  const [selectedCourses, setSelectedCourses] = useState(
+    initialValues?.courseId ? [initialValues.courseId] : []
+  );
   const [courseExpiry, setCourseExpiry] = useState({});
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [paymentRemark, setPaymentRemark] = useState("");
+
+  // Sync initialValues during render when prop changes
+  const [prevInitialValues, setPrevInitialValues] = useState(initialValues);
+  if (initialValues !== prevInitialValues) {
+    setPrevInitialValues(initialValues);
+    if (initialValues?.name) setName(initialValues.name);
+    if (initialValues?.phone) setPhone(initialValues.phone);
+    if (initialValues?.courseId) setSelectedCourses([initialValues.courseId]);
+  }
 
   // Step 3: Credentials
   const [loginId, setLoginId] = useState("");
@@ -542,9 +554,9 @@ export default function AddStudentWizard({
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <span className="text-[#6B7280] block text-[11px]">Student Code</span>
-                <span className="font-mono font-bold text-[#111827]">
-                  {resultData.student.studentCode}
+                <span className="text-[#6B7280] block text-[11px]">Student</span>
+                <span className="font-bold text-[#111827]">
+                  {resultData.student.name}
                 </span>
               </div>
               <div>

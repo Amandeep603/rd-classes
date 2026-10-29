@@ -1,16 +1,16 @@
+import { Suspense } from "react";
 import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { getNotesList } from "@/server/services/noteService.js";
 import PortalNotesView from "@/components/portal/admin/PortalNotesView";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Notes & Materials | Admin Portal",
 };
 
-export default async function AdminNotesPage({ searchParams }) {
+async function NotesContent({ searchParams }) {
   await requireAdmin();
   await connectDB();
 
@@ -63,5 +63,13 @@ export default async function AdminNotesPage({ searchParams }) {
       courses={courses}
       currentFilters={{ q, courseId, kind }}
     />
+  );
+}
+
+export default function AdminNotesPage(props) {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <NotesContent searchParams={props.searchParams} />
+    </Suspense>
   );
 }

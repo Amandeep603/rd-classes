@@ -1,37 +1,33 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
-import { getRecentAuditLogs } from "@/server/services/audit.js";
-import AuditLogTable from "@/components/admin/AuditLogTable";
-import { Activity } from "lucide-react";
-
-export const instant = false;
+import { Suspense } from "react";
+import { requireAdmin } from "@/server/auth/session.js";
+import connectDB from "@/server/db/connect.js";
+import { ActivityLog } from "@/lib/models/ActivityLog";
+import PortalActivityView from "@/components/portal/admin/PortalActivityView";
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
-  title: "Audit Activity Log | RD Classes Admin",
+  title: "Activity Log | Admin Portal",
 };
 
-export default async function AdminActivityPage() {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function ActivityContent() {
+  await requireAdmin();
 
-  const rawLogs = await getRecentAuditLogs(200);
-  const logs = JSON.parse(JSON.stringify(rawLogs));
+  await connectDB();
+  const rawLogs = await ActivityLog.find()
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .populate("actorId", "name email loginId role")
+    .lean();
 
+  const serialized = JSON.parse(JSON.stringify(rawLogs));
+
+  return <PortalActivityView initialLogs={serialized} />;
+}
+
+export default function AdminActivityPage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <Activity className="w-6 h-6 text-[#FFB800]" />
-          <span>System & Administrative Audit Log</span>
-        </h1>
-        <p className="text-xs text-gray-400 mt-1">
-          Showing up to 200 most recent security, enrollment, and device events.
-        </p>
-      </div>
-
-      <AuditLogTable logs={logs} />
-    </div>
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <ActivityContent />
+    </Suspense>
   );
 }

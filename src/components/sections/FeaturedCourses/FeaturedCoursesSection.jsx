@@ -4,8 +4,10 @@ import Reveal from "@/components/ui/Reveal";
 import InViewSection from "@/components/ui/InViewSection";
 import CourseFilters, { CourseFilterProvider } from "./CourseFilters";
 import CourseGrid from "./CourseGrid";
-import { COURSE_FILTERS } from "@/constants/courseFilters";
-import { getCachedFeaturedCourses } from "@/server/services/courseService";
+import {
+  getCachedFeaturedCourses,
+  getCachedPublicCourses,
+} from "@/server/services/courseService";
 
 /**
  * Section B: Explore Popular Accountancy Courses (Featured Batches)
@@ -14,11 +16,41 @@ import { getCachedFeaturedCourses } from "@/server/services/courseService";
  * Hides completely when no published && featured courses exist.
  */
 export default async function FeaturedCoursesSection() {
-  const featuredCourses = await getCachedFeaturedCourses();
+  const [featuredCourses, allCourses] = await Promise.all([
+    getCachedFeaturedCourses(),
+    getCachedPublicCourses(),
+  ]);
 
   if (!featuredCourses || featuredCourses.length === 0) {
     return null;
   }
+
+  // Filter tabs: Standard tags + any newly created tags from courses
+  const baseFilters = [
+    { key: "all", label: "All Batches" },
+    { key: "Class 12 CBSE", label: "Class 12 CBSE" },
+    { key: "Class 11 Foundation", label: "Class 11 Foundation" },
+    { key: "Recorded Portal", label: "Recorded Portal" },
+    { key: "Crash Courses", label: "Crash Courses" },
+  ];
+
+  const existingKeys = new Set(baseFilters.map((f) => f.key.toLowerCase()));
+  const dynamicFilters = [...baseFilters];
+
+  allCourses.forEach((c) => {
+    if (Array.isArray(c.categories)) {
+      c.categories.forEach((cat) => {
+        const clean = (cat || "").trim();
+        if (clean && !existingKeys.has(clean.toLowerCase())) {
+          existingKeys.add(clean.toLowerCase());
+          dynamicFilters.push({
+            key: clean,
+            label: clean,
+          });
+        }
+      });
+    }
+  });
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -90,7 +122,7 @@ export default async function FeaturedCoursesSection() {
             }}
           >
             <Reveal delay={120} className="w-full">
-              <CourseFilters filters={COURSE_FILTERS} />
+              <CourseFilters filters={dynamicFilters} />
             </Reveal>
           </div>
 
@@ -102,7 +134,10 @@ export default async function FeaturedCoursesSection() {
             }}
           >
             <Reveal delay={200} className="w-full">
-              <CourseGrid courses={featuredCourses} />
+              <CourseGrid
+                featuredCourses={featuredCourses}
+                allCourses={allCourses}
+              />
             </Reveal>
           </div>
         </CourseFilterProvider>

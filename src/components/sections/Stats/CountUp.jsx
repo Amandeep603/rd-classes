@@ -31,7 +31,6 @@ export default function CountUp({ value, suffix = "", className = "" }) {
         process.env.NEXT_PUBLIC_FORCE_MOTION !== "1");
 
     if (isReducedMotion || numValue <= 0) {
-      setDisplayValue(formattedFinal);
       return;
     }
 
@@ -74,7 +73,7 @@ export default function CountUp({ value, suffix = "", className = "" }) {
     }
 
     return () => observer.disconnect();
-  }, [value, suffix, formattedFinal]);
+  }, [numValue, suffix, formattedFinal]);
 
   return (
     <span ref={containerRef} className={`tabular-nums ${className}`}>

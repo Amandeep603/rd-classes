@@ -1,11 +1,11 @@
-import { redirect, notFound } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { notFound } from "next/navigation";
+import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { getStudentDetail } from "@/server/services/studentService.js";
 import PortalStudentDetailView from "@/components/portal/admin/PortalStudentDetailView.jsx";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
@@ -14,11 +14,8 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function AdminStudentDetailPage({ params }) {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function StudentDetailContent({ params }) {
+  await requireAdmin();
 
   const { id } = await params;
   await connectDB();
@@ -48,3 +45,10 @@ export default async function AdminStudentDetailPage({ params }) {
   );
 }
 
+export default function AdminStudentDetailPage(props) {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <StudentDetailContent params={props.params} />
+    </Suspense>
+  );
+}

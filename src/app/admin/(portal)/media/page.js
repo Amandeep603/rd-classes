@@ -1,19 +1,15 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { requireAdmin } from "@/server/auth/session.js";
 import { getMediaAssetsService } from "@/server/services/mediaService.js";
 import PortalMediaView from "@/components/portal/admin/PortalMediaView.jsx";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Media Library | RD Classes Admin",
 };
 
-export default async function AdminMediaPage({ searchParams }) {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function MediaContent({ searchParams }) {
+  await requireAdmin();
 
   const sp = await searchParams;
   const kind = sp?.kind || "all";
@@ -30,4 +26,12 @@ export default async function AdminMediaPage({ searchParams }) {
   });
 
   return <PortalMediaView initialData={data} currentFilters={{ kind, search, showArchived, page }} />;
+}
+
+export default function AdminMediaPage(props) {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <MediaContent searchParams={props.searchParams} />
+    </Suspense>
+  );
 }

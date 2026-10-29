@@ -1,21 +1,17 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { Suspense } from "react";
+import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/server/db/models/Lecture.js";
 import { Course } from "@/server/db/models/Course.js";
 import PortalLecturesView from "@/components/portal/admin/PortalLecturesView.jsx";
-
-export const instant = false;
+import { AdminTableSkeleton } from "@/components/portal/ui/Skeleton";
 
 export const metadata = {
   title: "Lectures | RD Classes Admin",
 };
 
-export default async function AdminLecturesPage() {
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "admin") {
-    redirect("/admin/login");
-  }
+async function LecturesContent() {
+  await requireAdmin();
 
   await connectDB();
 
@@ -35,5 +31,13 @@ export default async function AdminLecturesPage() {
       lectures={serializedLectures}
       courses={serializedCourses}
     />
+  );
+}
+
+export default function AdminLecturesPage() {
+  return (
+    <Suspense fallback={<AdminTableSkeleton />}>
+      <LecturesContent />
+    </Suspense>
   );
 }

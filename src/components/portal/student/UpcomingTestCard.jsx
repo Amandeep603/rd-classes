@@ -8,126 +8,115 @@ import {
 } from "lucide-react";
 
 export default function UpcomingTestCard({ test }) {
-  if (!test) {
-    return (
-      <div className="flex h-[281px] flex-col items-center justify-center rounded-[22px] border border-black/5 bg-white p-6 text-center shadow-xs">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mb-3">
-          <CalendarCheck className="h-6 w-6" />
-        </div>
-        <h3 className="text-base font-bold text-[#111827]">
-          No Upcoming Tests Scheduled
-        </h3>
-        <p className="mt-1 max-w-xs text-xs text-[#6B7280]">
-          Sir announces Sunday mock tests in advance. Check back for the next schedule.
-        </p>
-      </div>
-    );
+  let monthStr = "NEXT";
+  let dayStr = "--";
+  let weekdayStr = "Sun";
+  let title = "No Mock Test Scheduled";
+  let timeStr = "Sunday 9:00 AM - 12:00 PM (Weekly slot)";
+  let syllabusStr = "Syllabus announced 3 days prior";
+  let venueStr = "RD Classes, Sector 9 Centre";
+  let kindPill = "SUNDAY MOCK";
+
+  if (test) {
+    const rawDate = test.testDate || test.startsAt || test.createdAt;
+    const startDate = rawDate ? new Date(rawDate) : null;
+    if (startDate && !isNaN(startDate.getTime())) {
+      monthStr = startDate
+        .toLocaleDateString("en-IN", {
+          month: "short",
+          timeZone: "Asia/Kolkata",
+        })
+        .toUpperCase();
+      dayStr = startDate.toLocaleDateString("en-IN", {
+        day: "numeric",
+        timeZone: "Asia/Kolkata",
+      });
+      weekdayStr = startDate.toLocaleDateString("en-IN", {
+        weekday: "short",
+        timeZone: "Asia/Kolkata",
+      });
+    }
+
+    const durationHours = Math.round((test.durationMin || 180) / 60);
+    const timeFormatted = test.startTime
+      ? `${test.startTime}${test.endTime ? ` - ${test.endTime}` : ""}`
+      : startDate.toLocaleTimeString("en-IN", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "Asia/Kolkata",
+        });
+
+    title = test.title || "Sunday Mock Test";
+    timeStr = `${timeFormatted} (${durationHours} Hours)`;
+    syllabusStr = test.syllabus || "Course syllabus";
+    venueStr = test.venue || "RD Classes, Sector 9 Centre";
+    kindPill = test.kind || "SUNDAY MOCK";
   }
 
-  const startDate = new Date(test.startsAt);
-  const monthStr = startDate
-    .toLocaleDateString("en-IN", {
-      month: "short",
-      timeZone: "Asia/Kolkata",
-    })
-    .toUpperCase();
-  const dayStr = startDate.toLocaleDateString("en-IN", {
-    day: "numeric",
-    timeZone: "Asia/Kolkata",
-  });
-  const weekdayStr = startDate.toLocaleDateString("en-IN", {
-    weekday: "short",
-    timeZone: "Asia/Kolkata",
-  });
-
-  const timeStr = startDate.toLocaleTimeString("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
-  });
-
-  const durationHours = Math.round((test.durationMin || 180) / 60);
-
   return (
-    <div className="relative flex h-[281px] flex-col justify-between rounded-[22px] border border-black/5 bg-white p-6 shadow-[0_10px_30px_-18px_rgba(120,90,20,0.12)]">
-      {/* Header */}
+    <div className="relative flex min-h-[240px] h-full flex-col justify-between rounded-[24px] border border-[#E8ECF2] bg-white p-6 sm:p-7 shadow-sm select-none">
+      {/* Top Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-            <CalendarCheck className="h-5 w-5" />
+        <div className="flex items-center gap-3">
+          <div className="flex h-[44px] w-[44px] items-center justify-center rounded-[14px] bg-[#EAF4FD] text-[#0284C7] shrink-0">
+            <CalendarCheck className="h-5 w-5 text-[#0284C7]" />
           </div>
-          <h3 className="text-[17px] font-extrabold text-[#111827]">
+          <h3 className="text-[20px] font-bold text-[#1F2A44]">
             Upcoming Test
           </h3>
         </div>
 
-        <span className="rounded-full bg-[#FFE8A3] px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#78350F]">
-          {test.kind || "SUNDAY MOCK"}
+        <span className="rounded-full bg-[#FFF4D2] px-3.5 py-1 text-[12px] font-bold uppercase tracking-wide text-[#9A6600]">
+          {kindPill}
         </span>
       </div>
 
-      {/* Body: Date tile + Test details */}
-      <div className="flex items-center gap-5 my-auto">
-        {/* Date Tile */}
-        <div className="flex h-[110px] w-[88px] flex-col items-center justify-center rounded-2xl border border-black/8 bg-neutral-50/80 p-2 shadow-2xs shrink-0 text-center">
-          <span className="text-[11px] font-extrabold tracking-wider text-[#6B7280]">
+      {/* Inner Panel: Date tile + Test details + Arrow button */}
+      <div className="mt-4 rounded-[18px] border border-[#E8ECF2] bg-white p-4 sm:p-5 flex items-center justify-between gap-4 sm:gap-6 my-auto">
+        {/* Left Date Block (96px width, light blue #EAF4FD, border #CFE6F7) */}
+        <div className="flex h-[96px] w-[96px] flex-col items-center justify-center rounded-[14px] border border-[#CFE6F7] bg-[#EAF4FD] p-2 shrink-0 text-center">
+          <span className="text-[13px] font-bold tracking-wider text-[#1F2A44] uppercase">
             {monthStr}
           </span>
-          <span className="text-3xl font-black text-[#111827] leading-tight">
+          <span className="text-[38px] font-extrabold text-[#1F2A44] leading-none my-0.5">
             {dayStr}
           </span>
-          <span className="text-xs font-semibold text-[#6B7280]">
+          <span className="text-[13px] font-medium text-[#5B6577]">
             {weekdayStr}
           </span>
         </div>
 
-        {/* Test metadata */}
-        <div className="space-y-2 min-w-0 flex-1">
-          <h4 className="text-[15.5px] font-extrabold text-[#111827] truncate">
-            {test.title}
+        {/* Middle Test Details */}
+        <div className="space-y-1.5 min-w-0 flex-1">
+          <h4 className="text-[18px] sm:text-[19px] font-bold text-[#1F2A44] truncate">
+            {title}
           </h4>
 
-          <div className="space-y-1 text-xs text-[#4B5563]">
-            <div className="flex items-center gap-2">
-              <Clock className="h-3.5 w-3.5 text-[#9CA3AF] shrink-0" />
-              <span>
-                {timeStr} ({durationHours} Hours)
-              </span>
+          <div className="space-y-1 text-[14px] font-medium text-[#5B6577]">
+            <div className="flex items-center gap-2 truncate">
+              <Clock className="h-4 w-4 text-[#8A94A6] shrink-0" />
+              <span className="truncate">{timeStr}</span>
             </div>
 
-            {test.syllabus && (
-              <div className="flex items-center gap-2 truncate">
-                <BookOpen className="h-3.5 w-3.5 text-[#9CA3AF] shrink-0" />
-                <span className="truncate">{test.syllabus}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 truncate">
+              <BookOpen className="h-4 w-4 text-[#8A94A6] shrink-0" />
+              <span className="truncate">{syllabusStr}</span>
+            </div>
 
-            {test.venue && (
-              <div className="flex items-center gap-2 truncate">
-                <MapPin className="h-3.5 w-3.5 text-[#9CA3AF] shrink-0" />
-                <span className="truncate">{test.venue}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 truncate">
+              <MapPin className="h-4 w-4 text-[#8A94A6] shrink-0" />
+              <span className="truncate">{venueStr}</span>
+            </div>
           </div>
         </div>
 
-        {/* Action arrow button */}
+        {/* Right Arrow Button (44px circle) */}
         <Link
           href="/student/tests"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-[#111827] hover:bg-[#FFC21A] transition-colors shrink-0 shadow-2xs"
-          aria-label="View test details"
+          className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#EAF4FD] text-[#1F2A44] hover:bg-[#FFC93C] transition-colors shrink-0 shadow-2xs ml-auto"
+          aria-label="View all tests"
         >
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-
-      {/* Footer link */}
-      <div className="border-t border-black/5 pt-2.5 text-right">
-        <Link
-          href="/student/tests"
-          className="text-xs font-bold text-[#6B7280] hover:text-[#111827] transition-colors"
-        >
-          View all tests & results →
+          <ArrowRight className="h-5 w-5 stroke-[2.2]" />
         </Link>
       </div>
     </div>

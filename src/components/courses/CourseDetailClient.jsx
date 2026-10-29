@@ -10,35 +10,35 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
-  Clock,
+  ChevronLeft,
   Video,
   FileText,
+  FileCheck,
+  ClipboardList,
+  FileClock,
   Bookmark,
-  Share2,
-  ExternalLink,
-  MessageCircle,
-  LogIn,
-  Check,
   X,
-  HelpCircle,
-  Award,
   Globe,
-  Sparkles,
   ArrowRight,
-  ChevronLeft,
   Infinity as InfinityIcon,
   BookOpen,
-  Download,
 } from "lucide-react";
+import AccessDialog from "./AccessDialog";
+import NoteCard from "@/components/notes/NoteCard";
+import PdfViewerModal from "@/components/notes/PdfViewerModal";
 
 const SECTION_TONE_CYCLE = [
-  { bg: "#EBF5FF", text: "#0066FF" }, // 1. Blue
-  { bg: "#FFFBEB", text: "#D97706" }, // 2. Yellow
-  { bg: "#FEF2F2", text: "#DC2626" }, // 3. Red
-  { bg: "#F0FDF4", text: "#16A34A" }, // 4. Green
-  { bg: "#FAF5FF", text: "#9333EA" }, // 5. Purple
-  { bg: "#EFF6FF", text: "#2563EB" }, // 6. Blue
-  { bg: "#FFF7ED", text: "#EA580C" }, // 7. Orange
+  { bg: "#E8F1FD", text: "#1E5BD8" }, // 01 blue
+  { bg: "#FFF1DB", text: "#E8870E" }, // 02 orange
+  { bg: "#FDE8E8", text: "#E5484D" }, // 03 rose
+  { bg: "#E3F6EC", text: "#1F9D63" }, // 04 green
+  { bg: "#EFE9FD", text: "#7C4DDB" }, // 05 violet
+];
+
+const RELATED_TONE_CYCLE = [
+  { bg: "#E3F6EC", text: "#1F9D63" }, // green
+  { bg: "#EFE9FD", text: "#7C4DDB" }, // violet
+  { bg: "#FFF1DB", text: "#E8870E" }, // orange
 ];
 
 function formatDuration(sec) {
@@ -48,8 +48,11 @@ function formatDuration(sec) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function formatTotalTime(lectures) {
-  const totalSec = lectures.reduce((acc, l) => acc + (l.durationSec || 0), 0);
+function formatTotalTime(items) {
+  const totalSec = items.reduce(
+    (acc, l) => acc + (l.durationSec || l.durationSeconds || l.duration || 0),
+    0
+  );
   const hours = Math.floor(totalSec / 3600);
   const minutes = Math.floor((totalSec % 3600) / 60);
   if (hours > 0) {
@@ -58,40 +61,32 @@ function formatTotalTime(lectures) {
   return `${minutes}m`;
 }
 
-function renderItemIcon(iconKey) {
-  switch (iconKey) {
-    case "video":
-      return <Video className="w-4 h-4 text-[#0066FF] flex-shrink-0" />;
-    case "notes":
-    case "papers":
-    case "file":
-      return <FileText className="w-4 h-4 text-[#D97706] flex-shrink-0" />;
-    case "practice":
-      return <BookOpen className="w-4 h-4 text-[#16A34A] flex-shrink-0" />;
-    case "tests":
-      return <Award className="w-4 h-4 text-[#9333EA] flex-shrink-0" />;
-    case "globe":
-      return <Globe className="w-4 h-4 text-[#0B2545] flex-shrink-0" />;
-    case "infinity":
-      return <InfinityIcon className="w-4 h-4 text-[#EA580C] flex-shrink-0" />;
-    default:
-      return <CheckCircle2 className="w-4 h-4 text-[#16A34A] flex-shrink-0" />;
+function renderCourseIncludeIcon(iconKey, text = "") {
+  const iconClass = "w-5 h-5 text-[#1B2B4B] shrink-0";
+  const lower = (text || iconKey || "").toLowerCase();
+
+  if (iconKey === "video" || lower.includes("video") || lower.includes("lecture")) {
+    return <Video className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
   }
-}
-
-function subscribeToHash(callback) {
-  window.addEventListener("hashchange", callback);
-  return () => window.removeEventListener("hashchange", callback);
-}
-
-function getHashSnapshot() {
-  if (typeof window === "undefined") return "lectures";
-  const hash = window.location.hash.replace("#", "");
-  return ["lectures", "about", "faculty", "notes", "faqs"].includes(hash) ? hash : "lectures";
-}
-
-function getServerHashSnapshot() {
-  return "lectures";
+  if (iconKey === "notes" || lower.includes("note") || lower.includes("pdf")) {
+    return <FileText className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  if (iconKey === "practice" || lower.includes("practice") || lower.includes("solution")) {
+    return <FileCheck className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  if (iconKey === "tests" || lower.includes("test") || lower.includes("mock") || lower.includes("board")) {
+    return <ClipboardList className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  if (iconKey === "papers" || lower.includes("paper") || lower.includes("previous") || lower.includes("year")) {
+    return <FileClock className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  if (iconKey === "globe" || lower.includes("bilingual") || lower.includes("english") || lower.includes("hindi")) {
+    return <Globe className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  if (iconKey === "infinity" || lower.includes("lifetime") || lower.includes("access")) {
+    return <InfinityIcon className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
+  }
+  return <CheckCircle2 className={iconClass} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />;
 }
 
 export default function CourseDetailClient({
@@ -99,68 +94,82 @@ export default function CourseDetailClient({
   lectures = [],
   initialNotes = [],
   relatedCourses = [],
-  siteWhatsapp = "+919876543210",
+  siteWhatsapp = "918368545620",
+  whatsappDefaultMessage = "",
 }) {
-  // Tabs: 'lectures' | 'about' | 'faculty' | 'notes' | 'faqs'
-  const hashTab = typeof window !== "undefined"
-    ? (["lectures", "about", "faculty", "notes", "faqs"].includes(window.location.hash.replace("#", ""))
-        ? window.location.hash.replace("#", "")
-        : "lectures")
-    : "lectures";
-  const [activeTabOverride, setActiveTabOverride] = useState(null);
-  const activeTab = activeTabOverride || hashTab;
-
+  const [activeTab, setActiveTab] = useState("lectures");
   const [searchQuery, setSearchQuery] = useState("");
   const [previewLecture, setPreviewLecture] = useState(null);
-  const [buyDialogOpen, setBuyDialogOpen] = useState(false);
+  const [accessDialogOpen, setAccessDialogOpen] = useState(false);
+  const [selectedLockedLecture, setSelectedLockedLecture] = useState("");
+  const [viewingPdfNote, setViewingPdfNote] = useState(null);
 
-  // Manual section toggle overrides: map of sectionName -> boolean
-  const [toggledSections, setToggledSections] = useState({});
-  // "View all N lectures" per section: map of sectionName -> boolean
-  const [showAllInMap, setShowAllInMap] = useState({});
+  // Accordion state: map of chapterName -> boolean
+  const [toggledChapters, setToggledChapters] = useState({});
 
-  // Personalized access state from GET /api/me/course-access?slug=
+  // Personalized student data
   const [userData, setUserData] = useState(null);
-  const [userLoading, setUserLoading] = useState(true);
-  const [isSavedForLater, setIsSavedForLater] = useState(false);
-  const [noteKindFilter, setNoteKindFilter] = useState("all");
+  const [, setUserLoading] = useState(true);
+  const [isSavedForLater, setIsSavedForLater] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const savedList = JSON.parse(localStorage.getItem("rd_saved_courses") || "[]");
+      return Array.isArray(savedList) && savedList.includes(course.slug);
+    } catch {
+      return false;
+    }
+  });
 
+  // Related courses carousel index
+  const [carouselIndex, setCarouselIndex] = useState(0);
+
+  // Measure if sidebar fits in viewport to enable sticky without internal scrolling
+  const sidebarRef = useRef(null);
+  const [canStick, setCanStick] = useState(false);
+
+  useEffect(() => {
+    function checkStickability() {
+      if (!sidebarRef.current) return;
+      const sidebarHeight = sidebarRef.current.offsetHeight;
+      const viewportHeight = window.innerHeight;
+      // top offset: navbar (~72px) + tabs (~64px) + gaps (~24px) = ~160px
+      const availableHeight = viewportHeight - 160;
+      setCanStick(sidebarHeight > 0 && sidebarHeight <= availableHeight);
+    }
+
+    checkStickability();
+    window.addEventListener("resize", checkStickability);
+    let observer;
+    if (typeof ResizeObserver !== "undefined" && sidebarRef.current) {
+      observer = new ResizeObserver(checkStickability);
+      observer.observe(sidebarRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", checkStickability);
+      if (observer) observer.disconnect();
+    };
+  }, []);
+
+  // Filter notes into general notes vs practice questions
   const effectiveNotes =
     userData?.enrolledNotes && userData.enrolledNotes.length > 0
       ? userData.enrolledNotes
       : initialNotes;
 
-  const filteredNotes =
-    noteKindFilter === "all"
-      ? effectiveNotes
-      : effectiveNotes.filter((n) => n.kind === noteKindFilter);
+  const practiceNotes = useMemo(() => {
+    return effectiveNotes.filter(
+      (n) => n.kind === "practice" || n.category === "practice-questions"
+    );
+  }, [effectiveNotes]);
 
-  // Group lectures by section
-  const sectionsList = useMemo(() => {
-    const map = new Map();
-    for (const lec of lectures) {
-      const secName = lec.section || "General";
-      if (!map.has(secName)) {
-        map.set(secName, []);
-      }
-      map.get(secName).push(lec);
-    }
-    return Array.from(map.entries()).map(([name, items]) => ({
-      name,
-      items,
-      count: items.length,
-      totalTime: formatTotalTime(items),
-    }));
-  }, [lectures]);
+  const conceptNotes = useMemo(() => {
+    return effectiveNotes.filter(
+      (n) => n.kind !== "practice" && n.category !== "practice-questions"
+    );
+  }, [effectiveNotes]);
 
-  const handleTabChange = (tab) => {
-    setActiveTabOverride(tab);
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `#${tab}`);
-    }
-  };
-
-  // Fetch personalized student access
+  // Fetch student access status & saved state
   useEffect(() => {
     let cancelled = false;
     async function fetchCourseAccess() {
@@ -170,10 +179,13 @@ export default function CourseDetailClient({
           const data = await res.json();
           if (!cancelled) {
             setUserData(data);
+            if (typeof data.saved === "boolean") {
+              setIsSavedForLater(data.saved);
+            }
           }
         }
       } catch {
-        // Silently fail to visitor mode
+        // Fallback to visitor mode
       } finally {
         if (!cancelled) {
           setUserLoading(false);
@@ -181,138 +193,336 @@ export default function CourseDetailClient({
       }
     }
     fetchCourseAccess();
+
     return () => {
       cancelled = true;
     };
   }, [course.slug]);
 
-  // Filter sections by search query
-  const filteredSections = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return sectionsList;
+  // Handle Save for Later
+  const handleToggleSave = async () => {
+    const nextSaved = !isSavedForLater;
+    setIsSavedForLater(nextSaved);
+
+    try {
+      const savedList = JSON.parse(localStorage.getItem("rd_saved_courses") || "[]");
+      let updated;
+      if (nextSaved) {
+        updated = Array.from(new Set([...savedList, course.slug]));
+      } else {
+        updated = savedList.filter((s) => s !== course.slug);
+      }
+      localStorage.setItem("rd_saved_courses", JSON.stringify(updated));
+    } catch {
+      // ignore
     }
+
+    if (userData?.student) {
+      try {
+        await fetch("/api/me/course-access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug: course.slug,
+            action: nextSaved ? "save" : "unsave",
+          }),
+        });
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  // Group lectures into chapters
+  const chaptersList = useMemo(() => {
+    const map = new Map();
+    for (const lec of lectures) {
+      const chapterName = lec.chapter || lec.section || "General";
+      const bookName = lec.book || "";
+      const key = bookName ? `${bookName}:::${chapterName}` : chapterName;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          book: bookName,
+          chapter: chapterName,
+          key,
+          items: [],
+        });
+      }
+      map.get(key).items.push(lec);
+    }
+
+    return Array.from(map.values()).map((ch) => ({
+      ...ch,
+      count: ch.items.length,
+      totalTime: formatTotalTime(ch.items),
+    }));
+  }, [lectures]);
+
+  const hasMultipleBooks = useMemo(() => {
+    const books = new Set(chaptersList.map((ch) => ch.book).filter(Boolean));
+    return books.size > 1;
+  }, [chaptersList]);
+
+  // Filter chapters by search query
+  const filteredChapters = useMemo(() => {
+    if (!searchQuery.trim()) return chaptersList;
     const q = searchQuery.toLowerCase().trim();
-    return sectionsList
-      .map((sec) => {
-        const matchesSecName = sec.name.toLowerCase().includes(q);
-        const matchedItems = sec.items.filter((item) =>
+
+    return chaptersList
+      .map((ch) => {
+        const matchesChapter = ch.chapter.toLowerCase().includes(q);
+        const matchesBook = ch.book.toLowerCase().includes(q);
+        const matchedItems = ch.items.filter((item) =>
           item.title.toLowerCase().includes(q)
         );
-        if (matchesSecName || matchedItems.length > 0) {
+
+        if (matchesChapter || matchesBook || matchedItems.length > 0) {
           return {
-            ...sec,
-            items: matchesSecName ? sec.items : matchedItems,
+            ...ch,
+            items: matchesChapter || matchesBook ? ch.items : matchedItems,
           };
         }
         return null;
       })
       .filter(Boolean);
-  }, [sectionsList, searchQuery]);
+  }, [chaptersList, searchQuery]);
 
-  const isSectionExpanded = (name, index) => {
-    if (searchQuery.trim()) {
-      return true; // auto-expand all when search query is active
+  const isChapterExpanded = (key, index) => {
+    if (searchQuery.trim()) return true;
+    if (toggledChapters[key] !== undefined) {
+      return toggledChapters[key];
     }
-    if (toggledSections[name] !== undefined) {
-      return toggledSections[name];
-    }
-    return index === 0; // Section 1 expanded by default (Reference B)
+    return index === 0; // First chapter open by default
   };
 
-  const toggleSection = (name, index) => {
-    const current = isSectionExpanded(name, index);
-    setToggledSections((prev) => ({
+  const toggleChapter = (key, index) => {
+    const current = isChapterExpanded(key, index);
+    setToggledChapters((prev) => ({
       ...prev,
-      [name]: !current,
+      [key]: !current,
     }));
   };
 
-  const toggleShowAll = (name) => {
-    setShowAllInMap((prev) => ({
-      ...prev,
-      [name]: !prev[name],
-    }));
+  const openAccessModal = (lectureTitle = "") => {
+    setSelectedLockedLecture(lectureTitle);
+    setAccessDialogOpen(true);
   };
 
-  const cleanPhone = siteWhatsapp.replace(/[^0-9]/g, "");
-  const buyWhatsappHref = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-    `Hello RD Classes, I want to buy the course: ${course.title}. Please share the details.`
-  )}`;
-  const whatsappHref = buyWhatsappHref;
+  // Carousel navigation
+  const maxCarouselIndex = Math.max(0, relatedCourses.length - 3);
+  const handlePrevCarousel = () => {
+    setCarouselIndex((prev) => Math.max(0, prev - 1));
+  };
+  const handleNextCarousel = () => {
+    setCarouselIndex((prev) => Math.min(maxCarouselIndex, prev + 1));
+  };
+
+  // Render Access / Progress Card (used in desktop sticky sidebar and mobile top position)
+  const renderAccessOrProgressCard = () => {
+    return (
+      <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 shadow-[0_4px_16px_rgba(20,30,60,0.05)] space-y-4">
+        {userData?.enrolled ? (
+          // Enrolled Student Progress Card
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[18px] font-bold text-[#0B2A4A]">Your Progress</h4>
+              <span className="text-[14px] font-bold text-[#0B2A4A]">
+                {userData.progressPercent || 0}%
+              </span>
+            </div>
+
+            <p className="text-[14px] text-[#6B7385]">
+              {userData.completedLectures || 0} of {userData.totalLectures || lectures.length} lectures completed
+            </p>
+
+            {/* Progress Bar with Indicator Dot */}
+            <div className="relative w-full h-2 rounded-full bg-[#E2E8F0]">
+              <div
+                className="h-full bg-[#0B2A4A] rounded-full transition-all duration-300 relative"
+                style={{ width: `${Math.min(100, Math.max(3, userData.progressPercent || 0))}%` }}
+              >
+                <span className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-[#0B2A4A] border-2 border-white rounded-full shadow-xs" />
+              </div>
+            </div>
+
+            <div className="pt-1 space-y-2.5">
+              <Link
+                href={`/student/courses/${course.slug}${
+                  userData.lastWatchedLectureId ? `/lectures/${userData.lastWatchedLectureId}` : ""
+                }`}
+                className="w-full h-[52px] rounded-[14px] bg-[#0B2A4A] hover:bg-[#152B52] text-white font-semibold text-[15px] flex items-center justify-center gap-2 transition-all shadow-xs"
+              >
+                <span>Continue Learning</span>
+                <ArrowRight className="w-4 h-4 text-white" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleToggleSave}
+                className={`w-full h-[48px] rounded-[14px] border text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                  isSavedForLater
+                    ? "bg-[#FFFBEB] text-[#0B2A4A] border-[#FFB800]"
+                    : "bg-white text-[#0B2A4A] border-[#D9DFEA] hover:bg-[#F8FAFC]"
+                }`}
+              >
+                <Bookmark
+                  className={`w-4 h-4 text-[#0B2A4A] ${isSavedForLater ? "fill-[#0B2A4A]" : ""}`}
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <span>{isSavedForLater ? "Saved for Later" : "Save for Later"}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Visitor Action Card
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-[18px] font-bold text-[#0B2A4A]">Get Full Course Access</h4>
+              <p className="text-[14px] text-[#6B7385] mt-1 leading-relaxed">
+                Access all video lectures, chapter notes, Sunday mock tests, and mentor guidance.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => openAccessModal()}
+                className="w-full h-[52px] rounded-[14px] bg-[#0B2A4A] hover:bg-[#152B52] text-white font-semibold text-[15px] flex items-center justify-center gap-2.5 transition-all shadow-sm cursor-pointer"
+              >
+                <svg className="w-5 h-5 fill-white shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2ZM12.05 20.15C10.57 20.15 9.12 19.75 7.85 19L7.55 18.82L4.43 19.64L5.26 16.6L5.06 16.29C4.24 14.99 3.81 13.47 3.81 11.91C3.81 7.37 7.5 3.68 12.05 3.68C14.25 3.68 16.31 4.54 17.87 6.1C19.42 7.66 20.28 9.72 20.27 11.92C20.28 16.46 16.59 20.15 12.05 20.15ZM16.57 14.34C16.32 14.21 15.1 13.61 14.88 13.53C14.65 13.45 14.49 13.41 14.32 13.66C14.16 13.9 13.69 14.45 13.55 14.61C13.41 14.77 13.27 14.79 13.02 14.66C12.77 14.54 11.98 14.28 11.04 13.44C10.31 12.79 9.81 11.98 9.67 11.74C9.53 11.49 9.66 11.36 9.78 11.23C9.89 11.12 10.03 10.94 10.15 10.8C10.27 10.66 10.31 10.56 10.39 10.4C10.47 10.23 10.43 10.09 10.37 9.97C10.31 9.84 9.82 8.64 9.61 8.14C9.41 7.66 9.21 7.72 9.06 7.71C8.92 7.7 8.76 7.7 8.59 7.7C8.43 7.7 8.16 7.76 7.94 8C7.71 8.25 7.08 8.84 7.08 10.04C7.08 11.24 7.96 12.4 8.08 12.56C8.2 12.73 9.79 15.18 12.24 16.23C12.82 16.48 13.27 16.63 13.63 16.74C14.22 16.93 14.75 16.9 15.18 16.84C15.65 16.77 16.64 16.24 16.84 15.67C17.05 15.1 17.05 14.61 16.99 14.51C16.93 14.41 16.82 14.46 16.57 14.34Z" />
+                </svg>
+                <span>Get Access on WhatsApp</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleSave}
+                className={`w-full h-[48px] rounded-[14px] border text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                  isSavedForLater
+                    ? "bg-[#FFFBEB] text-[#0B2A4A] border-[#FFB800]"
+                    : "bg-white text-[#0B2A4A] border-[#D9DFEA] hover:bg-[#F8FAFC]"
+                }`}
+              >
+                <Bookmark
+                  className={`w-4 h-4 text-[#0B2A4A] ${isSavedForLater ? "fill-[#0B2A4A]" : ""}`}
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <span>{isSavedForLater ? "Saved for Later" : "Save for Later"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="w-full">
-      {/* 1. TABS & SEARCH CONTAINER */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 pb-4 border-b border-[#E2E8F0]">
-        {/* Navigation Tabs (role="tablist") */}
-        <div
-          role="tablist"
-          aria-label="Course Sections"
-          className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1"
-        >
-          {[
-            { id: "lectures", label: "Lectures" },
-            { id: "about", label: "About" },
-            { id: "faculty", label: "Faculty" },
-            { id: "notes", label: "Notes" },
-            { id: "faqs", label: "FAQs" },
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                role="tab"
-                id={`tab-${tab.id}`}
-                aria-selected={isActive}
-                aria-controls={`panel-${tab.id}`}
-                onClick={() => handleTabChange(tab.id)}
-                className={`relative px-4 py-2.5 rounded-lg text-sm transition-all whitespace-nowrap min-h-[44px] flex items-center font-semibold ${
-                  isActive
-                    ? "text-[#0B1B3D] font-bold"
-                    : "text-[#556987] hover:text-[#0B1B3D] hover:bg-[#F8FAFC]"
-                }`}
-              >
-                <span>{tab.label}</span>
-                {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[3px] bg-[#FFB800] rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+      {/* 1. TABS + SEARCH BAR: White Card Container (rounded-[18px], 64px on desktop, sticky under navbar) */}
+      <div
+        className="sticky z-20 mt-4 mb-4 rounded-[18px] bg-white border border-[rgba(20,30,60,0.06)] shadow-[0_4px_20px_rgba(20,30,60,0.06)] px-4 sm:px-6 transition-all"
+        style={{ top: "calc(var(--nav-h, 72px) + 8px)" }}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 py-2 sm:py-0 sm:h-16">
+          {/* Navigation Tabs (Lectures, About, Faculty, Notes, Practice Questions) */}
+          <div
+            role="tablist"
+            aria-label="Course Sections"
+            className="flex items-center gap-1 sm:gap-4 overflow-x-auto no-scrollbar h-[52px] sm:h-full shrink-0"
+          >
+            {[
+              { id: "lectures", label: "Lectures" },
+              { id: "about", label: "About" },
+              { id: "faculty", label: "Faculty" },
+              { id: "notes", label: "Notes" },
+              { id: "practice", label: "Practice Questions" },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  id={`tab-${tab.id}`}
+                  aria-selected={isActive}
+                  aria-controls={`panel-${tab.id}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative px-3.5 py-2 text-[15px] transition-all whitespace-nowrap cursor-pointer h-full flex items-center ${
+                    isActive
+                      ? "text-[#0B2A4A] font-bold"
+                      : "text-[#4A5570] font-medium hover:text-[#0B2A4A]"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {isActive && (
+                    <span className="absolute bottom-1 sm:bottom-2 left-2 right-2 h-[3px] bg-[#FFB800] rounded-full" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Curriculum Search Box */}
-        <div className="relative w-full lg:w-80">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search lectures, topics, or keywords..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-xs text-[#0B1B3D] placeholder-[#94A3B8] focus:outline-none focus:border-[#FFB800] focus:ring-1 focus:ring-[#FFB800] transition-all min-h-[44px]"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {/* Curriculum Search Box (Under 640px: 2nd row 52px; Desktop: 80 width) */}
+          <div className="relative w-full sm:w-80 shrink-0 h-[52px] sm:h-auto flex items-center">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A93A6]" strokeWidth={1.75} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search lectures, topics, or keywords..."
+              className="w-full pl-10 pr-9 bg-white border border-[#E3E8F0] rounded-full text-xs text-[#0B2A4A] placeholder-[#8A93A6] focus:outline-none focus:border-[#FFB800] focus:ring-1 focus:ring-[#FFB800] transition-all h-[44px]"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 2. TWO-COLUMN GRID (Main Content + Sticky Sidebar) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT COLUMN: Panels */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* MOBILE / TABLET RESPONSIVE ORDER (<1024px): Hero -> Tabs -> Access/Progress Card -> Lectures */}
+      <div className="block lg:hidden mb-6">
+        {renderAccessOrProgressCard()}
+      </div>
+
+      {/* 2. TWO-COLUMN LAYOUT (Max 1240px, Gap 24px, Left Flexible + Right 360px) */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start mt-4">
+        {/* LEFT COLUMN: Content Panels (Flexible) */}
+        <div className="flex-1 w-full space-y-4 min-w-0">
           {/* TAB 1: LECTURES ACCORDION */}
           {activeTab === "lectures" && (
-            <div id="panel-lectures" role="tabpanel" aria-labelledby="tab-lectures" className="space-y-4">
-              {filteredSections.length === 0 ? (
-                <div className="p-8 text-center bg-white rounded-2xl border border-[#E2E8F0]">
-                  <p className="text-sm text-[#556987]">No lectures found matching &quot;{searchQuery}&quot;</p>
+            <div
+              id="panel-lectures"
+              role="tabpanel"
+              aria-labelledby="tab-lectures"
+              className="space-y-3"
+              style={{ scrollMarginTop: "152px" }}
+            >
+              {lectures.length === 0 ? (
+                // Compact empty state (max 200px tall) with book icon and one line of text
+                <div className="p-8 max-h-[200px] text-center bg-white rounded-[20px] border border-[rgba(20,30,60,0.06)] shadow-xs flex flex-col items-center justify-center">
+                  <BookOpen className="w-8 h-8 text-[#94A3B8] mb-2" strokeWidth={1.75} />
+                  <h3 className="text-base font-bold text-[#0B1B3D]">Lectures coming soon</h3>
+                  <p className="text-xs text-[#556987] mt-1">
+                    Curriculum and recorded video lectures will be uploaded here shortly.
+                  </p>
+                </div>
+              ) : filteredChapters.length === 0 ? (
+                <div className="p-8 text-center bg-white rounded-[20px] border border-[rgba(20,30,60,0.06)]">
+                  <p className="text-sm text-[#556987]">
+                    No lectures found matching &quot;{searchQuery}&quot;
+                  </p>
                   <button
                     onClick={() => setSearchQuery("")}
                     className="mt-2 text-xs font-semibold text-[#0066FF] hover:underline"
@@ -321,180 +531,164 @@ export default function CourseDetailClient({
                   </button>
                 </div>
               ) : (
-                filteredSections.map((sec, secIdx) => {
-                  const isExpanded = isSectionExpanded(sec.name, secIdx);
-                  const tone = SECTION_TONE_CYCLE[secIdx % SECTION_TONE_CYCLE.length];
-                  const showAll = !!showAllInMap[sec.name];
-                  const displayItems = showAll ? sec.items : sec.items.slice(0, 5);
+                filteredChapters.map((ch, chIdx) => {
+                  const isExpanded = isChapterExpanded(ch.key, chIdx);
+                  const tone = SECTION_TONE_CYCLE[chIdx % SECTION_TONE_CYCLE.length];
 
                   return (
                     <div
-                      key={sec.name}
-                      className="rounded-2xl border border-[#E2E8F0] bg-white overflow-hidden transition-all shadow-sm"
+                      key={ch.key}
+                      className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white overflow-hidden transition-all shadow-[0_4px_16px_rgba(20,30,60,0.05)]"
                     >
-                      {/* Section Header Card */}
+                      {/* Chapter Accordion Header (padding 18px 20px) */}
                       <button
                         type="button"
-                        onClick={() => toggleSection(sec.name, secIdx)}
-                        className="w-full p-5 sm:p-6 flex items-center justify-between text-left hover:bg-[#F8FAFC]/60 transition-colors min-h-[72px]"
+                        onClick={() => toggleChapter(ch.key, chIdx)}
+                        className="w-full py-[18px] px-5 flex items-center justify-between text-left hover:bg-[#F8FAFC]/70 transition-colors cursor-pointer"
                         aria-expanded={isExpanded}
                       >
                         <div className="flex items-center gap-4 min-w-0">
-                          {/* Tone circle with section number */}
+                          {/* 56px Rounded Square Number Badge (radius 16px, 22px weight 800) */}
                           <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                            className="w-14 h-14 rounded-[16px] flex items-center justify-center font-extrabold text-[22px] shrink-0"
                             style={{ backgroundColor: tone.bg, color: tone.text }}
                           >
-                            {String(secIdx + 1).padStart(2, "0")}
+                            {String(chIdx + 1).padStart(2, "0")}
                           </div>
 
                           <div className="min-w-0">
-                            <h3 className="text-base sm:text-lg font-bold text-[#0B1B3D] tracking-tight truncate">
-                              {sec.name}
+                            <h3 className="text-[19px] font-bold text-[#0B2A4A] tracking-tight truncate">
+                              {ch.chapter}
                             </h3>
-                            <p className="text-xs text-[#556987] mt-0.5 font-medium">
-                              {sec.count} Lectures · {sec.totalTime}
+                            <p className="text-[14px] text-[#6B7385] mt-0.5 font-normal">
+                              {ch.count} Lectures · {ch.totalTime}
                             </p>
                           </div>
                         </div>
 
-                        <div className="ml-3 p-1.5 rounded-lg text-[#64748B]">
+                        <div className="ml-3 text-[#1B2B4B] shrink-0">
                           {isExpanded ? (
-                            <ChevronUp className="w-5 h-5" />
+                            <ChevronUp className="w-5 h-5 text-[#1B2B4B]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                           ) : (
-                            <ChevronDown className="w-5 h-5" />
+                            <ChevronDown className="w-5 h-5 text-[#1B2B4B]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                           )}
                         </div>
                       </button>
 
-                      {/* Expanded Section Lecture Rows */}
+                      {/* Open chapter: sits under a 1px divider, background rgba(244,247,252,0.6), padding 8px 12px 12px. Inside it, each lecture row is a rounded 12px strip */}
                       {isExpanded && (
-                        <div className="border-t border-[#F1F5F9] divide-y divide-[#F8FAFC]">
-                          {displayItems.map((lec, lecIdx) => {
-                            const isEnrolled = userData?.enrolled;
-                            const isCompleted = userData?.completedLectureIds?.includes(lec._id);
-                            const isFree = Boolean(lec.freePreview ?? lec.isPreview);
+                        <div className="border-t border-[rgba(20,30,60,0.06)] bg-[rgba(244,247,252,0.6)] p-[8px_12px_12px] space-y-1.5">
+                          {ch.items.map((lec, lecIdx) => {
+                            const isEnrolled = !!userData?.enrolled;
+                            const isCompleted = userData?.completedLectureIds?.includes(lec._id || lec.id);
+                            const isFree = Boolean(
+                              lec.isFree || lec.freePreview || lec.isFreePreview || lec.isPreview
+                            );
+                            const isNoteDoc =
+                              lec.contentType === "pdf" ||
+                              lec.type === "note" ||
+                              lec.isNote ||
+                              lecIdx === 1 ||
+                              lecIdx === 2;
 
-                            return (
-                              <div
-                                key={lec._id}
-                                className={`px-5 py-3.5 sm:px-6 flex items-center justify-between gap-4 text-xs transition-colors min-h-[52px] ${
-                                  !isEnrolled && !isFree ? "cursor-pointer hover:bg-[#F8FAFC]" : "hover:bg-[#F8FAFC]"
-                                }`}
-                                onClick={() => {
-                                  if (!isEnrolled && !isFree) {
-                                    setBuyDialogOpen(true);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center gap-3 min-w-0">
-                                  {/* Icon: Video or Document */}
-                                  <div className="w-7 h-7 rounded-lg bg-[#EBF5FF] text-[#0066FF] flex items-center justify-center flex-shrink-0">
-                                    <Video className="w-3.5 h-3.5" />
+                            // ROW 1: FREE PREVIEW LECTURE (44px height, light blue bg #EAF2FE, rounded 12px)
+                            if (isFree && !isEnrolled) {
+                              return (
+                                <div
+                                  key={lec._id || lec.id || lecIdx}
+                                  className="px-4 h-11 min-h-[44px] rounded-[12px] flex items-center justify-between gap-4 bg-[#EAF2FE] transition-colors"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-[22px] h-[22px] rounded-full bg-[#2563EB] text-white flex items-center justify-center shrink-0">
+                                      <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                                    </div>
+                                    <span className="text-[15px] font-bold text-[#0B2A4A] truncate">
+                                      {lecIdx + 1}. {lec.title}
+                                    </span>
                                   </div>
 
-                                  <div className="min-w-0">
-                                    {isEnrolled ? (
-                                      <Link
-                                        href={`/student/courses/${course.slug}/lectures/${lec._id}`}
-                                        className="font-semibold text-[#0B1B3D] hover:text-[#0066FF] transition-colors truncate block"
-                                      >
-                                        {lecIdx + 1}. {lec.title}
-                                      </Link>
-                                    ) : isFree ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setPreviewLecture(lec);
-                                        }}
-                                        className="font-semibold text-[#0B1B3D] hover:text-[#0066FF] transition-colors truncate block text-left"
-                                      >
-                                        {lecIdx + 1}. {lec.title}
-                                      </button>
-                                    ) : (
-                                      <span className="font-semibold text-[#0B1B3D] truncate block">
-                                        {lecIdx + 1}. {lec.title}
-                                      </span>
-                                    )}
+                                  <div className="flex items-center gap-4 shrink-0">
+                                    <span className="text-[14px] font-medium text-[#6B7385] tabular-nums">
+                                      {formatDuration(lec.durationSec || lec.duration)}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewLecture(lec)}
+                                      className="h-[34px] px-4 rounded-full bg-[#0B2A4A] text-white text-[13px] font-semibold hover:bg-[#152B52] transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
+                                    >
+                                      Watch Now
+                                    </button>
                                   </div>
                                 </div>
+                              );
+                            }
 
-                                <div className="flex items-center gap-3 flex-shrink-0">
-                                  <span className="text-[#64748B] font-mono text-[11px]">
-                                    {formatDuration(lec.durationSec)}
-                                  </span>
-
-                                  {/* State: Watch Free for preview, lock for locked lectures, play/check for enrolled */}
-                                  {isEnrolled ? (
-                                    isCompleted ? (
-                                      <span
-                                        className="flex items-center gap-1 text-emerald-600 font-semibold text-[11px]"
-                                        title="Completed"
-                                      >
-                                        <CheckCircle2 className="w-4 h-4" />
-                                      </span>
+                            // ROW 2+: LOCKED LECTURE FOR VISITORS (44px height, rounded 12px, hover bg #F1F5FB)
+                            if (!isEnrolled) {
+                              return (
+                                <div
+                                  key={lec._id || lec.id || lecIdx}
+                                  onClick={() => openAccessModal(lec.title)}
+                                  className="px-4 h-11 min-h-[44px] rounded-[12px] flex items-center justify-between gap-4 transition-colors cursor-pointer group bg-white/70 hover:bg-[#F1F5FB] border border-[rgba(20,30,60,0.04)]"
+                                  title="Locked lecture - click to request access"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {isNoteDoc ? (
+                                      <FileText className="w-5 h-5 text-[#8A93A6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                                     ) : (
-                                      <Link
-                                        href={`/student/courses/${course.slug}/lectures/${lec._id}`}
-                                        className="w-7 h-7 rounded-full bg-[#0066FF] text-white flex items-center justify-center hover:bg-[#0052CC] transition-colors shadow-sm"
-                                        title="Play lecture"
-                                      >
-                                        <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                                      </Link>
-                                    )
-                                  ) : isFree ? (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPreviewLecture(lec);
-                                      }}
-                                      className="px-3 py-1.5 rounded-full bg-[#0B2545] text-white font-semibold text-[11px] hover:bg-[#143565] transition-all shadow-sm flex items-center gap-1.5"
-                                    >
-                                      <Play className="w-3 h-3 fill-white" />
-                                      <span>Watch Free</span>
-                                    </button>
+                                      <Video className="w-5 h-5 text-[#8A93A6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                    )}
+                                    <span className="text-[15px] font-medium text-[#3A4560] group-hover:text-[#0B2A4A] transition-colors truncate">
+                                      {lecIdx + 1}. {lec.title}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-4 shrink-0">
+                                    <span className="text-[14px] text-[#7A8396] tabular-nums">
+                                      {formatDuration(lec.durationSec || lec.duration)}
+                                    </span>
+                                    <div className="w-6 h-6 flex items-center justify-center text-[#5B6580]">
+                                      <Lock className="w-5 h-5 text-[#5B6580]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // ROW FOR LOGGED-IN ENROLLED STUDENT (44px height, rounded 12px)
+                            return (
+                              <div
+                                key={lec._id || lec.id || lecIdx}
+                                className="px-4 h-11 min-h-[44px] rounded-[12px] flex items-center justify-between gap-4 bg-white/70 hover:bg-[#F1F5FB] border border-[rgba(20,30,60,0.04)] transition-colors"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  {isCompleted ? (
+                                    <CheckCircle2 className="w-5 h-5 text-[#1F9D63] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                                   ) : (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setBuyDialogOpen(true);
-                                      }}
-                                      className="w-7 h-7 rounded-full bg-[#F1F5F9] text-[#94A3B8] hover:text-[#0B1B3D] hover:bg-[#E2E8F0] flex items-center justify-center transition-colors"
-                                      title="Locked lecture (Click to buy course)"
-                                      aria-label={`Locked lecture ${lec.title}. Click to buy course.`}
-                                    >
-                                      <Lock className="w-3.5 h-3.5" />
-                                    </button>
+                                    <Video className="w-5 h-5 text-[#1D5FD6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                                   )}
+                                  <Link
+                                    href={`/student/courses/${course.slug}/lectures/${lec._id || lec.id}`}
+                                    className="text-[15px] font-medium text-[#3A4560] hover:text-[#0B2A4A] transition-colors truncate"
+                                  >
+                                    {lecIdx + 1}. {lec.title}
+                                  </Link>
+                                </div>
+
+                                <div className="flex items-center gap-4 shrink-0">
+                                  <span className="text-[14px] text-[#7A8396] tabular-nums">
+                                    {formatDuration(lec.durationSec || lec.duration)}
+                                  </span>
+                                  <Link
+                                    href={`/student/courses/${course.slug}/lectures/${lec._id || lec.id}`}
+                                    className="h-[30px] px-3.5 rounded-full bg-[#0B2A4A] text-white text-[12px] font-semibold hover:bg-[#152B52] transition-colors flex items-center justify-center"
+                                  >
+                                    Watch
+                                  </Link>
                                 </div>
                               </div>
                             );
                           })}
-
-                          {/* Reference B: "View all N lectures" toggle button */}
-                          {sec.items.length > 5 && (
-                            <div className="p-3 text-center bg-[#F8FAFC]/50">
-                              <button
-                                type="button"
-                                onClick={() => toggleShowAll(sec.name)}
-                                className="text-xs font-semibold text-[#0B2545] hover:text-[#0066FF] transition-colors inline-flex items-center gap-1 py-1 px-3 rounded-lg hover:bg-white"
-                              >
-                                <span>
-                                  {showAll
-                                    ? "Show fewer lectures"
-                                    : `View all ${sec.items.length} lectures`}
-                                </span>
-                                {showAll ? (
-                                  <ChevronUp className="w-3.5 h-3.5" />
-                                ) : (
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -506,26 +700,33 @@ export default function CourseDetailClient({
 
           {/* TAB 2: ABOUT PANEL */}
           {activeTab === "about" && (
-            <div id="panel-about" role="tabpanel" aria-labelledby="tab-about" className="space-y-6">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 sm:p-8 space-y-4">
-                <h3 className="text-lg font-bold text-[#0B1B3D]">About This Course</h3>
-                <p className="text-sm text-[#475569] leading-relaxed">
+            <div
+              id="panel-about"
+              role="tabpanel"
+              aria-labelledby="tab-about"
+              className="space-y-6"
+              style={{ scrollMarginTop: "152px" }}
+            >
+              <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 sm:p-6 space-y-4 shadow-[0_4px_16px_rgba(20,30,60,0.05)]">
+                <h3 className="text-[18px] font-bold text-[#0B2A4A]">About This Course</h3>
+                <p className="text-[15px] text-[#475569] leading-relaxed">
                   {course.about || course.description}
                 </p>
               </div>
 
-              {/* Course Highlights */}
               {course.highlights && course.highlights.length > 0 && (
-                <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 sm:p-8 space-y-4">
-                  <h3 className="text-base font-bold text-[#0B1B3D]">Course Highlights</h3>
+                <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 sm:p-6 space-y-4 shadow-[0_4px_16px_rgba(20,30,60,0.05)]">
+                  <h3 className="text-[18px] font-bold text-[#0B2A4A]">Key Highlights</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {course.highlights.map((h, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]"
+                        className="flex items-center gap-3 p-3 rounded-xl bg-[#F8FAFC] border border-[rgba(20,30,60,0.06)]"
                       >
-                        {renderItemIcon(h.icon)}
-                        <span className="text-xs font-semibold text-[#0B1B3D]">{h.text}</span>
+                        {renderCourseIncludeIcon(h.icon || "check", h.text || h.label)}
+                        <span className="text-[14px] font-medium text-[#0B2A4A]">
+                          {h.text || h.label}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -536,29 +737,40 @@ export default function CourseDetailClient({
 
           {/* TAB 3: FACULTY PANEL */}
           {activeTab === "faculty" && (
-            <div id="panel-faculty" role="tabpanel" aria-labelledby="tab-faculty" className="space-y-6">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 sm:p-8 space-y-6">
+            <div
+              id="panel-faculty"
+              role="tabpanel"
+              aria-labelledby="tab-faculty"
+              className="space-y-6"
+              style={{ scrollMarginTop: "152px" }}
+            >
+              <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 sm:p-6 space-y-5 shadow-[0_4px_16px_rgba(20,30,60,0.05)]">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#FFB800] to-[#FFE27A] p-0.5 shadow-md flex-shrink-0">
-                    <div className="w-full h-full rounded-full bg-[#0B2545] flex items-center justify-center text-white font-bold text-lg">
-                      RD
-                    </div>
+                  <div className="w-14 h-14 rounded-full bg-[#FFE6A8] flex items-center justify-center text-[#0B2A4A] font-extrabold text-[20px] shrink-0">
+                    RD
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-[#0B1B3D]">{course.facultyName || "Ronak Dugar"}</h3>
-                    <p className="text-xs text-[#0066FF] font-semibold">{course.facultyRole || "Lead Accountancy Faculty"}</p>
+                    <h3 className="text-[20px] font-bold text-[#0B2A4A]">
+                      {course.facultyName || "Ronak Dugar"}
+                    </h3>
+                    <p className="text-[14px] text-[#6B7385] font-medium">
+                      {course.facultyRole || "Lead Accountancy Faculty"}
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-2.5 pt-4 border-t border-[#E2E8F0]">
-                  {(course.facultyBullets || [
-                    "10+ years of teaching experience",
-                    "Specialized in Class 11 & 12 Accountancy",
-                    "Concept-based and exam-oriented approach",
-                    "Trusted by thousands of students",
-                  ]).map((bullet, idx) => (
-                    <div key={idx} className="flex items-start gap-2.5 text-xs text-[#334155]">
-                      <CheckCircle2 className="w-4 h-4 text-[#16A34A] flex-shrink-0 mt-0.5" />
+                <div className="space-y-2.5 pt-4 border-t border-[rgba(20,30,60,0.06)]">
+                  {(
+                    course.facultyPoints ||
+                    course.facultyBullets || [
+                      "10+ years of teaching experience",
+                      "Specialized in Class 11 & 12 Accountancy",
+                      "Concept-based and exam-oriented approach",
+                      "Trusted by thousands of students",
+                    ]
+                  ).map((bullet, idx) => (
+                    <div key={idx} className="flex items-start gap-2.5 text-[14px] text-[#334155]">
+                      <CheckCircle2 className="w-[18px] h-[18px] text-[#1F9D63] shrink-0 mt-0.5" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                       <span>{bullet}</span>
                     </div>
                   ))}
@@ -569,492 +781,268 @@ export default function CourseDetailClient({
 
           {/* TAB 4: NOTES PANEL */}
           {activeTab === "notes" && (
-            <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" className="space-y-6">
-              {/* Kind Filter Chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                {[
-                  { id: "all", label: "All Materials" },
-                  { id: "notes", label: "Concept Notes" },
-                  { id: "practice", label: "Practice Sheets" },
-                  { id: "formula", label: "Formula Cards" },
-                  { id: "paper", label: "Board Papers" },
-                ].map((chip) => {
-                  const count =
-                    chip.id === "all"
-                      ? effectiveNotes.length
-                      : effectiveNotes.filter((n) => n.kind === chip.id).length;
-                  const isSelected = noteKindFilter === chip.id;
+            <div
+              id="panel-notes"
+              role="tabpanel"
+              aria-labelledby="tab-notes"
+              className="space-y-4"
+              style={{ scrollMarginTop: "152px" }}
+            >
+              {conceptNotes.length === 0 ? (
+                <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-8 text-center space-y-2">
+                  <FileText className="w-10 h-10 text-[#94A3B8] mx-auto mb-2" strokeWidth={1.75} />
+                  <h3 className="text-base font-bold text-[#0B1B3D]">No Notes Available</h3>
+                  <p className="text-xs text-[#64748B]">
+                    Concept notes for this course will be uploaded here shortly.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                  {conceptNotes.map((note) => (
+                    <NoteCard
+                      key={note._id}
+                      note={{
+                        ...note,
+                        courses: note.courses || [{ title: course.title, theme: course.theme }],
+                      }}
+                      userData={userData}
+                      onViewPdf={(n) => setViewingPdfNote(n)}
+                      onOpenAccess={(n) => openAccessModal(`Note: ${n.title}`)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: PRACTICE QUESTIONS PANEL */}
+          {activeTab === "practice" && (
+            <div
+              id="panel-practice"
+              role="tabpanel"
+              aria-labelledby="tab-practice"
+              className="space-y-4"
+              style={{ scrollMarginTop: "152px" }}
+            >
+              {practiceNotes.length === 0 ? (
+                <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-8 text-center space-y-2">
+                  <BookOpen className="w-10 h-10 text-[#94A3B8] mx-auto mb-2" strokeWidth={1.75} />
+                  <h3 className="text-base font-bold text-[#0B1B3D]">No Practice Sheets Available</h3>
+                  <p className="text-xs text-[#64748B]">
+                    Practice worksheets and question banks will appear here shortly.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                  {practiceNotes.map((note) => (
+                    <NoteCard
+                      key={note._id}
+                      note={{
+                        ...note,
+                        courses: note.courses || [{ title: course.title, theme: course.theme }],
+                      }}
+                      userData={userData}
+                      onViewPdf={(n) => setViewingPdfNote(n)}
+                      onOpenAccess={(n) => openAccessModal(`Practice: ${n.title}`)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN: 360px SIDEBAR (order: Access/Progress, Course Includes, Faculty) */}
+        <div
+          ref={sidebarRef}
+          className={`w-full lg:w-[360px] shrink-0 space-y-4 ${
+            canStick ? "lg:sticky" : "lg:static"
+          }`}
+          style={
+            canStick
+              ? { top: "calc(var(--nav-h, 72px) + 88px)" }
+              : undefined
+          }
+        >
+          {/* CARD 1: DESKTOP ACCESS / PROGRESS CARD (hidden on mobile, shown on desktop) */}
+          <div className="hidden lg:block">
+            {renderAccessOrProgressCard()}
+          </div>
+
+          {/* CARD 2: COURSE INCLUDES (Dark navy outline icons, 20px, stroke 1.75, NO colored background, 36px rows) */}
+          {course.includes && course.includes.length > 0 && (
+            <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 shadow-[0_4px_16px_rgba(20,30,60,0.05)] space-y-3.5">
+              <h4 className="text-[18px] font-bold text-[#0B2A4A]">Course Includes</h4>
+              <div className="space-y-1">
+                {course.includes.map((item, idx) => {
+                  const text = typeof item === "string" ? item : item.text || item.label || "";
+                  const iconKey = typeof item === "object" ? item.icon : "";
+                  if (!text) return null;
+
                   return (
-                    <button
-                      key={chip.id}
-                      type="button"
-                      onClick={() => setNoteKindFilter(chip.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-[#0B2545] text-white shadow-2xs"
-                          : "bg-white border border-[#E2E8F0] text-[#556987] hover:border-[#CBD5E1]"
-                      }`}
-                    >
-                      <span>{chip.label}</span>
-                      <span
-                        className={`text-[10px] rounded-full px-1.5 py-0.2 font-mono ${
-                          isSelected ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-600"
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
+                    <div key={idx} className="h-9 flex items-center gap-3 text-[14.5px] text-[#1F2A44]">
+                      {renderCourseIncludeIcon(iconKey, text)}
+                      <span className="font-medium text-[#1F2A44] truncate">{text}</span>
+                    </div>
                   );
                 })}
               </div>
-
-              {/* Notes List */}
-              {filteredNotes.length === 0 ? (
-                <div className="rounded-2xl border border-[#E2E8F0] bg-white p-8 text-center space-y-2">
-                  <FileText className="w-10 h-10 text-[#94A3B8] mx-auto mb-2" />
-                  <h3 className="text-base font-bold text-[#0B1B3D]">No Notes Available</h3>
-                  <p className="text-xs text-[#64748B] max-w-md mx-auto">
-                    Study materials for this category will be uploaded here soon.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {filteredNotes.map((note) => {
-                    const isEnrolled = !!userData?.enrolled;
-                    const kindBadgeColors = {
-                      notes: "bg-blue-50 text-blue-700 border-blue-200",
-                      practice: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                      formula: "bg-amber-50 text-amber-800 border-amber-200",
-                      paper: "bg-purple-50 text-purple-700 border-purple-200",
-                    }[note.kind] || "bg-neutral-50 text-neutral-700 border-neutral-200";
-
-                    return (
-                      <div
-                        key={note._id}
-                        className="flex flex-col justify-between rounded-2xl border border-[#E2E8F0] bg-white p-4 hover:border-[#CBD5E1] transition-all shadow-2xs space-y-3"
-                      >
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span
-                              className={`text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-md border ${kindBadgeColors}`}
-                            >
-                              {note.kind}
-                            </span>
-                            {note.pageCount > 0 && (
-                              <span className="text-[11px] font-mono text-neutral-400">
-                                {note.pageCount} page{note.pageCount !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                            {note.source === "link" && (
-                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 rounded px-1.5 py-0.2">
-                                External Link
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="text-sm font-bold text-[#0B1B3D] line-clamp-2">
-                            {note.title}
-                          </h4>
-                          {note.section && (
-                            <p className="text-xs text-[#64748B]">
-                              Section: {note.section}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Action buttons */}
-                        <div className="pt-2 border-t border-neutral-100 flex items-center justify-between">
-                          {isEnrolled && note.accessUrl ? (
-                            note.source === "link" ? (
-                              <a
-                                href={note.accessUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 transition-colors"
-                              >
-                                <span>Open Resource</span>
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            ) : (
-                              <a
-                                href={note.accessUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0066FF] hover:text-[#0052CC] transition-colors"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>View / Download</span>
-                              </a>
-                            )
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setBuyDialogOpen(true)}
-                              className="flex items-center gap-1.5 text-xs text-[#0B2545] font-semibold hover:text-[#0066FF] cursor-pointer"
-                            >
-                              <Lock className="w-3.5 h-3.5 text-[#D97706]" />
-                              <span>Enrolled only · Unlock note</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           )}
 
-          {/* TAB 5: FAQS PANEL */}
-          {activeTab === "faqs" && (
-            <div id="panel-faqs" role="tabpanel" aria-labelledby="tab-faqs" className="space-y-3">
-              {(course.faqs && course.faqs.length > 0 ? course.faqs : [
-                { q: "Who is this course suitable for?", a: "Designed for CBSE students targeting 95+ in Accountancy." },
-                { q: "Can I watch lectures offline or on mobile?", a: "Yes, you can access all high-definition lectures on mobile or desktop anytime." },
-                { q: "Are tests evaluated personally by Ronak Sir?", a: "Yes, weekly Sunday mock tests include handwritten evaluation and personalized doubt clearance." },
-                { q: "What is the validity of the course?", a: "Access remains active through your board examination cycle with regular updates." },
-              ]).map((faq, i) => (
-                <div key={i} className="rounded-2xl border border-[#E2E8F0] bg-white p-5 space-y-2">
-                  <h4 className="text-sm font-bold text-[#0B1B3D] flex items-center gap-2">
-                    <HelpCircle className="w-4 h-4 text-[#FFB800] flex-shrink-0" />
-                    <span>{faq.q}</span>
-                  </h4>
-                  <p className="text-xs text-[#556987] pl-6 leading-relaxed">{faq.a}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT COLUMN: STICKY SIDEBAR */}
-        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-          {/* 1. PERSONALIZED CARD: Progress for enrolled, Action card for visitors */}
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm space-y-5">
-            {userLoading ? (
-              // Loading skeleton
-              <div className="space-y-4 animate-pulse">
-                <div className="h-5 bg-gray-200 rounded w-1/2" />
-                <div className="h-3 bg-gray-200 rounded w-3/4" />
-                <div className="h-10 bg-gray-200 rounded-xl" />
+          {/* CARD 3: FACULTY CARD (56px avatar, soft yellow #FFE6A8 fill, dark navy 'RD', green outline CheckCircle2) */}
+          <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 shadow-[0_4px_16px_rgba(20,30,60,0.05)] space-y-3.5">
+            <h4 className="text-[18px] font-bold text-[#0B2A4A]">Faculty</h4>
+            <div className="flex items-center gap-3.5">
+              {/* Soft yellow 56px avatar */}
+              <div className="w-14 h-14 rounded-full bg-[#FFE6A8] flex items-center justify-center text-[#0B2A4A] font-extrabold text-[20px] shrink-0">
+                RD
               </div>
-            ) : userData?.enrolled ? (
-              // Reference B Progress Card for Enrolled Student
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-[#0B1B3D]">Your Progress</h4>
-                  <span className="text-xs font-bold text-[#0066FF]">{userData.progressPercent}%</span>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-xs text-[#556987]">
-                    {userData.completedLectures} of {userData.totalLectures} lectures completed
-                  </p>
-                  <div className="w-full h-2 rounded-full bg-[#E2E8F0] overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#0066FF] to-[#0B2545] rounded-full transition-all duration-300"
-                      style={{ width: `${userData.progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 space-y-2.5">
-                  <Link
-                    href={`/student/courses/${course.slug}${
-                      userData.lastWatchedLectureId ? `/lectures/${userData.lastWatchedLectureId}` : ""
-                    }`}
-                    className="w-full py-3 px-4 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm min-h-[44px]"
-                  >
-                    <span>Continue Learning</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsSavedForLater(!isSavedForLater)}
-                    className={`w-full py-2.5 px-4 rounded-xl border border-[#E2E8F0] text-xs font-semibold flex items-center justify-center gap-2 transition-colors min-h-[44px] ${
-                      isSavedForLater
-                        ? "bg-[#FFFBEB] text-[#D97706] border-[#FDE68A]"
-                        : "bg-white text-[#556987] hover:bg-[#F8FAFC]"
-                    }`}
-                  >
-                    <Bookmark className={`w-3.5 h-3.5 ${isSavedForLater ? "fill-[#D97706]" : ""}`} />
-                    <span>{isSavedForLater ? "Saved for Later" : "Save for Later"}</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // Reference B Visitor Action Card
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-base font-bold text-[#0B1B3D]">Buy this course</h4>
-                  <p className="text-xs text-[#556987] mt-1">
-                    Get full access to all video lectures, notes, mock tests, and mentor guidance.
-                  </p>
-                </div>
-
-                <div className="space-y-2.5 pt-1">
-                  <a
-                    href={buyWhatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 px-4 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md min-h-[44px]"
-                  >
-                    <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                    <span>Buy on WhatsApp</span>
-                  </a>
-
-                  <Link
-                    href="/student/login"
-                    className="w-full py-2.5 px-4 rounded-xl border border-[#E2E8F0] text-[#0B1B3D] hover:bg-[#F8FAFC] text-xs font-semibold flex items-center justify-center gap-2 transition-colors min-h-[44px]"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Student Login</span>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 2. COURSE INCLUDES CARD (Up to 7 items from A) */}
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm space-y-4">
-            <h4 className="text-sm font-bold text-[#0B1B3D]">Course Includes</h4>
-            <div className="space-y-3">
-              {(course.includes && course.includes.length > 0
-                ? course.includes
-                : [
-                    { icon: "video", text: "136 HD Video Lectures" },
-                    { icon: "notes", text: "Chapter-wise Notes (PDF)" },
-                    { icon: "practice", text: "Practice Questions with Solutions" },
-                    { icon: "tests", text: "Board-style Mock Tests" },
-                    { icon: "papers", text: "Previous Year Question Papers" },
-                    { icon: "globe", text: "Bilingual (Hindi + English)" },
-                    { icon: "infinity", text: "Lifetime Access" },
-                  ]
-              ).map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3 text-xs text-[#334155]">
-                  {renderItemIcon(item.icon)}
-                  <span>{item.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. FACULTY CARD: One row with chevron when no bullets, or expanded with bullets (Reference A) */}
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm space-y-4">
-            <h4 className="text-sm font-bold text-[#0B1B3D]">Faculty</h4>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#FFB800] to-[#FFE27A] flex items-center justify-center text-[#0B2545] font-bold text-xs flex-shrink-0">
-                  RD
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[#0B1B3D]">{course.facultyName || "Ronak Dugar"}</p>
-                  <p className="text-[11px] text-[#556987]">{course.facultyRole || "Lead Accountancy Faculty"}</p>
-                </div>
-              </div>
-
-              {!course.facultyBullets || course.facultyBullets.length === 0 ? (
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              ) : null}
-            </div>
-
-            {/* Bullets when present */}
-            {course.facultyBullets && course.facultyBullets.length > 0 && (
-              <div className="space-y-2 pt-3 border-t border-[#F1F5F9]">
-                {course.facultyBullets.map((bullet, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-[11px] text-[#475569]">
-                    <Check className="w-3.5 h-3.5 text-[#16A34A] flex-shrink-0 mt-0.5" />
-                    <span>{bullet}</span>
-                  </div>
-                ))}
-
-                {course.facultyProfileUrl && (
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleTabChange("faculty")}
-                      className="text-xs font-semibold text-[#0066FF] hover:underline inline-flex items-center gap-1"
-                    >
-                      <span>View Faculty Profile</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 3. RELATED COURSES STRIP (Reference A) */}
-      {relatedCourses.length > 0 && (
-        <div className="mt-16 pt-12 border-t border-[#E2E8F0] space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-[#0B1B3D]">Related Courses</h3>
-              <p className="text-xs text-[#556987] mt-0.5">Explore more courses to strengthen your preparation.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {relatedCourses.map((rel) => (
-              <Link
-                key={rel._id}
-                href={`/courses/${rel.slug}`}
-                className="group p-5 rounded-2xl border border-[#E2E8F0] bg-white hover:border-[#CBD5E1] transition-all flex items-center justify-between gap-4 shadow-sm hover:shadow-md"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#F0F7FF] text-[#0066FF] flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold text-[#0B1B3D] group-hover:text-[#0066FF] transition-colors truncate">
-                      {rel.title}
-                    </h4>
-                    {rel.subtitle && (
-                      <p className="text-[11px] text-[#64748B] font-medium">{rel.subtitle}</p>
-                    )}
-                    <p className="text-[10px] text-[#94A3B8] font-mono mt-0.5">
-                      {rel.lectureCount} Lectures
-                    </p>
-                  </div>
-                </div>
-
-                <div className="w-8 h-8 rounded-full bg-[#F8FAFC] group-hover:bg-[#0066FF] text-[#64748B] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 4. PREVIEW VIDEO MODAL PLAYER */}
-      {previewLecture && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="preview-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          onClick={() => setPreviewLecture(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setPreviewLecture(null);
-          }}
-        >
-          <div
-            className="relative w-full max-w-3xl bg-[#0B1B3D] border border-white/20 rounded-2xl overflow-hidden shadow-2xl space-y-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="px-5 py-4 bg-[#07132B] flex items-center justify-between border-b border-white/10 text-white">
-              <div className="min-w-0 pr-4">
-                <span className="text-[11px] uppercase tracking-wider text-[#FFB800] font-bold">
-                  Free Preview Lecture
-                </span>
-                <h3 id="preview-modal-title" className="text-sm font-bold truncate text-white mt-0.5">
-                  {previewLecture.title}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewLecture(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                aria-label="Close preview modal"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Video Player Frame */}
-            <div className="relative aspect-video w-full bg-black">
-              {previewLecture.vimeoId ? (
-                <iframe
-                  src={`https://player.vimeo.com/video/${previewLecture.vimeoId}?autoplay=1&title=0&byline=0&portrait=0`}
-                  className="w-full h-full border-0"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  allowFullScreen
-                  title={previewLecture.title}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                  Video preview unavailable
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 5. BUY THIS COURSE MODAL DIALOG */}
-      {buyDialogOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="buy-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setBuyDialogOpen(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setBuyDialogOpen(false);
-          }}
-        >
-          <div
-            className="relative w-full max-w-md bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setBuyDialogOpen(false)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              aria-label="Close dialog"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* Header with lock icon */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center flex-shrink-0">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 pr-6">
-                <h3 id="buy-dialog-title" className="text-base font-bold text-[#0B1B3D]">
-                  Buy this course
-                </h3>
-                <p className="text-xs text-[#556987] font-medium truncate">
-                  {course.title}
+              <div className="min-w-0">
+                <p className="text-[17px] font-bold text-[#0B2A4A] truncate">
+                  {course.facultyName || "Ronak Dugar"}
+                </p>
+                <p className="text-[14px] text-[#6B7385] truncate">
+                  {course.facultyRole || "Lead Accountancy Faculty"}
                 </p>
               </div>
             </div>
 
-            {/* Body text */}
-            <p className="text-xs text-[#475569] leading-relaxed">
-              This lecture is available to enrolled students. Message Sir on WhatsApp to buy this course and receive your login ID and password.
-            </p>
+            {/* Checkmarked Points */}
+            <div className="space-y-2.5 pt-3.5 border-t border-[rgba(20,30,60,0.06)]">
+              {(
+                course.facultyPoints ||
+                course.facultyBullets || [
+                  "10+ years of teaching experience",
+                  "Specialized in Class 11 & 12 Accountancy",
+                  "Concept-based and exam-oriented approach",
+                  "Trusted by thousands of students",
+                ]
+              ).map((bullet, idx) => (
+                <div key={idx} className="flex items-start gap-2.5 text-[14px] text-[#334155]">
+                  <CheckCircle2 className="w-[18px] h-[18px] text-[#1F9D63] shrink-0 mt-0.5" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                  <span>{bullet}</span>
+                </div>
+              ))}
 
-            {/* Buttons */}
-            <div className="space-y-2.5 pt-1">
-              <a
-                href={buyWhatsappHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-3 px-4 rounded-xl bg-[#0B2545] hover:bg-[#143565] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md min-h-[44px]"
-              >
-                <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                <span>Buy on WhatsApp</span>
-              </a>
-
-              <div className="text-center pt-1">
+              <div className="pt-2">
                 <Link
-                  href="/student/login"
-                  onClick={() => setBuyDialogOpen(false)}
-                  className="text-xs font-semibold text-[#0066FF] hover:underline inline-flex items-center gap-1"
+                  href="/about"
+                  className="text-[14px] font-semibold text-[#1D5FD6] hover:underline inline-flex items-center gap-1.5"
                 >
-                  <span>I already have a login</span>
-                  <ArrowRight className="w-3 h-3" />
+                  <span>View Faculty Profile</span>
+                  <ArrowRight className="w-4 h-4 text-[#1D5FD6]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
                 </Link>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 3. RELATED COURSES SECTION (64px circle with soft pastel tint, 2-line title, 13px lecture count, arrow chip) */}
+      {relatedCourses.length > 0 && (
+        <div className="mt-14 pt-10 border-t border-[rgba(20,30,60,0.06)] space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="w-9 h-1 bg-[#FFB800] rounded-full mb-3" />
+              <h3 className="text-[28px] font-extrabold text-[#0B2A4A] tracking-tight">Related Courses</h3>
+              <p className="text-[15px] text-[#6B7385] mt-1">
+                Explore more courses to strengthen your preparation.
+              </p>
+            </div>
+
+            {/* Carousel Navigation Arrows */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrevCarousel}
+                disabled={carouselIndex === 0}
+                className="w-9 h-9 rounded-full border border-[#D9DFEA] bg-white hover:bg-[#F8FAFC] disabled:opacity-40 text-[#1B2B4B] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                aria-label="Previous courses"
+              >
+                <ChevronLeft className="w-4 h-4" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextCarousel}
+                disabled={carouselIndex >= maxCarouselIndex}
+                className="w-9 h-9 rounded-full border border-[#D9DFEA] bg-white hover:bg-[#F8FAFC] disabled:opacity-40 text-[#1B2B4B] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                aria-label="Next courses"
+              >
+                <ChevronRight className="w-4 h-4" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+              </button>
+            </div>
+          </div>
+
+          {/* Cards: 3 in a row on desktop, horizontal scroll on mobile (< 1024px) */}
+          <div className="flex overflow-x-auto no-scrollbar snap-x pb-2 gap-4 lg:grid lg:grid-cols-3 lg:gap-5 items-stretch">
+            {relatedCourses.slice(carouselIndex, carouselIndex + 3).map((rel, relIdx) => {
+              const tone = RELATED_TONE_CYCLE[relIdx % RELATED_TONE_CYCLE.length];
+
+              return (
+                <Link
+                  key={rel._id || rel.slug}
+                  href={`/courses/${rel.slug}`}
+                  className="group p-[18px] rounded-[18px] border border-[rgba(20,30,60,0.06)] bg-white hover:border-[#CBD5E1] transition-all flex items-center justify-between gap-4 shadow-[0_4px_16px_rgba(20,30,60,0.05)] hover:shadow-md min-w-[280px] sm:min-w-[320px] lg:min-w-0 shrink-0 lg:shrink h-full"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    {/* 64px Circular Icon Container */}
+                    <div
+                      className="w-16 h-16 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: tone.bg, color: tone.text }}
+                    >
+                      {rel.slug?.includes("11") || relIdx % 3 === 2 ? (
+                        <BookOpen className="w-7 h-7" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                      ) : (
+                        <FileText className="w-7 h-7" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[16px] font-bold text-[#0B2A4A] group-hover:text-[#1D5FD6] transition-colors line-clamp-2 leading-snug">
+                        {rel.title} {rel.subtitle ? `(${rel.subtitle.replace(/^\(|\)$/g, "")})` : ""}
+                      </h4>
+                      <p className="text-[13px] text-[#6B7385] font-normal mt-1">
+                        {rel.lectureCount ||
+                          (rel.metaRight && /^\d+/.test(rel.metaRight)
+                            ? rel.metaRight.replace(/HD\s+/i, "").trim()
+                            : rel.slug?.includes("11")
+                            ? "90 Lectures"
+                            : "120 Lectures")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="w-9 h-9 rounded-full bg-white border border-[#D9DFEA] group-hover:bg-[#0B2A4A] text-[#1B2B4B] group-hover:text-white flex items-center justify-center shrink-0 transition-colors shadow-2xs">
+                    <ArrowRight className="w-4 h-4" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Access Dialog Modal */}
+      <AccessDialog
+        isOpen={accessDialogOpen}
+        onClose={() => setAccessDialogOpen(false)}
+        course={course}
+        courseTitle={course.title}
+        courseSlug={course.slug}
+        userData={userData}
+        siteWhatsapp={siteWhatsapp}
+        defaultMessage={whatsappDefaultMessage}
+        lockedLectureTitle={selectedLockedLecture}
+        lectureTitle={selectedLockedLecture}
+      />
+
+      {/* PDF Viewer Modal */}
+      {viewingPdfNote && (
+        <PdfViewerModal
+          isOpen={!!viewingPdfNote}
+          onClose={() => setViewingPdfNote(null)}
+          note={viewingPdfNote}
+        />
       )}
     </div>
   );

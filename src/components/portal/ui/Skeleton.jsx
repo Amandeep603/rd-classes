@@ -118,4 +118,36 @@ export function AdminDashboardSkeleton() {
   );
 }
 
+export function AdminTableSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse" aria-label="Loading table...">
+      {/* Header action bar skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-2">
+          <div className="h-7 w-48 bg-neutral-200 rounded-lg" />
+          <div className="h-4 w-72 bg-neutral-100 rounded" />
+        </div>
+        <div className="flex gap-3">
+          <div className="h-10 w-28 bg-neutral-200 rounded-xl" />
+          <div className="h-10 w-32 bg-amber-200 rounded-xl" />
+        </div>
+      </div>
+      {/* Filter / Search bar skeleton */}
+      <div className="h-14 rounded-2xl bg-white border border-black/5 p-3 flex gap-3">
+        <div className="h-8 flex-1 bg-neutral-100 rounded-lg" />
+        <div className="h-8 w-36 bg-neutral-100 rounded-lg" />
+      </div>
+      {/* Table rows skeleton */}
+      <div className="rounded-2xl bg-white border border-black/5 p-4 space-y-3">
+        <div className="h-10 w-full bg-neutral-100 rounded-lg" />
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-14 w-full bg-neutral-50 rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export const StudentsSkeleton = AdminTableSkeleton;
+
 export default Skeleton;
