@@ -155,7 +155,7 @@ export async function POST(request) {
     });
 
     try {
-      const { createAdminNotification } = await import("@/server/services/notificationService.js");
+      const { createAdminNotification, createStudentNotification } = await import("@/server/services/notificationService.js");
       await createAdminNotification({
         type: "note_uploaded",
         title: "Note Uploaded",
@@ -163,6 +163,16 @@ export async function POST(request) {
         link: "/admin/notes",
         entityId: note._id.toString(),
       });
+      if (published) {
+        await createStudentNotification({
+          type: "note_uploaded",
+          title: `New Note: ${note.title}`,
+          message: `${note.book ? `${note.book} · ` : ""}${note.chapter || "New study material uploaded"}`,
+          courseId: courseIds[0] || null,
+          link: "/student/notes",
+          entityId: note._id.toString(),
+        });
+      }
     } catch {
       // ignore
     }

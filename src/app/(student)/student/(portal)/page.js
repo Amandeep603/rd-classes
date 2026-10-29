@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getCurrentUser } from "@/server/auth/session.js";
 import { getStudentDashboardData } from "@/server/services/studentDashboardService.js";
 import AnnouncementBanner from "@/components/portal/student/AnnouncementBanner";
@@ -16,6 +17,7 @@ export const metadata = {
 };
 
 async function StudentDashboardContent() {
+  await connection();
   const auth = await getCurrentUser();
   if (!auth?.user) return null;
   const data = await getStudentDashboardData(auth.user._id);

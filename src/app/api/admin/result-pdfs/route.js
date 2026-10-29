@@ -124,6 +124,20 @@ export async function POST(request) {
       meta: { title, classLabel, year, sizeBytes: fileSize },
     });
 
+    try {
+      const { createStudentNotification } = await import("@/server/services/notificationService.js");
+      await createStudentNotification({
+        type: "result_published",
+        title: `Results Published: ${resultDoc.title}`,
+        message: `${resultDoc.classLabel} (${resultDoc.year}) Results have been released.`,
+        courseId: null,
+        link: "/student",
+        entityId: resultDoc._id.toString(),
+      });
+    } catch {
+      // ignore
+    }
+
     return NextResponse.json({ success: true, result: resultDoc, resultPdf: resultDoc }, { status: 201 });
   } catch (err) {
     return NextResponse.json(

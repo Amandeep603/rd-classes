@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
+  LayoutGrid,
   Video,
   FileText,
   CalendarCheck,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", href: "/student", icon: LayoutDashboard },
+  { id: "dashboard", label: "Dashboard", href: "/student", icon: LayoutGrid },
   { id: "lectures", label: "Lectures", href: "/student/lectures", icon: Video },
   { id: "notes", label: "Notes", href: "/student/notes", icon: FileText },
   { id: "tests", label: "Tests", href: "/student/tests", icon: CalendarCheck },
@@ -32,7 +32,7 @@ export default function StudentSidebar({ whatsappNumber }) {
 
   return (
     <aside
-      className="hidden md:flex w-[256px] shrink-0 flex-col justify-between rounded-[28px] p-0 border border-sky-100/80 overflow-y-auto relative select-none"
+      className="hidden md:flex w-[256px] shrink-0 flex-col justify-between rounded-[28px] p-0 border border-sky-100/80 overflow-hidden relative select-none"
       style={{
         background: "linear-gradient(180deg, #E6F3FD 0%, #F3F9FE 55%, #FFFFFF 100%)",
         boxShadow: "0 10px 30px rgba(20,60,110,0.08)",
@@ -141,17 +141,17 @@ export default function StudentSidebar({ whatsappNumber }) {
           }}
         />
 
-        {/* Ask Sir on WhatsApp: green WhatsApp icon 22px and green text (#0E9F6E) 15px weight 600 */}
+        {/* Ask Sir on WhatsApp: green WhatsApp icon 22px and dark slate text (#1F2A44) */}
         {whatsappUrl && (
           <div className="px-[16px]">
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-[12px] h-[46px] rounded-[14px] px-[16px] text-[15px] font-semibold text-[#0E9F6E] hover:bg-white/60 transition-colors"
+              className="flex items-center gap-[12px] h-[46px] rounded-[14px] px-[16px] text-[15px] font-medium text-[#1F2A44] hover:bg-white/60 transition-colors"
             >
               <div className="flex h-[24px] w-[24px] items-center justify-center shrink-0">
-                <MessageCircle className="h-[22px] w-[22px] text-[#0E9F6E] fill-[#0E9F6E]" />
+                <MessageCircle className="h-[22px] w-[22px] text-[#25D366] fill-[#25D366]" />
               </div>
               <span>Ask Sir on WhatsApp</span>
             </a>

@@ -1,4 +1,5 @@
 import "server-only";
+import mongoose from "mongoose";
 import connectDB from "../db/connect.js";
 import { Enrollment } from "../db/models/Enrollment.js";
 import { Course } from "../db/models/Course.js";
@@ -19,19 +20,23 @@ export async function getStudentDashboardData(userId) {
   const user = await User.findById(userId).lean();
   if (!user) return null;
 
+  const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : user._id;
+
   // 1. Active enrollments
   const enrollments = await Enrollment.find({
-    userId,
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    $and: [
+      { $or: [{ userId: userObjId }, { studentId: userObjId }] },
+      { status: "active" },
+      { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
+    ],
   })
     .select("-paymentNote")
-    .populate("courseId", "title slug published thumbnail targetScore rewardTargetText validUntil")
+    .populate("courseId", "title slug status published thumbnail targetScore rewardTargetText validUntil")
     .lean();
 
   const activeCourses = enrollments
     .map((e) => e.courseId)
-    .filter((c) => c && c.published);
+    .filter((c) => c && (c.status === "published" || c.published !== false));
 
   const activeCourseIds = activeCourses.map((c) => c._id);
   const stringCourseIds = activeCourseIds.map((id) => id.toString());
@@ -50,7 +55,9 @@ export async function getStudentDashboardData(userId) {
   const settings = await Setting.findOne().lean();
 
   // 3. Announcement (active for all or enrolled courseIds, prioritized by pinned)
+  const dismissedIds = (user.dismissedAnnouncementIds || []).map((id) => id.toString());
   const announcement = await Announcement.findOne({
+    _id: { $nin: user.dismissedAnnouncementIds || [] },
     active: { $ne: false },
     $and: [
       {
@@ -89,10 +96,12 @@ export async function getStudentDashboardData(userId) {
     // Check first lecture in case nothing has been watched
     const firstLecture = await Lecture.findOne({
       courseId: { $in: activeCourseIds },
-      published: true,
+      $or: [{ status: "published" }, { published: true }],
     })
-      .sort({ order: 1, createdAt: 1 })
-      .select("_id")
+      .sort({ position: 1, order: 1, createdAt: 1 })
+      .populate("bookId", "title position")
+      .populate("chapterId", "title position")
+      .populate("courseId", "title slug published")
       .lean();
 
     if (firstLecture) {
@@ -100,45 +109,70 @@ export async function getStudentDashboardData(userId) {
     }
 
     const latestProgress = await Progress.findOne({
-      userId,
+      $or: [{ userId: userObjId }, { studentId: userObjId }],
       courseId: { $in: activeCourseIds },
       completed: false,
     })
       .sort({ updatedAt: -1 })
-      .populate("lectureId", "title section chapter order durationSec published")
+      .populate({
+        path: "lectureId",
+        select: "title section chapter order durationSec durationSeconds position status published bookId chapterId",
+        populate: [
+          { path: "bookId", select: "title position" },
+          { path: "chapterId", select: "title position" },
+        ],
+      })
       .populate("courseId", "title slug published")
       .lean();
 
     const fallbackProgress = !latestProgress
       ? await Progress.findOne({
-          userId,
+          $or: [{ userId: userObjId }, { studentId: userObjId }],
           courseId: { $in: activeCourseIds },
         })
           .sort({ updatedAt: -1 })
-          .populate("lectureId", "title section chapter order durationSec published")
+          .populate({
+            path: "lectureId",
+            select: "title section chapter order durationSec durationSeconds position status published bookId chapterId",
+            populate: [
+              { path: "bookId", select: "title position" },
+              { path: "chapterId", select: "title position" },
+            ],
+          })
           .populate("courseId", "title slug published")
           .lean()
       : null;
 
     const chosen = latestProgress || fallbackProgress;
 
-    if (chosen?.lectureId?.published && chosen?.courseId?.published) {
+    const isLecPublished = (lec) =>
+      lec && (lec.status === "published" || lec.published === true || lec.published !== false);
+
+    if (chosen?.lectureId && isLecPublished(chosen.lectureId) && (chosen?.courseId?.status === "published" || chosen?.courseId?.published !== false)) {
       const courseLecturesCount = await Lecture.countDocuments({
         courseId: chosen.courseId._id,
-        published: true,
+        $or: [{ status: "published" }, { published: true }],
       });
 
-      const dur = chosen.durationSec || chosen.lectureId.durationSec || 2520;
+      const dur = chosen.durationSec || chosen.lectureId.durationSec || chosen.lectureId.durationSeconds || 2520;
       const pos = chosen.positionSec || 0;
       const pct = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
-      const chapterLabel =
-        chosen.lectureId.chapter || chosen.lectureId.section || "Chapter Revision";
+
+      const lec = chosen.lectureId;
+      let chapterPath = "";
+      if (lec.bookId?.title && lec.chapterId?.title) {
+        chapterPath = `Book ${lec.bookId.position || 1}: ${lec.bookId.title} · Chapter ${lec.chapterId.position || 1}: ${lec.chapterId.title}`;
+      } else if (lec.book || lec.chapter) {
+        chapterPath = `${lec.book ? (lec.book.toLowerCase().startsWith("book") ? lec.book : `Book: ${lec.book}`) : "Book"} · ${lec.chapter ? (lec.chapter.toLowerCase().startsWith("chapter") ? lec.chapter : `Chapter: ${lec.chapter}`) : lec.section || "Chapter Revision"}`;
+      } else {
+        chapterPath = `${chosen.courseId.title} · ${lec.section || "Chapter Revision"}`;
+      }
 
       resume = {
-        lectureId: chosen.lectureId._id.toString(),
-        lectureTitle: chosen.lectureId.title,
-        section: chapterLabel,
-        chapterPath: `${chosen.courseId.title} > ${chapterLabel}`,
+        lectureId: lec._id.toString(),
+        lectureTitle: lec.title,
+        section: lec.chapter || lec.section || "Chapter Revision",
+        chapterPath,
         courseId: chosen.courseId._id.toString(),
         courseTitle: chosen.courseId.title,
         courseSlug: chosen.courseId.slug,
@@ -146,6 +180,36 @@ export async function getStudentDashboardData(userId) {
         durationSec: dur,
         percent: pct,
         bookmarked: Boolean(chosen.bookmarked),
+        totalCourseLectures: courseLecturesCount,
+      };
+    } else if (firstLecture && isLecPublished(firstLecture)) {
+      const courseLecturesCount = await Lecture.countDocuments({
+        courseId: firstLecture.courseId?._id || activeCourseIds[0],
+        $or: [{ status: "published" }, { published: true }],
+      });
+
+      const dur = firstLecture.durationSec || firstLecture.durationSeconds || 2520;
+      let chapterPath = "";
+      if (firstLecture.bookId?.title && firstLecture.chapterId?.title) {
+        chapterPath = `Book ${firstLecture.bookId.position || 1}: ${firstLecture.bookId.title} · Chapter ${firstLecture.chapterId.position || 1}: ${firstLecture.chapterId.title}`;
+      } else if (firstLecture.book || firstLecture.chapter) {
+        chapterPath = `${firstLecture.book ? (firstLecture.book.toLowerCase().startsWith("book") ? firstLecture.book : `Book: ${firstLecture.book}`) : "Book"} · ${firstLecture.chapter ? (firstLecture.chapter.toLowerCase().startsWith("chapter") ? firstLecture.chapter : `Chapter: ${firstLecture.chapter}`) : firstLecture.section || "Chapter Revision"}`;
+      } else {
+        chapterPath = `${firstLecture.courseId?.title || "Accountancy"} · ${firstLecture.section || "Chapter Revision"}`;
+      }
+
+      resume = {
+        lectureId: firstLecture._id.toString(),
+        lectureTitle: firstLecture.title,
+        section: firstLecture.chapter || firstLecture.section || "Chapter Revision",
+        chapterPath,
+        courseId: (firstLecture.courseId?._id || activeCourseIds[0]).toString(),
+        courseTitle: firstLecture.courseId?.title || "Comprehensive Accountancy",
+        courseSlug: firstLecture.courseId?.slug || "",
+        positionSec: 0,
+        durationSec: dur,
+        percent: 0,
+        bookmarked: false,
         totalCourseLectures: courseLecturesCount,
       };
     }
@@ -157,11 +221,11 @@ export async function getStudentDashboardData(userId) {
   if (activeCourseIds.length > 0) {
     totalPublishedLectures = await Lecture.countDocuments({
       courseId: { $in: activeCourseIds },
-      published: true,
+      $or: [{ status: "published" }, { published: true }],
     });
 
     completedLectures = await Progress.countDocuments({
-      userId,
+      $or: [{ userId: userObjId }, { studentId: userObjId }],
       courseId: { $in: activeCourseIds },
       completed: true,
     });
@@ -173,7 +237,9 @@ export async function getStudentDashboardData(userId) {
       : 0;
 
   // 6. Test results stats & upcoming tests count
-  const testResults = await TestResult.find({ userId }).lean();
+  const testResults = await TestResult.find({
+    $or: [{ userId: userObjId }, { studentId: userObjId }],
+  }).lean();
   let testsCount = testResults.length;
   let avgTestScore = 0;
   if (testsCount > 0) {
@@ -301,7 +367,7 @@ export async function getStudentDashboardData(userId) {
     resume,
     firstLectureId,
     syllabus: {
-      courseTitle: primaryCourse?.title || "Board Preparation",
+      courseTitle: "Board Preparation",
       totalLectures: totalPublishedLectures,
       completedLectures,
       percent: coveragePercent,

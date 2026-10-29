@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import mongoose from "mongoose";
 import { connection } from "next/server";
 import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
@@ -32,17 +33,20 @@ async function StudentPortalLayoutContent({ children }) {
     setting?.whatsappNumber || setting?.whatsapp || "918368545620";
 
   // 2. Fetch Active Enrollments & Main Course
+  const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : userId;
   const enrollments = await Enrollment.find({
-    userId,
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    $and: [
+      { $or: [{ userId: userObjId }, { studentId: userObjId }] },
+      { status: "active" },
+      { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
+    ],
   })
-    .populate("courseId", "title slug classLabel category")
+    .populate("courseId", "title slug classLabel category status published")
     .lean();
 
   const activeCourses = enrollments
     .map((e) => e.courseId)
-    .filter(Boolean);
+    .filter((c) => c && (c.status === "published" || c.published !== false));
 
   const mainCourse = activeCourses[0] || null;
   const subtitle = mainCourse

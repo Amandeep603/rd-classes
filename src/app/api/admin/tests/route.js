@@ -46,6 +46,20 @@ export async function POST(request) {
       venue: (body.venue || "RD Classes, Sector 9 Centre").trim(),
     });
 
+    try {
+      const { createStudentNotification } = await import("@/server/services/notificationService.js");
+      await createStudentNotification({
+        type: "mock_test_scheduled",
+        title: `Mock Test Scheduled: ${test.title}`,
+        message: `${test.startTime} - ${test.endTime} · ${test.venue}`,
+        courseId: test.courseId || null,
+        link: "/student/tests",
+        entityId: test._id.toString(),
+      });
+    } catch {
+      // ignore
+    }
+
     return Response.json({ success: true, test }, { status: 201 });
   } catch (err) {
     return Response.json({ error: err?.message }, { status: 500 });

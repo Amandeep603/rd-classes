@@ -154,6 +154,22 @@ export async function POST(request) {
 
     await invalidateCoursesCache();
 
+    if (createdLectures.length > 0) {
+      try {
+        const { createStudentNotification } = await import("@/server/services/notificationService.js");
+        await createStudentNotification({
+          type: "lecture_added",
+          title: `${createdLectures.length} New Lecture${createdLectures.length > 1 ? "s" : ""} Added`,
+          message: `${bookTitle ? `${bookTitle} · ` : ""}${chapterTitle || "New lectures added"}`,
+          courseId,
+          link: "/student/lectures",
+          entityId: createdLectures[0]._id,
+        });
+      } catch {
+        // ignore notification errors
+      }
+    }
+
     return Response.json({
       success: true,
       count: createdLectures.length,

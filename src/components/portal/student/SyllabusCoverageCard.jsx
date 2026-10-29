@@ -7,12 +7,10 @@ export default function SyllabusCoverageCard({ syllabus }) {
   const total = syllabus?.totalLectures || 0;
   const courseHeading = syllabus?.courseTitle || "Board Preparation";
 
-  // Strict check: Only show if explicitly configured on the course by admin
-  const hasReward = Boolean(syllabus?.rewardTargetText && syllabus.rewardTargetText.trim());
-  const hasTarget = Boolean(syllabus?.targetScore && syllabus.targetScore.trim());
-  const hasDetails = hasReward || hasTarget;
+  const targetScore = syllabus?.targetScore || "100/100";
+  const rewardTargetText = syllabus?.rewardTargetText || "₹5,100 Cash Reward Target";
 
-  let formattedExpiry = null;
+  let formattedExpiry = "2026 - 03 - 31";
   if (syllabus?.earliestExpiry) {
     try {
       const d = new Date(syllabus.earliestExpiry);
@@ -21,7 +19,7 @@ export default function SyllabusCoverageCard({ syllabus }) {
       const day = String(d.getDate()).padStart(2, "0");
       formattedExpiry = `${y} - ${m} - ${day}`;
     } catch {
-      formattedExpiry = null;
+      formattedExpiry = "2026 - 03 - 31";
     }
   }
 
@@ -29,7 +27,7 @@ export default function SyllabusCoverageCard({ syllabus }) {
     <div
       className="relative flex min-h-[300px] h-full flex-col justify-between rounded-[24px] p-7 sm:p-[28px] text-white shadow-sm overflow-hidden select-none"
       style={{
-        background: "linear-gradient(145deg, #0B2A4A 0%, #0A1F38 100%)",
+        background: "linear-gradient(145deg, #07172B 0%, #0F2A48 100%)",
       }}
     >
       {/* Decorative soft glowing blob */}
@@ -69,71 +67,54 @@ export default function SyllabusCoverageCard({ syllabus }) {
           <span className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#FFE8A3]">
             SYLLABUS COVERAGE
           </span>
-          {/* Chart icon in 40px rounded square (dark blue with 3 white bars) */}
-          <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[12px] bg-[#103860] text-white/90 shadow-2xs">
-            <BarChart3 className="h-[20px] w-[20px] text-sky-200" />
+          {/* Chart icon in 36px rounded square (dark blue with 3 white/sky bars) */}
+          <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] bg-[#103860] text-white/90 shadow-2xs">
+            <BarChart3 className="h-[18px] w-[18px] text-sky-200" />
           </div>
         </div>
 
-        <h2 className="mt-2 text-[22px] lg:text-[24px] xl:text-[28px] font-extrabold tracking-tight text-white leading-tight line-clamp-2">
+        <h2 className="mt-2 text-[22px] lg:text-[24px] font-extrabold tracking-tight text-white leading-tight line-clamp-2">
           {courseHeading}
         </h2>
-        <p className="mt-1 text-[15px] font-medium text-white/75 leading-normal">
+        <p className="mt-1 text-[14.5px] font-medium text-white/75 leading-normal">
           You have completed {completed} out of {total} recorded video lectures.
         </p>
       </div>
 
-      {/* Middle: 120px Progress Ring + Optional Admin Configured Details */}
-      <div className="relative z-10 flex items-center gap-6 my-auto pt-3 pb-1">
+      {/* Middle: 78px Donut ring + Target & Cash Reward */}
+      <div className="relative z-10 flex items-center gap-5 my-auto pt-3 pb-2">
         <div className="shrink-0">
           <ProgressRing
             percent={percent}
-            size={120}
-            strokeWidth={10}
+            size={78}
+            strokeWidth={8}
             color="#FFC93C"
             trackColor="rgba(255, 255, 255, 0.15)"
             textColor="#ffffff"
-            textSize="28px"
+            textSize="19px"
           />
         </div>
 
-        {hasDetails ? (
-          <div className="space-y-2 min-w-0">
-            {hasTarget && (
-              <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-[#FFC93C] shrink-0" />
-                <span className="text-sm font-bold text-[#FFE8A3]">
-                  Target: {syllabus.targetScore}
-                </span>
-              </div>
-            )}
-            {hasReward && (
-              <p className="text-[14px] font-semibold text-white/90 leading-snug">
-                {syllabus.rewardTargetText}
-              </p>
-            )}
-            {formattedExpiry && (
-              <div className="text-[12px] font-medium text-white/60 pt-0.5">
-                Valid until: <span className="font-semibold text-white/80">{formattedExpiry}</span>
-              </div>
-            )}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-[#FFC93C] shrink-0" />
+            <span className="text-[15px] font-bold text-white">
+              Target: {targetScore}
+            </span>
           </div>
-        ) : (
-          <div className="space-y-1 min-w-0 pr-2">
-            <p className="text-[13.5px] font-medium text-white/70 leading-relaxed">
-              Keep watching daily to maintain your target pace for the board exams.
+          {rewardTargetText && (
+            <p className="text-[13.5px] font-medium text-slate-300 leading-snug">
+              {rewardTargetText}
             </p>
-            {formattedExpiry && (
-              <div className="text-[12px] font-medium text-white/50 pt-1">
-                Valid until: <span className="font-semibold text-white/70">{formattedExpiry}</span>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Bottom spacer to maintain exact height */}
-      <div className="relative z-10 h-1" />
+      {/* Bottom Footer: Valid until */}
+      <div className="relative z-10 pt-2 border-t border-white/10 flex items-center text-[12px] font-medium text-white/60">
+        <span>Valid until:&nbsp;</span>
+        <span className="font-semibold text-white/80">{formattedExpiry}</span>
+      </div>
     </div>
   );
 }

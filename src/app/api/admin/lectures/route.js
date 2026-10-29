@@ -191,6 +191,22 @@ export async function POST(request) {
 
     await invalidateCoursesCache();
 
+    if (status === "published") {
+      try {
+        const { createStudentNotification } = await import("@/server/services/notificationService.js");
+        await createStudentNotification({
+          type: "lecture_added",
+          title: `New Lecture: ${lecture.title}`,
+          message: `${bookTitle ? `${bookTitle} · ` : ""}${chapterTitle || "New lecture available"}`,
+          courseId: body.courseId,
+          link: `/student/watch/${lecture._id}`,
+          entityId: lecture._id,
+        });
+      } catch {
+        // ignore notification errors
+      }
+    }
+
     return Response.json({ success: true, lecture });
   } catch (err) {
     return Response.json({ error: err?.message }, { status: 500 });

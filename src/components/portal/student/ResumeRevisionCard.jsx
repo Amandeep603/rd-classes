@@ -186,7 +186,7 @@ export default function ResumeRevisionCard({
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2.5 h-[52px] rounded-[14px] bg-[#16A34A] hover:bg-[#15803D] px-6 text-[15px] font-bold text-white shadow-sm transition-all active:scale-98"
+              className="inline-flex items-center gap-2.5 h-[48px] rounded-full bg-[#16A34A] hover:bg-[#15803D] px-6 text-[15px] font-bold text-white shadow-sm transition-all active:scale-98"
             >
               <MessageCircle className="h-4 w-4 fill-white" />
               <span>Contact on WhatsApp</span>
@@ -194,7 +194,7 @@ export default function ResumeRevisionCard({
           ) : (
             <Link
               href={watchUrl}
-              className="inline-flex items-center gap-2.5 h-[52px] rounded-[14px] bg-[#FFC93C] hover:bg-[#F7BF2E] px-6 text-[15px] font-bold text-[#1F2A44] shadow-[0_4px_14px_rgba(255,201,60,0.35)] transition-all active:scale-98"
+              className="inline-flex items-center gap-2.5 h-[48px] rounded-full bg-[#FFC93C] hover:bg-[#F7BF2E] px-6 text-[15px] font-bold text-[#1F2A44] shadow-[0_4px_14px_rgba(255,201,60,0.35)] transition-all active:scale-98"
             >
               <Play className="h-4 w-4 fill-[#1F2A44]" />
               <span>{buttonText}</span>

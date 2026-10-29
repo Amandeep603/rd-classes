@@ -79,6 +79,12 @@ const userSchema = new Schema(
       type: String,
       default: null,
     },
+    dismissedAnnouncementIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Announcement",
+      },
+    ],
     savedCourses: [
       {
         type: String,

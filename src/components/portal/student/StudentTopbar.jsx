@@ -26,10 +26,41 @@ export default function StudentTopbar({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [liveNotifs, setLiveNotifs] = useState(null);
 
   const menuRef = useRef(null);
   const notifRef = useRef(null);
   const searchRef = useRef(null);
+
+  // Fetch notifications from server endpoint
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch("/api/student/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        setLiveNotifs(data);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await fetch("/api/student/notifications/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
+      fetchNotifications();
+    } catch {
+      // ignore
+    }
+  };
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -72,29 +103,29 @@ export default function StudentTopbar({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const firstName = student?.name
-    ? student.name.trim().split(" ")[0]
-    : "Student";
+  const studentName = student?.name ? student.name.trim() : "Student";
   const initial = student?.name
     ? student.name.trim().charAt(0).toUpperCase()
     : "S";
   const classLabel = classPill || (student?.className ? `Class ${student.className}` : "Class 12");
   const mainSubtitle =
-    subtitle || (student?.className ? `Class ${student.className} Accountancy` : "Accountancy");
+    subtitle || (student?.className ? `Class ${student.className} Comprehensive Accountancy` : "Accountancy");
 
-  const totalNotifs =
-    (notifications.announcements?.length || 0) +
-    (notifications.notes?.length || 0);
+  const unreadCount = liveNotifs?.unreadCount !== undefined
+    ? liveNotifs.unreadCount
+    : (notifications.announcements?.length || 0) + (notifications.notes?.length || 0);
+
+  const displayNotifs = liveNotifs?.notifications || [];
 
   return (
     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between min-h-[72px] mb-4">
       {/* Left: Greeting + Class Pill + Subtitle */}
       <div>
         <div className="flex items-center gap-3">
-          <h1 className="text-[28px] font-extrabold tracking-tight text-[#1F2A44]">
-            Hi {firstName} <span aria-hidden="true">👋</span>
+          <h1 className="text-[26px] sm:text-[28px] font-extrabold tracking-tight text-[#1F2A44]">
+            Hi {studentName} <span aria-hidden="true">👋</span>
           </h1>
-          <span className="inline-flex items-center rounded-full bg-[#FFE08A] px-[12px] py-[4px] text-[13px] font-semibold text-[#7A5200]">
+          <span className="inline-flex items-center rounded-full bg-[#FEF08A] px-[12px] py-[3px] text-[12px] font-semibold text-[#854D0E]">
             {classLabel}
           </span>
         </div>
@@ -242,56 +273,92 @@ export default function StudentTopbar({
         <div className="relative" ref={notifRef}>
           <button
             type="button"
-            onClick={() => setNotifOpen(!notifOpen)}
+            onClick={() => {
+              const next = !notifOpen;
+              setNotifOpen(next);
+              if (next) fetchNotifications();
+            }}
             aria-expanded={notifOpen}
-            aria-label={`Notifications, ${totalNotifs} new`}
-            className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-white border border-black/8 text-[#4B5563] hover:text-[#111827] hover:border-black/15 shadow-xs transition-colors relative"
+            aria-label={`Notifications, ${unreadCount} new`}
+            className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-white border border-black/8 text-[#4B5563] hover:text-[#1F2A44] hover:border-black/15 shadow-xs transition-colors relative"
           >
             <Bell className="h-5 w-5" />
-            {totalNotifs > 0 && (
-              <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-[#FDB813] ring-2 ring-white" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FFC93C] px-1 text-[11px] font-bold text-[#1F2A44] ring-2 ring-white shadow-xs">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             )}
           </button>
 
           {/* Notifications Dropdown */}
           {notifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl bg-white p-3 shadow-2xl border border-black/8 z-50 animate-in fade-in zoom-in-95 duration-100">
+            <div className="absolute right-0 top-full mt-2 w-80 sm:w-88 rounded-2xl bg-white p-3 shadow-2xl border border-black/8 z-50 animate-in fade-in zoom-in-95 duration-100">
               <div className="flex items-center justify-between pb-2 border-b border-black/5 px-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#111827]">
                   Notifications
                 </span>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">
-                  {totalNotifs} Recent
-                </span>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="text-[11px] font-semibold text-[#0284C7] hover:underline cursor-pointer"
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
 
               <div className="divide-y divide-black/5 max-h-72 overflow-y-auto mt-1">
-                {notifications.announcements?.map((a) => (
-                  <div key={a._id} className="p-2.5 hover:bg-neutral-50 rounded-xl transition-colors">
-                    <div className="text-xs font-bold text-[#111827]">{a.title}</div>
-                    <div className="text-[11px] text-[#6B7280] line-clamp-2 mt-0.5">{a.body}</div>
-                  </div>
-                ))}
-
-                {notifications.notes?.map((n) => (
-                  <Link
-                    key={n._id}
-                    href="/student/notes"
-                    onClick={() => setNotifOpen(false)}
-                    className="p-2.5 hover:bg-neutral-50 rounded-xl flex items-center gap-2.5 transition-colors"
-                  >
-                    <FileText className="h-4 w-4 text-[#D97706] shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-[#111827] truncate">{n.title}</div>
-                      <div className="text-[10px] text-[#6B7280]">New handout uploaded</div>
+                {displayNotifs.length > 0 ? (
+                  displayNotifs.map((n) => (
+                    <div
+                      key={n._id}
+                      className={`p-2.5 rounded-xl transition-colors ${
+                        n.isRead ? "opacity-75 hover:bg-neutral-50" : "bg-sky-50/50 hover:bg-sky-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {n.type === "lecture_added" && <Video className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
+                        {n.type === "note_uploaded" && <FileText className="h-3.5 w-3.5 text-sky-600 shrink-0" />}
+                        {n.type === "mock_test_scheduled" && <CalendarCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                        <div className="text-xs font-bold text-[#111827] truncate flex-1">{n.title}</div>
+                      </div>
+                      {n.message && (
+                        <div className="text-[11px] text-[#6B7280] line-clamp-2 mt-0.5">{n.message}</div>
+                      )}
                     </div>
-                  </Link>
-                ))}
+                  ))
+                ) : (
+                  <>
+                    {notifications.announcements?.map((a) => (
+                      <div key={a._id} className="p-2.5 hover:bg-neutral-50 rounded-xl transition-colors">
+                        <div className="text-xs font-bold text-[#111827]">{a.title}</div>
+                        <div className="text-[11px] text-[#6B7280] line-clamp-2 mt-0.5">{a.body}</div>
+                      </div>
+                    ))}
 
-                {totalNotifs === 0 && (
-                  <div className="py-6 text-center text-xs text-[#6B7280]">
-                    No new announcements or handouts right now.
-                  </div>
+                    {notifications.notes?.map((n) => (
+                      <Link
+                        key={n._id}
+                        href="/student/notes"
+                        onClick={() => setNotifOpen(false)}
+                        className="p-2.5 hover:bg-neutral-50 rounded-xl flex items-center gap-2.5 transition-colors"
+                      >
+                        <FileText className="h-4 w-4 text-[#D97706] shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-[#111827] truncate">{n.title}</div>
+                          <div className="text-[10px] text-[#6B7280]">New handout uploaded</div>
+                        </div>
+                      </Link>
+                    ))}
+
+                    {(!notifications.announcements || notifications.announcements.length === 0) &&
+                      (!notifications.notes || notifications.notes.length === 0) && (
+                        <div className="py-6 text-center text-xs text-[#6B7280]">
+                          No notifications right now.
+                        </div>
+                      )}
+                  </>
                 )}
               </div>
             </div>

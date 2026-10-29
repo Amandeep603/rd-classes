@@ -63,6 +63,20 @@ export async function POST(request) {
       meta: { title: announcement.title, audience: announcement.audience, pinned: announcement.pinned },
     });
 
+    try {
+      const { createStudentNotification } = await import("@/server/services/notificationService.js");
+      await createStudentNotification({
+        type: "announcement_posted",
+        title: `Announcement: ${announcement.title}`,
+        message: announcement.body,
+        courseId: null,
+        link: "/student",
+        entityId: announcement._id.toString(),
+      });
+    } catch {
+      // ignore
+    }
+
     return Response.json({ success: true, announcement }, { status: 201 });
   } catch (err) {
     return Response.json(
