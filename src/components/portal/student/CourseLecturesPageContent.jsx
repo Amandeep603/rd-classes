@@ -68,12 +68,20 @@ export default async function CourseLecturesContent({ params }) {
   }
 
   // 2. Fetch published lectures (draft lectures are hidden)
-  const lectures = await Lecture.find({
+  const rawLectures = await Lecture.find({
     courseId: course._id,
-    published: true,
+    $or: [{ status: "published" }, { published: true }],
   })
-    .sort({ order: 1, position: 1, createdAt: 1 })
+    .populate("bookId", "title position status")
+    .populate("chapterId", "title position status")
+    .sort({ position: 1, order: 1, createdAt: 1 })
     .lean();
+
+  const lectures = rawLectures.filter((lec) => {
+    if (lec.bookId && lec.bookId.status === "draft") return false;
+    if (lec.chapterId && lec.chapterId.status === "draft") return false;
+    return true;
+  });
 
   // 3. Fetch student's progress records
   const progressRecords = await Progress.find({
@@ -115,8 +123,8 @@ export default async function CourseLecturesContent({ params }) {
   const booksMap = new Map();
 
   lectures.forEach((lecture) => {
-    const bookTitle = lecture.book || "Book 1: Accountancy";
-    const chapterTitle = lecture.chapter || lecture.section || "General Chapter Revision";
+    const bookTitle = lecture.bookId?.title || lecture.book || "Book 1: Accountancy";
+    const chapterTitle = lecture.chapterId?.title || lecture.chapter || lecture.section || "General Chapter Revision";
 
     if (!booksMap.has(bookTitle)) {
       booksMap.set(bookTitle, new Map());
@@ -128,7 +136,7 @@ export default async function CourseLecturesContent({ params }) {
     }
 
     const prog = progressMap.get(lecture._id.toString());
-    const dur = lecture.durationSec || prog?.durationSec || 0;
+    const dur = lecture.durationSeconds || lecture.durationSec || prog?.durationSec || 0;
     const pos = prog?.positionSec || 0;
     const isCompleted = Boolean(prog?.completed);
     const percent = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
@@ -136,8 +144,9 @@ export default async function CourseLecturesContent({ params }) {
     chaptersMap.get(chapterTitle).push({
       _id: lecture._id.toString(),
       title: lecture.title,
+      partNumber: lecture.partNumber,
       durationSec: dur,
-      order: lecture.order || 0,
+      order: lecture.position !== undefined ? lecture.position : (lecture.order || 0),
       completed: isCompleted,
       percent,
     });
@@ -272,8 +281,8 @@ export default async function CourseLecturesContent({ params }) {
                           className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-neutral-50 transition-colors gap-3"
                         >
                           <div className="flex items-center gap-3.5 min-w-0">
-                            <span className="text-xs font-extrabold text-[#9CA3AF] w-5 text-center shrink-0">
-                              {lIdx + 1}
+                            <span className="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-bold text-[#4B5E80] bg-neutral-100 rounded-md shrink-0 border border-black/5">
+                              Part {lecture.partNumber || lIdx + 1}
                             </span>
                             <div className="min-w-0">
                               <h4 className="text-xs sm:text-sm font-bold text-[#111827] truncate">

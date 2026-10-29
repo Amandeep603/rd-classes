@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { STUDENT_CONFIG } from "@/constants/student.js";
 
-export default function Watermark({ studentName, loginId }) {
+export default function Watermark({ studentName, loginId, text }) {
   const [position, setPosition] = useState({ top: "20%", left: "20%" });
 
   useEffect(() => {
@@ -26,18 +26,24 @@ export default function Watermark({ studentName, loginId }) {
 
   if (!STUDENT_CONFIG.watermarkEnabled) return null;
 
+  const displayText =
+    text ||
+    (studentName && loginId
+      ? `${studentName} · ${loginId}`
+      : studentName || loginId || "RD Classes Preview");
+
   return (
     <div
       aria-hidden="true"
       style={{
         top: position.top,
         left: position.left,
-        opacity: STUDENT_CONFIG.watermarkOpacity || 0.12,
+        opacity: STUDENT_CONFIG.watermarkOpacity || 0.14,
         transition: "top 1s ease-in-out, left 1s ease-in-out",
       }}
       className="absolute pointer-events-none select-none z-30 font-mono text-xs sm:text-sm font-bold text-white tracking-wider whitespace-nowrap drop-shadow"
     >
-      {studentName} · {loginId}
+      {displayText}
     </div>
   );
 }

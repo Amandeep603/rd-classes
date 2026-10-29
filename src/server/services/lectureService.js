@@ -1,6 +1,8 @@
 import "server-only";
 import mongoose from "mongoose";
 import connectDB from "../db/connect.js";
+import { Book } from "../db/models/Book.js";
+import { Chapter } from "../db/models/Chapter.js";
 import { Lecture } from "../db/models/Lecture.js";
 import { Course } from "../db/models/Course.js";
 import { Enrollment } from "../db/models/Enrollment.js";
@@ -11,53 +13,78 @@ import { createAdminNotification } from "./notificationService.js";
 
 /**
  * Server helper to determine if a lecture is free preview.
- * Rule:
- * 1. If any published lecture in courseLectures is explicitly marked as free (isFreePreview/freePreview/isPreview === true),
- *    then only those explicitly marked lectures are free (the auto rule stops).
- * 2. If NO lecture in courseLectures is marked free, the first published lecture (lowest book, chapter, position/order)
- *    is treated as free automatically.
+ * ONLY lectures with isFree === true (or legacy isFreePreview) are free. Default is locked.
+ * The old rule "first lecture is free automatically" has been removed.
  */
-export function isLectureFree(lecture, courseLectures = []) {
+export function isLectureFree(lecture) {
   if (!lecture) return false;
+  return Boolean(
+    lecture.isFree === true ||
+    lecture.isFreePreview === true ||
+    lecture.freePreview === true ||
+    lecture.isPreview === true
+  );
+}
 
-  const isMarkedFree = (l) =>
-    Boolean(l.isFreePreview || l.freePreview || l.isPreview);
+/**
+ * Ensures a Book and Chapter exist for a given course and titles,
+ * creating them with correct positions if missing.
+ */
+export async function ensureBookAndChapter(courseId, bookTitle, chapterTitle) {
+  await connectDB();
+  const cleanBook = (bookTitle || "Book 1").trim();
+  const cleanChapter = (chapterTitle || "Chapter 1").trim();
 
-  const hasAnyExplicitFree = courseLectures.some((l) => isMarkedFree(l));
-
-  if (hasAnyExplicitFree) {
-    return isMarkedFree(lecture);
-  }
-
-  // Auto-rule: When no free lecture is set, the first published lecture is free automatically
-  const published = courseLectures
-    .filter((l) => l.published !== false && l.status !== "draft")
-    .sort((a, b) => {
-      const bookA = (a.book || "").trim();
-      const bookB = (b.book || "").trim();
-      if (bookA && bookB && bookA !== bookB) {
-        return bookA.localeCompare(bookB, undefined, { numeric: true });
-      }
-      const chapA = (a.chapter || a.section || "").trim();
-      const chapB = (b.chapter || b.section || "").trim();
-      if (chapA && chapB && chapA !== chapB) {
-        return chapA.localeCompare(chapB, undefined, { numeric: true });
-      }
-      const posA = a.position !== undefined ? a.position : (a.order ?? 0);
-      const posB = b.position !== undefined ? b.position : (b.order ?? 0);
-      return posA - posB;
+  let book = await Book.findOne({ courseId, title: cleanBook });
+  if (!book) {
+    const lastBook = await Book.findOne({ courseId }).sort({ position: -1 }).lean();
+    book = await Book.create({
+      courseId,
+      title: cleanBook,
+      position: (lastBook?.position ?? -1) + 1,
+      status: "published",
     });
-
-  if (published.length > 0) {
-    const firstPublished = published[0];
-    const lecId = lecture._id ? lecture._id.toString() : lecture.id ? lecture.id.toString() : "";
-    const firstId = firstPublished._id ? firstPublished._id.toString() : firstPublished.id ? firstPublished.id.toString() : "";
-    if (lecId && firstId && lecId === firstId) {
-      return true;
-    }
   }
 
-  return isMarkedFree(lecture);
+  let chapter = await Chapter.findOne({ courseId, bookId: book._id, title: cleanChapter });
+  if (!chapter) {
+    const lastChap = await Chapter.findOne({ courseId, bookId: book._id }).sort({ position: -1 }).lean();
+    chapter = await Chapter.create({
+      courseId,
+      bookId: book._id,
+      title: cleanChapter,
+      position: (lastChap?.position ?? -1) + 1,
+      status: "published",
+    });
+  }
+
+  return { book, chapter };
+}
+
+/**
+ * Safely migrates old string fields `book` and `chapter` into Book and Chapter collections.
+ */
+export async function migrateLegacyLectures(courseId) {
+  await connectDB();
+  const query = courseId ? { courseId } : {};
+  const lecturesWithoutRefs = await Lecture.find({
+    ...query,
+    $or: [{ bookId: null }, { chapterId: null }],
+  });
+
+  for (const lec of lecturesWithoutRefs) {
+    const bookTitle = lec.book || "Book 1";
+    const chapterTitle = lec.chapter || lec.section || "Chapter 1";
+    const { book, chapter } = await ensureBookAndChapter(lec.courseId, bookTitle, chapterTitle);
+    lec.bookId = book._id;
+    lec.chapterId = chapter._id;
+    lec.book = book.title;
+    lec.chapter = chapter.title;
+    if (lec.isFree === undefined) {
+      lec.isFree = Boolean(lec.isFreePreview || lec.freePreview || lec.isPreview);
+    }
+    await lec.save();
+  }
 }
 
 /**
@@ -65,33 +92,29 @@ export function isLectureFree(lecture, courseLectures = []) {
  */
 export async function getAdminLecturesByCourse(courseId) {
   await connectDB();
-  const lectures = await Lecture.find({ courseId }).sort({ order: 1, createdAt: 1 }).lean();
+  // Ensure legacy lectures are migrated if any exist
+  await migrateLegacyLectures(courseId);
+
+  const lectures = await Lecture.find({ courseId })
+    .populate("bookId", "title position status")
+    .populate("chapterId", "title position status")
+    .sort({ position: 1, order: 1, createdAt: 1 })
+    .lean();
+
   return lectures.map((lec) => ({
     ...lec,
-    isFreePreview: isLectureFree(lec, lectures),
+    isFree: isLectureFree(lec),
+    isFreePreview: isLectureFree(lec),
+    freePreview: isLectureFree(lec),
   }));
 }
 
 /**
- * Automatically ensures the lowest order published lecture is marked as freePreview,
- * unless overridden by an admin. Also keeps isPreview synchronized.
+ * Synchronizes course preview state without automatically marking anything free.
  */
 export async function syncCourseFreePreview(courseId) {
-  if (!courseId) return;
-  await connectDB();
-  const publishedLectures = await Lecture.find({ courseId, published: true })
-    .sort({ order: 1, createdAt: 1 });
-
-  if (publishedLectures.length === 0) return;
-
-  const hasFree = publishedLectures.some((lec) => lec.freePreview);
-
-  if (!hasFree) {
-    const firstLec = publishedLectures[0];
-    firstLec.freePreview = true;
-    firstLec.isPreview = true;
-    await firstLec.save();
-  }
+  // Auto-marking removed per user specification. Only isFree === true lectures are free.
+  return;
 }
 
 /**
@@ -107,68 +130,72 @@ export async function createLecture(data, adminId) {
   const { vimeoId, vimeoHash } = parseVimeoUrl(data.vimeoUrl || data.vimeoId);
 
   const highestOrder = await Lecture.findOne({ courseId: data.courseId })
-    .sort({ order: -1 })
-    .select("order")
+    .sort({ position: -1, order: -1 })
+    .select("position order")
     .lean();
-  const nextOrder = (highestOrder?.order ?? -1) + 1;
+  const nextOrder = (highestOrder?.position ?? highestOrder?.order ?? -1) + 1;
 
-  const hasExplicitFreeToggle =
-    typeof data.freePreview === "boolean" || typeof data.isPreview === "boolean";
-  const explicitFreeValue =
-    typeof data.freePreview === "boolean"
-      ? data.freePreview
-      : typeof data.isPreview === "boolean"
-      ? data.isPreview
-      : false;
+  const isFree = Boolean(data.isFree ?? data.freePreview ?? data.isPreview ?? false);
+  const isPublished = data.status === "published" || data.published === true;
 
-  const isPublished = typeof data.published === "boolean" ? data.published : true;
-
-  // Auto-mark freePreview: true if this is the first published lecture of the course
-  let isFree = hasExplicitFreeToggle ? explicitFreeValue : false;
-  if (!hasExplicitFreeToggle && isPublished) {
-    const existingCount = await Lecture.countDocuments({
-      courseId: data.courseId,
-      published: true,
-    });
-    if (existingCount === 0) {
-      isFree = true;
-    }
+  // Resolve Book and Chapter IDs if provided or fallback to strings
+  let bookId = data.bookId || null;
+  let chapterId = data.chapterId || null;
+  if (!bookId || !chapterId) {
+    const { book, chapter } = await ensureBookAndChapter(
+      data.courseId,
+      data.book || data.bookTitle,
+      data.chapter || data.chapterTitle || data.section
+    );
+    bookId = bookId || book._id;
+    chapterId = chapterId || chapter._id;
   }
 
   const lecture = await Lecture.create({
     courseId: data.courseId,
-    section: (data.section || "General").trim(),
+    bookId,
+    chapterId,
+    book: data.book || "",
+    chapter: data.chapter || data.section || "",
+    section: (data.section || data.chapter || "General").trim(),
     title: data.title.trim(),
+    partNumber: Number(data.partNumber) || 1,
+    position: typeof data.position === "number" ? data.position : nextOrder,
     order: typeof data.order === "number" ? data.order : nextOrder,
-    vimeoId,
+    videoProvider: data.videoProvider || "vimeo",
+    videoUrl: data.videoUrl || "",
+    vimeoId: vimeoId || data.vimeoId || "",
     vimeoHash: vimeoHash || data.vimeoHash || "",
-    durationSec: Number(data.durationSec) || 0,
+    durationSeconds: Number(data.durationSeconds || data.durationSec) || 0,
+    durationSec: Number(data.durationSeconds || data.durationSec) || 0,
     description: (data.description || "").trim(),
+    status: isPublished ? "published" : "draft",
     published: isPublished,
+    isFree,
     freePreview: isFree,
-    freePreviewOverridden: hasExplicitFreeToggle,
     isPreview: isFree,
+    sourceKey: data.sourceKey || null,
   });
 
   await syncCourseFreePreview(data.courseId);
 
-  await logAuditEvent({
-    actorId: adminId,
-    action: "lecture.created",
-    targetType: "lecture",
-    targetId: lecture._id.toString(),
-    meta: { title: lecture.title, courseId: data.courseId },
-  });
+await logAuditEvent({
+  actorId: adminId,
+  action: "lecture.created",
+  targetType: "lecture",
+  targetId: lecture._id.toString(),
+  meta: { title: lecture.title, courseId: data.courseId },
+});
 
-  await createAdminNotification({
-    type: "lecture_added",
-    title: "Lecture Added",
-    message: `Lecture "${lecture.title}" added to "${course.title}"`,
-    link: `/admin/courses/${course._id}`,
-    entityId: lecture._id.toString(),
-  });
+await createAdminNotification({
+  type: "lecture_added",
+  title: "Lecture Added",
+  message: `Lecture "${lecture.title}" added to "${course.title}"`,
+  link: `/admin/courses/${course._id}`,
+  entityId: lecture._id.toString(),
+});
 
-  return lecture;
+return lecture;
 }
 
 /**
@@ -330,14 +357,15 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
   await connectDB();
 
   const lecture = await Lecture.findById(lectureId).lean();
-  if (!lecture || !lecture.published) {
+  const isPublished = lecture?.status ? lecture.status === "published" : lecture?.published;
+  if (!lecture || !isPublished) {
     return null;
   }
 
   // Check enrollment or free preview using isLectureFree
   const allCourseLectures = await Lecture.find({
     courseId: lecture.courseId,
-    published: true,
+    $or: [{ status: "published" }, { published: true }],
   }).lean();
   const isFree = isLectureFree(lecture, allCourseLectures);
 

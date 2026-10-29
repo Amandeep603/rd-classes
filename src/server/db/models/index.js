@@ -6,6 +6,8 @@ export { DeviceRequest } from "./DeviceRequest.js";
 export { Session } from "./Session.js";
 export { LoginAttempt } from "./LoginAttempt.js";
 export { Course } from "./Course.js";
+export { Book } from "./Book.js";
+export { Chapter } from "./Chapter.js";
 export { Lecture } from "./Lecture.js";
 export { Enrollment } from "./Enrollment.js";
 export { Progress } from "./Progress.js";

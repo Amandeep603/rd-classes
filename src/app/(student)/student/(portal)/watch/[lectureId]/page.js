@@ -24,7 +24,8 @@ async function WatchContent({ params }) {
 
   await connectDB();
   const lectureDoc = await Lecture.findById(lectureId).lean();
-  if (!lectureDoc || !lectureDoc.published) {
+  const isPublished = lectureDoc?.status ? lectureDoc.status === "published" : lectureDoc?.published;
+  if (!lectureDoc || !isPublished) {
     notFound();
   }
 
@@ -52,7 +53,9 @@ async function WatchContent({ params }) {
     ],
   }).lean();
 
-  const isFree = Boolean(lectureDoc.freePreview || lectureDoc.isPreview);
+  const isFree = Boolean(
+    lectureDoc.isFree || lectureDoc.freePreview || lectureDoc.isPreview
+  );
   if (!enrollment && !isFree) {
     notFound();
   }

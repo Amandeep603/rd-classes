@@ -70,9 +70,9 @@ export default async function CoursesPage() {
           aria-hidden="true"
         />
 
-        <div className="w-full max-w-[1240px] mx-auto px-4 sm:px-6 relative z-10 flex flex-col min-[900px]:flex-row items-center justify-between gap-8 min-[900px]:gap-10">
+        <div className="w-full max-w-[1380px] xl:max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col min-[900px]:flex-row items-center justify-between gap-8 min-[900px]:gap-10">
           {/* Left Column: Eyebrow + H1 + Subtitle (max-width 640px) */}
-          <div className="w-full max-w-[640px] flex-1">
+          <div className="w-full max-w-[650px] flex-1">
             {/* Eyebrow */}
             <div className="flex items-center gap-2 mb-3">
               <span className="w-5 h-0.5 rounded-full bg-[#FFB800]" />
@@ -85,8 +85,8 @@ export default async function CoursesPage() {
             <h1
               className="font-extrabold tracking-tight text-[#0F172A] leading-[1.05] max-w-[760px] [text-wrap:balance] text-[clamp(28px,4vw,40px)] min-[1100px]:text-[clamp(30px,3.6vw,52px)]"
             >
-              Structured Courses for<br className="hidden sm:inline" />{" "}
-              <span className="text-[#FFB800]">Class 11 &amp; 12</span>{" "}
+              <span className="whitespace-nowrap">Structured Courses for</span><br className="hidden sm:inline" />{" "}
+              <span className="text-[#FFB800] whitespace-nowrap">Class 11 &amp; 12</span>{" "}
               Accountancy.
             </h1>
 

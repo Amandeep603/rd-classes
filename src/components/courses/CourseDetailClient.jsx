@@ -26,6 +26,7 @@ import {
 import AccessDialog from "./AccessDialog";
 import NoteCard from "@/components/notes/NoteCard";
 import PdfViewerModal from "@/components/notes/PdfViewerModal";
+import VimeoPlayer from "@/components/student/VimeoPlayer";
 
 const SECTION_TONE_CYCLE = [
   { bg: "#E8F1FD", text: "#1E5BD8" }, // 01 blue
@@ -101,7 +102,7 @@ export default function CourseDetailClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [previewLecture, setPreviewLecture] = useState(null);
   const [accessDialogOpen, setAccessDialogOpen] = useState(false);
-  const [selectedLockedLecture, setSelectedLockedLecture] = useState("");
+  const [selectedLockedLecture, setSelectedLockedLecture] = useState(null);
   const [viewingPdfNote, setViewingPdfNote] = useState(null);
 
   // Accordion state: map of chapterName -> boolean
@@ -233,79 +234,156 @@ export default function CourseDetailClient({
     }
   };
 
-  // Group lectures into chapters
-  const chaptersList = useMemo(() => {
-    const map = new Map();
-    for (const lec of lectures) {
-      const chapterName = lec.chapter || lec.section || "General";
-      const bookName = lec.book || "";
-      const key = bookName ? `${bookName}:::${chapterName}` : chapterName;
+  // Group lectures into Books > Chapters
+  const booksList = useMemo(() => {
+    const booksMap = new Map();
 
-      if (!map.has(key)) {
-        map.set(key, {
-          book: bookName,
-          chapter: chapterName,
-          key,
+    for (const lec of lectures) {
+      const bookKey = lec.bookId || lec.book || "Book 1";
+      const bookTitle = lec.book || "Book 1: Accountancy";
+      const bookPosition = typeof lec.bookPosition === "number" ? lec.bookPosition : 0;
+
+      if (!booksMap.has(bookKey)) {
+        booksMap.set(bookKey, {
+          key: String(bookKey),
+          id: lec.bookId || bookKey,
+          title: bookTitle,
+          position: bookPosition,
+          chaptersMap: new Map(),
+        });
+      }
+      const bObj = booksMap.get(bookKey);
+
+      const chapterKey = lec.chapterId || `${bookKey}:::${lec.chapter || lec.section || "General"}`;
+      const chapterTitle = lec.chapter || lec.section || "General";
+      const chapterPosition = typeof lec.chapterPosition === "number" ? lec.chapterPosition : 0;
+
+      if (!bObj.chaptersMap.has(chapterKey)) {
+        bObj.chaptersMap.set(chapterKey, {
+          key: String(chapterKey),
+          id: lec.chapterId || chapterKey,
+          title: chapterTitle,
+          book: bookTitle,
+          position: chapterPosition,
           items: [],
         });
       }
-      map.get(key).items.push(lec);
+      bObj.chaptersMap.get(chapterKey).items.push(lec);
     }
 
-    return Array.from(map.values()).map((ch) => ({
-      ...ch,
-      count: ch.items.length,
-      totalTime: formatTotalTime(ch.items),
-    }));
+    const result = Array.from(booksMap.values()).map((b) => {
+      const chapters = Array.from(b.chaptersMap.values()).map((ch) => {
+        const items = [...ch.items].sort((x, y) => {
+          if (x.position !== undefined && y.position !== undefined && x.position !== y.position) {
+            return x.position - y.position;
+          }
+          return (x.partNumber || 0) - (y.partNumber || 0);
+        });
+
+        const freeCount = items.filter((l) =>
+          Boolean(l.isFree || l.freePreview || l.isFreePreview || l.isPreview)
+        ).length;
+
+        return {
+          ...ch,
+          items,
+          count: items.length,
+          freeCount,
+          totalTime: formatTotalTime(items),
+        };
+      });
+
+      chapters.sort((x, y) => (x.position ?? 0) - (y.position ?? 0));
+
+      return {
+        ...b,
+        chapters,
+        totalItems: chapters.reduce((sum, ch) => sum + ch.count, 0),
+      };
+    });
+
+    result.sort((x, y) => (x.position ?? 0) - (y.position ?? 0));
+    return result;
   }, [lectures]);
 
-  const hasMultipleBooks = useMemo(() => {
-    const books = new Set(chaptersList.map((ch) => ch.book).filter(Boolean));
-    return books.size > 1;
-  }, [chaptersList]);
+  // First chapter that contains a free lecture across all books
+  const firstFreeChapterKey = useMemo(() => {
+    for (const b of booksList) {
+      for (const ch of b.chapters) {
+        if (ch.freeCount > 0) {
+          return ch.key;
+        }
+      }
+    }
+    return null;
+  }, [booksList]);
 
-  // Filter chapters by search query
-  const filteredChapters = useMemo(() => {
-    if (!searchQuery.trim()) return chaptersList;
+  // Filter books and chapters by search query
+  const filteredBooks = useMemo(() => {
+    if (!searchQuery.trim()) return booksList;
     const q = searchQuery.toLowerCase().trim();
 
-    return chaptersList
-      .map((ch) => {
-        const matchesChapter = ch.chapter.toLowerCase().includes(q);
-        const matchesBook = ch.book.toLowerCase().includes(q);
-        const matchedItems = ch.items.filter((item) =>
-          item.title.toLowerCase().includes(q)
-        );
+    return booksList
+      .map((b) => {
+        const matchesBook = b.title.toLowerCase().includes(q);
+        const filteredChapters = b.chapters
+          .map((ch) => {
+            const matchesChapter = ch.title.toLowerCase().includes(q);
+            const matchedItems = ch.items.filter((item) =>
+              item.title.toLowerCase().includes(q)
+            );
 
-        if (matchesChapter || matchesBook || matchedItems.length > 0) {
+            if (matchesBook || matchesChapter || matchedItems.length > 0) {
+              const items = matchesBook || matchesChapter ? ch.items : matchedItems;
+              return {
+                ...ch,
+                items,
+                count: items.length,
+                freeCount: items.filter((l) =>
+                  Boolean(l.isFree || l.freePreview || l.isFreePreview || l.isPreview)
+                ).length,
+                totalTime: formatTotalTime(items),
+              };
+            }
+            return null;
+          })
+          .filter(Boolean);
+
+        if (filteredChapters.length > 0) {
           return {
-            ...ch,
-            items: matchesChapter || matchesBook ? ch.items : matchedItems,
+            ...b,
+            chapters: filteredChapters,
+            totalItems: filteredChapters.reduce((sum, ch) => sum + ch.count, 0),
           };
         }
         return null;
       })
       .filter(Boolean);
-  }, [chaptersList, searchQuery]);
+  }, [booksList, searchQuery]);
 
-  const isChapterExpanded = (key, index) => {
+  // Collapse all chapters by default EXCEPT the first chapter that contains a free lecture
+  const isChapterExpanded = (key) => {
     if (searchQuery.trim()) return true;
     if (toggledChapters[key] !== undefined) {
       return toggledChapters[key];
     }
-    return index === 0; // First chapter open by default
+    return key === firstFreeChapterKey;
   };
 
-  const toggleChapter = (key, index) => {
-    const current = isChapterExpanded(key, index);
+  const toggleChapter = (key) => {
+    const current = isChapterExpanded(key);
     setToggledChapters((prev) => ({
       ...prev,
       [key]: !current,
     }));
   };
 
-  const openAccessModal = (lectureTitle = "") => {
-    setSelectedLockedLecture(lectureTitle);
+  const openAccessModal = (lockedInfo = null) => {
+    if (typeof lockedInfo === "string") {
+      setSelectedLockedLecture({ title: lockedInfo, book: "", chapter: "" });
+    } else {
+      setSelectedLockedLecture(lockedInfo);
+    }
     setAccessDialogOpen(true);
   };
 
@@ -506,7 +584,7 @@ export default function CourseDetailClient({
               id="panel-lectures"
               role="tabpanel"
               aria-labelledby="tab-lectures"
-              className="space-y-3"
+              className="space-y-6"
               style={{ scrollMarginTop: "152px" }}
             >
               {lectures.length === 0 ? (
@@ -518,7 +596,7 @@ export default function CourseDetailClient({
                     Curriculum and recorded video lectures will be uploaded here shortly.
                   </p>
                 </div>
-              ) : filteredChapters.length === 0 ? (
+              ) : filteredBooks.length === 0 ? (
                 <div className="p-8 text-center bg-white rounded-[20px] border border-[rgba(20,30,60,0.06)]">
                   <p className="text-sm text-[#556987]">
                     No lectures found matching &quot;{searchQuery}&quot;
@@ -531,169 +609,210 @@ export default function CourseDetailClient({
                   </button>
                 </div>
               ) : (
-                filteredChapters.map((ch, chIdx) => {
-                  const isExpanded = isChapterExpanded(ch.key, chIdx);
-                  const tone = SECTION_TONE_CYCLE[chIdx % SECTION_TONE_CYCLE.length];
+                filteredBooks.map((book, bIdx) => (
+                  <div key={book.key} className="space-y-3.5 pt-4 first:pt-0">
+                    {/* Book Section Heading */}
+                    <div className="flex items-center justify-between gap-3 px-1 pb-2 border-b border-[rgba(20,30,60,0.06)]">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-[#0B2A4A] text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-2xs">
+                          {bIdx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#E8870E] block">
+                            PART / BOOK {bIdx + 1}
+                          </span>
+                          <h2 className="text-[18px] sm:text-[20px] font-extrabold text-[#0B2A4A] tracking-tight truncate">
+                            {book.title}
+                          </h2>
+                        </div>
+                      </div>
+                      <span className="text-[12px] sm:text-[13px] font-semibold text-[#6B7385] shrink-0">
+                        {book.chapters.length} {book.chapters.length === 1 ? "Chapter" : "Chapters"} · {book.totalItems} Lectures
+                      </span>
+                    </div>
 
-                  return (
-                    <div
-                      key={ch.key}
-                      className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white overflow-hidden transition-all shadow-[0_4px_16px_rgba(20,30,60,0.05)]"
-                    >
-                      {/* Chapter Accordion Header (padding 18px 20px) */}
-                      <button
-                        type="button"
-                        onClick={() => toggleChapter(ch.key, chIdx)}
-                        className="w-full py-[18px] px-5 flex items-center justify-between text-left hover:bg-[#F8FAFC]/70 transition-colors cursor-pointer"
-                        aria-expanded={isExpanded}
-                      >
-                        <div className="flex items-center gap-4 min-w-0">
-                          {/* 56px Rounded Square Number Badge (radius 16px, 22px weight 800) */}
+                    {/* Chapters as Accordions */}
+                    <div className="space-y-3">
+                      {book.chapters.map((ch, chIdx) => {
+                        const isExpanded = isChapterExpanded(ch.key);
+                        const tone = SECTION_TONE_CYCLE[chIdx % SECTION_TONE_CYCLE.length];
+
+                        return (
                           <div
-                            className="w-14 h-14 rounded-[16px] flex items-center justify-center font-extrabold text-[22px] shrink-0"
-                            style={{ backgroundColor: tone.bg, color: tone.text }}
+                            key={ch.key}
+                            className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white overflow-hidden transition-all shadow-[0_4px_16px_rgba(20,30,60,0.05)]"
                           >
-                            {String(chIdx + 1).padStart(2, "0")}
-                          </div>
-
-                          <div className="min-w-0">
-                            <h3 className="text-[19px] font-bold text-[#0B2A4A] tracking-tight truncate">
-                              {ch.chapter}
-                            </h3>
-                            <p className="text-[14px] text-[#6B7385] mt-0.5 font-normal">
-                              {ch.count} Lectures · {ch.totalTime}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="ml-3 text-[#1B2B4B] shrink-0">
-                          {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-[#1B2B4B]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-                          ) : (
-                            <ChevronDown className="w-5 h-5 text-[#1B2B4B]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Open chapter: sits under a 1px divider, background rgba(244,247,252,0.6), padding 8px 12px 12px. Inside it, each lecture row is a rounded 12px strip */}
-                      {isExpanded && (
-                        <div className="border-t border-[rgba(20,30,60,0.06)] bg-[rgba(244,247,252,0.6)] p-[8px_12px_12px] space-y-1.5">
-                          {ch.items.map((lec, lecIdx) => {
-                            const isEnrolled = !!userData?.enrolled;
-                            const isCompleted = userData?.completedLectureIds?.includes(lec._id || lec.id);
-                            const isFree = Boolean(
-                              lec.isFree || lec.freePreview || lec.isFreePreview || lec.isPreview
-                            );
-                            const isNoteDoc =
-                              lec.contentType === "pdf" ||
-                              lec.type === "note" ||
-                              lec.isNote ||
-                              lecIdx === 1 ||
-                              lecIdx === 2;
-
-                            // ROW 1: FREE PREVIEW LECTURE (44px height, light blue bg #EAF2FE, rounded 12px)
-                            if (isFree && !isEnrolled) {
-                              return (
+                            {/* Chapter Accordion Header */}
+                            <button
+                              type="button"
+                              onClick={() => toggleChapter(ch.key)}
+                              className="w-full py-[18px] px-5 flex items-center justify-between text-left hover:bg-[#F8FAFC]/70 transition-colors cursor-pointer"
+                              aria-expanded={isExpanded}
+                            >
+                              <div className="flex items-center gap-4 min-w-0">
+                                {/* 56px Rounded Square Number Badge */}
                                 <div
-                                  key={lec._id || lec.id || lecIdx}
-                                  className="px-4 h-11 min-h-[44px] rounded-[12px] flex items-center justify-between gap-4 bg-[#EAF2FE] transition-colors"
+                                  className="w-14 h-14 rounded-[16px] flex items-center justify-center font-extrabold text-[20px] shrink-0"
+                                  style={{ backgroundColor: tone.bg, color: tone.text }}
                                 >
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-[22px] h-[22px] rounded-full bg-[#2563EB] text-white flex items-center justify-center shrink-0">
-                                      <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
-                                    </div>
-                                    <span className="text-[15px] font-bold text-[#0B2A4A] truncate">
-                                      {lecIdx + 1}. {lec.title}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center gap-4 shrink-0">
-                                    <span className="text-[14px] font-medium text-[#6B7385] tabular-nums">
-                                      {formatDuration(lec.durationSec || lec.duration)}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPreviewLecture(lec)}
-                                      className="h-[34px] px-4 rounded-full bg-[#0B2A4A] text-white text-[13px] font-semibold hover:bg-[#152B52] transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
-                                    >
-                                      Watch Now
-                                    </button>
-                                  </div>
+                                  {String(chIdx + 1).padStart(2, "0")}
                                 </div>
-                              );
-                            }
 
-                            // ROW 2+: LOCKED LECTURE FOR VISITORS (44px height, rounded 12px, hover bg #F1F5FB)
-                            if (!isEnrolled) {
-                              return (
-                                <div
-                                  key={lec._id || lec.id || lecIdx}
-                                  onClick={() => openAccessModal(lec.title)}
-                                  className="px-4 h-11 min-h-[44px] rounded-[12px] flex items-center justify-between gap-4 transition-colors cursor-pointer group bg-white/70 hover:bg-[#F1F5FB] border border-[rgba(20,30,60,0.04)]"
-                                  title="Locked lecture - click to request access"
-                                >
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    {isNoteDoc ? (
-                                      <FileText className="w-5 h-5 text-[#8A93A6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-                                    ) : (
-                                      <Video className="w-5 h-5 text-[#8A93A6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                <div className="min-w-0">
+                                  <h3 className="text-[18px] sm:text-[19px] font-bold text-[#0B2A4A] tracking-tight truncate">
+                                    {ch.title}
+                                  </h3>
+                                  <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                                    <span className="text-[14px] text-[#6B7385] font-normal">
+                                      {ch.count} Lectures · {ch.totalTime}
+                                    </span>
+                                    {ch.freeCount > 0 && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[12px] font-bold bg-[#EAF2FE] text-[#1D5FD6] border border-[#BFDBFE]">
+                                        <Play className="w-2.5 h-2.5 fill-[#1D5FD6]" />
+                                        {ch.freeCount} free
+                                      </span>
                                     )}
-                                    <span className="text-[15px] font-medium text-[#3A4560] group-hover:text-[#0B2A4A] transition-colors truncate">
-                                      {lecIdx + 1}. {lec.title}
-                                    </span>
                                   </div>
-
-                                  <div className="flex items-center gap-4 shrink-0">
-                                    <span className="text-[14px] text-[#7A8396] tabular-nums">
-                                      {formatDuration(lec.durationSec || lec.duration)}
-                                    </span>
-                                    <div className="w-6 h-6 flex items-center justify-center text-[#5B6580]">
-                                      <Lock className="w-5 h-5 text-[#5B6580]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            // ROW FOR LOGGED-IN ENROLLED STUDENT (44px height, rounded 12px)
-                            return (
-                              <div
-                                key={lec._id || lec.id || lecIdx}
-                                className="px-4 h-11 min-h-[44px] rounded-[12px] flex items-center justify-between gap-4 bg-white/70 hover:bg-[#F1F5FB] border border-[rgba(20,30,60,0.04)] transition-colors"
-                              >
-                                <div className="flex items-center gap-3 min-w-0">
-                                  {isCompleted ? (
-                                    <CheckCircle2 className="w-5 h-5 text-[#1F9D63] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-                                  ) : (
-                                    <Video className="w-5 h-5 text-[#1D5FD6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
-                                  )}
-                                  <Link
-                                    href={`/student/courses/${course.slug}/lectures/${lec._id || lec.id}`}
-                                    className="text-[15px] font-medium text-[#3A4560] hover:text-[#0B2A4A] transition-colors truncate"
-                                  >
-                                    {lecIdx + 1}. {lec.title}
-                                  </Link>
-                                </div>
-
-                                <div className="flex items-center gap-4 shrink-0">
-                                  <span className="text-[14px] text-[#7A8396] tabular-nums">
-                                    {formatDuration(lec.durationSec || lec.duration)}
-                                  </span>
-                                  <Link
-                                    href={`/student/courses/${course.slug}/lectures/${lec._id || lec.id}`}
-                                    className="h-[30px] px-3.5 rounded-full bg-[#0B2A4A] text-white text-[12px] font-semibold hover:bg-[#152B52] transition-colors flex items-center justify-center"
-                                  >
-                                    Watch
-                                  </Link>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+
+                              <div className="ml-3 text-[#1B2B4B] shrink-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="w-5 h-5 text-[#1B2B4B]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                ) : (
+                                  <ChevronDown className="w-5 h-5 text-[#1B2B4B]" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                )}
+                              </div>
+                            </button>
+
+                            {/* Open Chapter: lecture rows with Part numbers */}
+                            {isExpanded && (
+                              <div className="border-t border-[rgba(20,30,60,0.06)] bg-[rgba(244,247,252,0.6)] p-[8px_12px_12px] space-y-1.5">
+                                {ch.items.map((lec, lecIdx) => {
+                                  const isEnrolled = !!userData?.enrolled;
+                                  const isCompleted = userData?.completedLectureIds?.includes(lec._id || lec.id);
+                                  const isFree = Boolean(
+                                    lec.isFree || lec.freePreview || lec.isFreePreview || lec.isPreview
+                                  );
+                                  const partNum = lec.partNumber || lecIdx + 1;
+
+                                  // ROW 1: FREE PREVIEW LECTURE (Watch Now)
+                                  if (isFree && !isEnrolled) {
+                                    return (
+                                      <div
+                                        key={lec._id || lec.id || lecIdx}
+                                        className="px-4 h-12 min-h-[48px] rounded-[12px] flex items-center justify-between gap-4 bg-[#EAF2FE] border border-[#D0E2FF] transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-[24px] h-[24px] rounded-full bg-[#1D5FD6] text-white flex items-center justify-center shrink-0">
+                                            <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                                          </div>
+                                          <span className="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-bold text-[#1D5FD6] bg-white rounded-md shrink-0 border border-[#BFDBFE]">
+                                            Part {partNum}
+                                          </span>
+                                          <span className="text-[15px] font-bold text-[#0B2A4A] truncate">
+                                            {lec.title}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-3.5 shrink-0">
+                                          <span className="text-[14px] font-medium text-[#4B5E80] tabular-nums">
+                                            {formatDuration(lec.durationSec || lec.duration)}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setPreviewLecture(lec)}
+                                            className="h-[34px] px-4 rounded-full bg-[#0B2A4A] hover:bg-[#152B52] text-white text-[13px] font-semibold transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
+                                          >
+                                            Watch Now
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // ROW 2: LOCKED LECTURE FOR VISITORS (Click to open WhatsApp modal with book & chapter)
+                                  if (!isEnrolled) {
+                                    return (
+                                      <div
+                                        key={lec._id || lec.id || lecIdx}
+                                        onClick={() =>
+                                          openAccessModal({
+                                            title: lec.title,
+                                            book: book.title,
+                                            chapter: ch.title,
+                                          })
+                                        }
+                                        className="px-4 h-12 min-h-[48px] rounded-[12px] flex items-center justify-between gap-4 transition-colors cursor-pointer group bg-white/80 hover:bg-[#F1F5FB] border border-[rgba(20,30,60,0.06)]"
+                                        title="Locked lecture - click to request access"
+                                      >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <Video className="w-5 h-5 text-[#8A93A6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                          <span className="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-semibold text-[#5B6580] bg-[#F1F5FB] rounded-md shrink-0 border border-[rgba(20,30,60,0.06)]">
+                                            Part {partNum}
+                                          </span>
+                                          <span className="text-[15px] font-medium text-[#3A4560] group-hover:text-[#0B2A4A] transition-colors truncate">
+                                            {lec.title}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-3.5 shrink-0">
+                                          <span className="text-[14px] text-[#7A8396] tabular-nums">
+                                            {formatDuration(lec.durationSec || lec.duration)}
+                                          </span>
+                                          <div className="w-7 h-7 rounded-full bg-[#F1F5FB] flex items-center justify-center text-[#0B2A4A] group-hover:bg-[#E2E8F0] transition-colors">
+                                            <Lock className="w-4 h-4 text-[#0B2A4A]" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // ROW 3: LOGGED-IN ENROLLED STUDENT (unlocked)
+                                  return (
+                                    <div
+                                      key={lec._id || lec.id || lecIdx}
+                                      className="px-4 h-12 min-h-[48px] rounded-[12px] flex items-center justify-between gap-4 bg-white hover:bg-[#F1F5FB] border border-[rgba(20,30,60,0.04)] transition-colors"
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        {isCompleted ? (
+                                          <CheckCircle2 className="w-5 h-5 text-[#1F9D63] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                        ) : (
+                                          <Video className="w-5 h-5 text-[#1D5FD6] shrink-0" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                                        )}
+                                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-semibold text-[#5B6580] bg-[#F1F5FB] rounded-md shrink-0 border border-[rgba(20,30,60,0.06)]">
+                                          Part {partNum}
+                                        </span>
+                                        <Link
+                                          href={`/student/courses/${course.slug}/lectures/${lec._id || lec.id}`}
+                                          className="text-[15px] font-medium text-[#3A4560] hover:text-[#0B2A4A] transition-colors truncate"
+                                        >
+                                          {lec.title}
+                                        </Link>
+                                      </div>
+
+                                      <div className="flex items-center gap-3.5 shrink-0">
+                                        <span className="text-[14px] text-[#7A8396] tabular-nums">
+                                          {formatDuration(lec.durationSec || lec.duration)}
+                                        </span>
+                                        <Link
+                                          href={`/student/courses/${course.slug}/lectures/${lec._id || lec.id}`}
+                                          className="h-[32px] px-3.5 rounded-full bg-[#0B2A4A] hover:bg-[#152B52] text-white text-[12px] font-semibold transition-colors flex items-center justify-center"
+                                        >
+                                          Watch
+                                        </Link>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })
+                  </div>
+                ))
               )}
             </div>
           )}
@@ -1025,16 +1144,115 @@ export default function CourseDetailClient({
       {/* Access Dialog Modal */}
       <AccessDialog
         isOpen={accessDialogOpen}
-        onClose={() => setAccessDialogOpen(false)}
+        onClose={() => {
+          setAccessDialogOpen(false);
+          setSelectedLockedLecture(null);
+        }}
         course={course}
         courseTitle={course.title}
         courseSlug={course.slug}
         userData={userData}
         siteWhatsapp={siteWhatsapp}
-        defaultMessage={whatsappDefaultMessage}
-        lockedLectureTitle={selectedLockedLecture}
-        lectureTitle={selectedLockedLecture}
+        whatsappDefaultMessage={whatsappDefaultMessage}
+        lockedLecture={selectedLockedLecture}
+        lockedLectureTitle={
+          typeof selectedLockedLecture === "object"
+            ? selectedLockedLecture?.title || ""
+            : selectedLockedLecture || ""
+        }
+        lockedLectureBook={
+          typeof selectedLockedLecture === "object"
+            ? selectedLockedLecture?.book || ""
+            : ""
+        }
+        lockedLectureChapter={
+          typeof selectedLockedLecture === "object"
+            ? selectedLockedLecture?.chapter || ""
+            : ""
+        }
       />
+
+      {/* Free Lecture Preview Modal */}
+      {previewLecture && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto"
+          onClick={() => setPreviewLecture(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl bg-white rounded-3xl overflow-hidden shadow-2xl border border-[#E2E8F0]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[#F1F5F9] flex items-center justify-between bg-[#F8FAFC]">
+              <div className="min-w-0 pr-4">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#EAF2FE] text-[#1D5FD6] border border-[#BFDBFE] mb-1">
+                  <Play className="w-2.5 h-2.5 fill-[#1D5FD6]" /> Free Preview
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-[#0B2A4A] truncate">
+                  {previewLecture.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewLecture(null)}
+                className="w-8 h-8 rounded-full hover:bg-[#E2E8F0] text-[#64748B] hover:text-[#0B2A4A] flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Video Player Area */}
+            <div className="relative aspect-video w-full bg-black">
+              {previewLecture.playerUrl || previewLecture.vimeoId ? (
+                <VimeoPlayer
+                  playerUrl={previewLecture.playerUrl}
+                  vimeoId={previewLecture.vimeoId}
+                  vimeoHash={previewLecture.vimeoHash}
+                  watermarkText="RD Classes Preview"
+                  enableProgress={false}
+                />
+              ) : previewLecture.videoUrl ? (
+                <video
+                  src={previewLecture.videoUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-white p-6 text-center">
+                  <Video className="w-12 h-12 text-[#FFB800] mb-2" strokeWidth={1.5} />
+                  <p className="text-sm font-semibold">Video preview will be available soon.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 bg-white border-t border-[#F1F5F9] flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-[#6B7385] text-center sm:text-left">
+                Enjoying this class? Get full access to all lectures, handwritten notes, and Sunday tests on WhatsApp.
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const lec = previewLecture;
+                  setPreviewLecture(null);
+                  openAccessModal({
+                    title: lec.title,
+                    book: lec.book || "",
+                    chapter: lec.chapter || "",
+                  });
+                }}
+                className="h-[44px] px-6 rounded-full bg-[#0B2A4A] hover:bg-[#152B52] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+              >
+                Get Access on WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PDF Viewer Modal */}
       {viewingPdfNote && (

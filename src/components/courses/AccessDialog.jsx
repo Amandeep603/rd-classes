@@ -16,7 +16,10 @@ export default function AccessDialog({
   isOpen,
   onClose,
   course,
+  lockedLecture = null,
   lockedLectureTitle = "",
+  lockedLectureBook = "",
+  lockedLectureChapter = "",
   userData = null,
   siteWhatsapp = "918368545620",
   whatsappDefaultMessage = "",
@@ -28,6 +31,19 @@ export default function AccessDialog({
   const [isCopied, setIsCopied] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const effectiveTitle =
+    (typeof lockedLecture === "object" ? lockedLecture?.title : lockedLecture) ||
+    lockedLectureTitle ||
+    "";
+  const effectiveBook =
+    (typeof lockedLecture === "object" ? lockedLecture?.book : "") ||
+    lockedLectureBook ||
+    "";
+  const effectiveChapter =
+    (typeof lockedLecture === "object" ? lockedLecture?.chapter : "") ||
+    lockedLectureChapter ||
+    "";
 
   // Clean phone number for wa.me
   const cleanPhone = siteWhatsapp.replace(/[^0-9]/g, "") || "918368545620";
@@ -66,8 +82,12 @@ export default function AccessDialog({
       .replace(/{loginId}/g, loginId)
       .replace(/{studentLine}/g, studentLine);
 
-    if (lockedLectureTitle) {
-      generated += `\n\nI watched the free lecture and want access to: "${lockedLectureTitle}".`;
+    if (effectiveTitle) {
+      const parts = [];
+      if (effectiveBook) parts.push(`Book: ${effectiveBook}`);
+      if (effectiveChapter) parts.push(`Chapter: ${effectiveChapter}`);
+      const details = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+      generated += `\n\nI watched the free lecture and want access to: "${effectiveTitle}"${details}.`;
     }
 
     if (extraNote.trim()) {
@@ -75,7 +95,7 @@ export default function AccessDialog({
     }
 
     return generated;
-  }, [course, lockedLectureTitle, userData, effectiveName, extraNote, whatsappDefaultMessage]);
+  }, [course, effectiveTitle, effectiveBook, effectiveChapter, userData, effectiveName, extraNote, whatsappDefaultMessage]);
 
   const message = customMessage !== null ? customMessage : defaultMessage;
 
@@ -94,15 +114,26 @@ export default function AccessDialog({
   const handleOpenWhatsApp = async () => {
     setIsSubmitting(true);
     try {
+      const details = [
+        effectiveBook && `Book: ${effectiveBook}`,
+        effectiveChapter && `Chapter: ${effectiveChapter}`,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
       await fetch("/api/enquiries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseId: course._id,
-          source: lockedLectureTitle ? "lecture-lock" : "course-page",
+          source: effectiveTitle ? "lecture-lock" : "course-page",
           name: visitorName || userData?.student?.name || "",
           phone: visitorPhone || userData?.student?.phone || "",
-          note: extraNote || (lockedLectureTitle ? `Locked lecture: ${lockedLectureTitle}` : ""),
+          note:
+            extraNote ||
+            (effectiveTitle
+              ? `Locked lecture: ${effectiveTitle}${details ? ` (${details})` : ""}`
+              : ""),
         }),
       });
     } catch {
@@ -165,7 +196,7 @@ export default function AccessDialog({
                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-[#0066FF] border border-[#BFDBFE]">
                   {course.classLabel || "Class 12"}
                 </span>
-                {lockedLectureTitle && (
+                {effectiveTitle && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
                     <Lock className="w-2.5 h-2.5" />
                     Locked Lecture
@@ -173,10 +204,17 @@ export default function AccessDialog({
                 )}
               </div>
               <h4 className="text-sm font-bold text-[#0B1B3D] truncate">{course.title}</h4>
-              {lockedLectureTitle && (
-                <p className="text-xs text-[#475569] mt-0.5 truncate">
-                  Unlocking: <span className="font-semibold">{lockedLectureTitle}</span>
-                </p>
+              {effectiveTitle && (
+                <div className="mt-1 space-y-0.5">
+                  <p className="text-xs text-[#475569] truncate">
+                    Unlocking: <span className="font-semibold text-[#0B1B3D]">{effectiveTitle}</span>
+                  </p>
+                  {(effectiveBook || effectiveChapter) && (
+                    <p className="text-[11px] text-[#64748B] truncate">
+                      {[effectiveBook && `Book: ${effectiveBook}`, effectiveChapter && `Chapter: ${effectiveChapter}`].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>

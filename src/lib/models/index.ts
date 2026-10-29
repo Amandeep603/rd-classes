@@ -1,5 +1,7 @@
 export { User } from "./User";
 export { Course } from "./Course";
+export { Book } from "./Book";
+export { Chapter } from "./Chapter";
 export { Enrollment } from "./Enrollment";
 export { Lecture } from "./Lecture";
 export { LectureProgress } from "./LectureProgress";

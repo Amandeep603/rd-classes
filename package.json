@@ -25,7 +25,8 @@
     "data:audit": "node scripts/dataAudit.mjs",
     "data:reset-demo": "node scripts/dataResetDemo.mjs",
     "admin:set-name": "node scripts/admin-set-name.mjs",
-    "db:fix-indexes": "node scripts/db-fix-indexes.mjs"
+    "db:fix-indexes": "node scripts/db-fix-indexes.mjs",
+    "lectures:reset": "node scripts/lecturesReset.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.2",
