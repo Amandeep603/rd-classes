@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Laptop,
+  Tablet,
 } from "lucide-react";
 import PageHeader from "@/components/admin/ui/PageHeader";
 import Modal from "@/components/admin/ui/Modal";
@@ -128,6 +129,30 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
       alert("Error rejecting device: " + e.message);
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const [revokingId, setRevokingId] = useState(null);
+
+  const handleRevokeDevice = async (reqId) => {
+    if (!confirm("Are you sure you want to revoke this approved device? The student will be logged out immediately.")) {
+      return;
+    }
+    setRevokingId(reqId);
+    try {
+      const res = await fetch(`/api/admin/device-requests/${reqId}/revoke`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        setRefreshIndex((i) => i + 1);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to revoke device.");
+      }
+    } catch (e) {
+      alert("Error revoking device: " + e.message);
+    } finally {
+      setRevokingId(null);
     }
   };
 
@@ -258,23 +283,49 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                 </div>
 
                 {/* Requested Device Box */}
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
                     <span className="flex items-center gap-1.5">
-                      <Smartphone className="w-4 h-4 text-slate-600" />
+                      {req.deviceType === "mobile" ? (
+                        <Smartphone className="w-4 h-4 text-slate-600" />
+                      ) : req.deviceType === "tablet" ? (
+                        <Tablet className="w-4 h-4 text-slate-600" />
+                      ) : (
+                        <Laptop className="w-4 h-4 text-slate-600" />
+                      )}
                       {deviceLabel}
                     </span>
                     <span className="text-[11px] text-slate-500 font-normal">
-                      Requested {requestedDate ? new Date(requestedDate).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recently"}
+                      {req.status === "pending" ? "Attempted: " : "Requested: "}
+                      {requestedDate
+                        ? new Date(requestedDate).toLocaleDateString("en-IN", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Recently"}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono">
-                    IP: {req.ip || "Unknown"}
+                  <div className="text-[11px] text-slate-500 font-mono space-y-0.5">
+                    <div>
+                      IP: {req.lastIp || req.ip || "Unknown"}
+                      {(req.city || req.country) && (
+                        <span className="ml-2 text-slate-600 font-sans font-medium">
+                          • {[req.city, req.country].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                    {(req.os || req.browser) && (
+                      <div className="text-slate-600 font-sans">
+                        {[req.os, req.browser].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Already Approved Device section */}
-                <div className="text-xs space-y-1">
+                <div className="text-xs space-y-1.5">
                   <span className="font-semibold text-slate-700 block">
                     Already Approved Device(s):
                   </span>
@@ -284,15 +335,42 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                     approvedDevices.map((ad) => (
                       <div
                         key={ad._id}
-                        className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/50 border border-emerald-100 text-emerald-900 font-medium"
+                        className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-950 font-medium space-y-1"
                       >
-                        <span className="flex items-center gap-1.5">
-                          <Laptop className="w-3.5 h-3.5 text-emerald-700" />
-                          {ad.deviceLabel || ad.label || "Approved Device"}
-                        </span>
-                        <span className="text-[10px] text-emerald-700">
-                          Active
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-xs font-semibold">
+                            {ad.deviceType === "mobile" ? (
+                              <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
+                            ) : ad.deviceType === "tablet" ? (
+                              <Tablet className="w-3.5 h-3.5 text-emerald-700" />
+                            ) : (
+                              <Laptop className="w-3.5 h-3.5 text-emerald-700" />
+                            )}
+                            {ad.deviceLabel || ad.label || "Approved Device"}
+                          </span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-mono flex flex-wrap items-center gap-x-2">
+                          <span>IP: {ad.lastIp || ad.ip || "Unknown"}</span>
+                          {(ad.city || ad.country) && (
+                            <span className="font-sans">
+                              • {[ad.city, ad.country].filter(Boolean).join(", ")}
+                            </span>
+                          )}
+                          <span className="font-sans text-slate-500">
+                            Last used:{" "}
+                            {ad.lastUsedAt
+                              ? new Date(ad.lastUsedAt).toLocaleDateString("en-IN", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Never"}
+                          </span>
+                        </div>
                       </div>
                     ))
                   )}
@@ -315,6 +393,19 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                       className="px-5 py-2 text-xs font-semibold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors shadow-sm cursor-pointer"
                     >
                       Approve Device
+                    </button>
+                  </div>
+                )}
+
+                {/* Actions for Approved */}
+                {req.status === "approved" && (
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => handleRevokeDevice(req._id)}
+                      disabled={revokingId === req._id}
+                      className="px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {revokingId === req._id ? "Revoking..." : "Revoke Device"}
                     </button>
                   </div>
                 )}

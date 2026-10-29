@@ -79,6 +79,9 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
   const [defaultMaxDevices, setDefaultMaxDevices] = useState(
     initialSettings.defaultMaxDevices || 1
   );
+  const [deviceLockMode, setDeviceLockMode] = useState(
+    initialSettings.deviceLockMode || "relaxed"
+  );
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -142,6 +145,7 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
           telegram: telegram.trim(),
         },
         defaultMaxDevices: Number(defaultMaxDevices),
+        deviceLockMode,
       };
 
       const res = await fetch("/api/admin/settings", {
@@ -463,6 +467,20 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
                     onChange={(e) => setDefaultMaxDevices(e.target.value)}
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-[#111827] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
                   />
+                </FormField>
+
+                <FormField
+                  label="Device Lock Mode"
+                  helper="Relaxed matches by device type & OS; Strict binds to a persistent cookie token."
+                >
+                  <select
+                    value={deviceLockMode}
+                    onChange={(e) => setDeviceLockMode(e.target.value)}
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-[#111827] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
+                  >
+                    <option value="relaxed">Relaxed (Default: Device type + OS)</option>
+                    <option value="strict">Strict (Cookie Token Bound)</option>
+                  </select>
                 </FormField>
               </div>
             </div>

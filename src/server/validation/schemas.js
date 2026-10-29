@@ -5,8 +5,11 @@ export const loginSchema = z.object({
     .string()
     .min(1, "Login ID is required")
     .max(50, "Login ID is too long")
-    .transform((val) => val.trim().toLowerCase()),
-  password: z.string().min(1, "Password is required"),
+    .transform((val) => val.trim()),
+  password: z
+    .string()
+    .min(1, "Password is required")
+    .transform((val) => val.trim()),
 });
 
 export const studentCreateSchema = z.object({
@@ -25,8 +28,8 @@ export const studentCreateSchema = z.object({
     .string()
     .min(4, "Login ID must be at least 4 characters")
     .max(30, "Login ID cannot exceed 30 characters")
-    .regex(/^[a-z0-9._-]+$/, "Only letters, numbers, dot, underscore, dash allowed")
-    .transform((val) => val.trim().toLowerCase()),
+    .regex(/^[a-zA-Z0-9._-]+$/, "Only letters, numbers, dot, underscore, dash allowed")
+    .transform((val) => val.trim().toUpperCase()),
   password: z.string().min(8, "Password must be at least 8 characters"),
   deviceLimit: z.coerce.number().min(1).max(3).default(1),
   mustChangePassword: z.boolean().optional().default(false),

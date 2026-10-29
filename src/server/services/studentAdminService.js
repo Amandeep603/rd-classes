@@ -622,6 +622,13 @@ export async function getStudentsListPaginated({
     if (pendingDevices.length > 0) deviceStatus = "pending";
     else if (approvedDevices.length > 0) deviceStatus = "approved";
 
+    const sortedApproved = [...approvedDevices].sort(
+      (a, b) =>
+        new Date(a.firstLoginAt || a.approvedAt || a.createdAt).getTime() -
+        new Date(b.firstLoginAt || b.approvedAt || b.createdAt).getTime()
+    );
+    const firstDev = sortedApproved[0] || null;
+
     return {
       ...student,
       enrolledCourses: enrollmentsMap[sId] || [],
@@ -629,6 +636,15 @@ export async function getStudentsListPaginated({
       deviceStatus,
       approvedDeviceCount: approvedDevices.length,
       pendingDeviceCount: pendingDevices.length,
+      firstDevice: firstDev
+        ? {
+            type: firstDev.deviceType || "desktop",
+            label: firstDev.deviceLabel || firstDev.label || "Device",
+            os: firstDev.os || "",
+            browser: firstDev.browser || "",
+          }
+        : null,
+      lastLoginIp: student.lastLoginIp || (firstDev?.lastIp || firstDev?.ip || null),
     };
   });
 

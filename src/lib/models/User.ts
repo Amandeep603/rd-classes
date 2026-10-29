@@ -75,6 +75,10 @@ const userSchema = new Schema(
       type: Date,
       default: null,
     },
+    lastLoginIp: {
+      type: String,
+      default: null,
+    },
     savedCourses: [
       {
         type: String,

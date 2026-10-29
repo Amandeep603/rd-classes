@@ -83,6 +83,9 @@ export async function PATCH(request) {
     if (body.defaultMaxDevices !== undefined) {
       settings.defaultMaxDevices = Math.max(1, Number(body.defaultMaxDevices) || 1);
     }
+    if (body.deviceLockMode !== undefined && ["relaxed", "strict"].includes(body.deviceLockMode)) {
+      settings.deviceLockMode = body.deviceLockMode;
+    }
 
     await settings.save();
 

@@ -22,82 +22,132 @@ import {
 } from "./rateLimit.js";
 import { createAdminNotification } from "@/server/services/notificationService.js";
 
+function escapeRegex(str) {
+  return (str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Handles student login flow with single-device lock policy.
  */
 export async function studentLogin({ loginId, password }) {
   await connectDB();
-  const rawId = (loginId || "").trim();
-  const normalizedId = rawId.toLowerCase();
+  const cleanId = (loginId || "").trim();
+  const upperId = cleanId.toUpperCase();
+  const cleanPassword = (password || "").trim();
 
   const deviceCtx = await resolveDeviceContext();
-  const { deviceId, label, userAgent, ip } = deviceCtx;
+  const {
+    deviceKey,
+    deviceType,
+    osName,
+    browserName,
+    model,
+    label,
+    ip,
+    city,
+    country,
+    userAgent,
+  } = deviceCtx;
 
-  const userKey = `u:${normalizedId}`;
-  const ipKey = `ip:${ip}`;
+  // Keyed on IP + student loginId so one student's failure doesn't lock others on a shared network
+  const rateLimitKey = `rl:${ip}:${upperId}`;
 
-  // 1. Check rate limits (5 failed attempts per 15 minutes per IP and per account)
-  const userRate = await checkRateLimit(userKey);
-  if (userRate.locked) {
-    return { success: false, error: userRate.message };
-  }
-
-  const ipRate = await checkRateLimit(ipKey);
-  if (ipRate.locked) {
-    return { success: false, error: ipRate.message };
-  }
-
-  // 2. Lookup user by loginId OR email
-  const user = await User.findOne({
-    role: "student",
-    $or: [
-      { loginId: rawId },
-      { loginId: normalizedId },
-      { email: normalizedId },
-    ],
-  });
-
-  if (!user) {
-    // Run dummy compare to eliminate timing side-channel
-    await comparePasswordDummy(password);
-    await recordFailedAttempt(userKey, 5);
-    await recordFailedAttempt(ipKey, 20);
-    return { success: false, error: "Invalid Login ID or password." };
-  }
-
-  const isPasswordValid = await comparePassword(password, user.passwordHash);
-  if (!isPasswordValid) {
-    await recordFailedAttempt(userKey, 5);
-    await recordFailedAttempt(ipKey, 20);
-    return { success: false, error: "Invalid Login ID or password." };
-  }
-
-  // Only after password is confirmed, check for blocked status
-  if (user.status === "blocked") {
+  // 1. Check rate limits (5 failed attempts per 15 minutes)
+  const rateCheck = await checkRateLimit(rateLimitKey);
+  if (rateCheck.locked) {
+    console.warn(`[AUTH_LOGIN_FAILED] reason=rate_limited loginId=${upperId} ip=${ip}`);
+    const mins = Math.max(1, Math.ceil(rateCheck.remainingSec / 60));
     return {
       success: false,
-      error: "Your account has been deactivated. Please contact RD Classes administration.",
+      error: `Too many attempts, try again in ${mins} minutes`,
+      reason: "rate_limited",
     };
   }
 
-  // Clear rate-limits upon valid authentication
-  await resetRateLimit(userKey);
-  await resetRateLimit(ipKey);
+  // 2. Lookup student by loginId (case-insensitive), email, or phone
+  let user;
+  try {
+    user = await User.findOne({
+      role: "student",
+      $or: [
+        { loginId: upperId },
+        { loginId: cleanId },
+        { loginId: { $regex: new RegExp(`^${escapeRegex(cleanId)}$`, "i") } },
+        { email: cleanId.toLowerCase() },
+        { phone: cleanId },
+      ],
+    });
+  } catch (dbErr) {
+    console.error("[AUTH_LOGIN_ERROR] reason=db_error", dbErr.message);
+    return {
+      success: false,
+      error: "Server error (code DB_ERR), contact RD Classes",
+      reason: "db_error",
+    };
+  }
+
+  if (!user) {
+    await comparePasswordDummy(cleanPassword);
+    await recordFailedAttempt(rateLimitKey, 5);
+    console.warn(`[AUTH_LOGIN_FAILED] reason=user_not_found loginId=${upperId} ip=${ip}`);
+    return {
+      success: false,
+      error: "Invalid login ID or password",
+      reason: "user_not_found",
+    };
+  }
+
+  // 3. Password check
+  let isPasswordValid = false;
+  try {
+    isPasswordValid = await comparePassword(cleanPassword, user.passwordHash);
+  } catch (err) {
+    console.error("[AUTH_LOGIN_ERROR] reason=config_error", err.message);
+    return {
+      success: false,
+      error: "Server error (code AUTH_CFG), contact RD Classes",
+      reason: "config_error",
+    };
+  }
+
+  if (!isPasswordValid) {
+    await recordFailedAttempt(rateLimitKey, 5);
+    console.warn(`[AUTH_LOGIN_FAILED] reason=wrong_password loginId=${upperId} ip=${ip}`);
+    return {
+      success: false,
+      error: "Invalid login ID or password",
+      reason: "wrong_password",
+    };
+  }
+
+  // 4. Blocked check (only after password verification)
+  if (user.status === "blocked") {
+    console.warn(`[AUTH_LOGIN_BLOCKED] reason=blocked loginId=${upperId} ip=${ip}`);
+    return {
+      success: false,
+      error: "Your account has been deactivated. Please contact RD Classes administration.",
+      reason: "blocked",
+    };
+  }
+
+  // Clear rate limits on successful authentication
+  await resetRateLimit(rateLimitKey);
 
   const now = new Date();
   const sessionExpiresAt = new Date(
     now.getTime() + COOKIE_DURATIONS.SESSION * 1000
   );
 
-  // 3. Query all currently approved devices for this student
+  // 5. Query approved devices for this student
   const approvedDevices = await Device.find({
     $or: [{ studentId: user._id }, { userId: user._id }],
     status: "approved",
   });
 
-  const isAlreadyApproved = approvedDevices.some((d) => d.deviceId === deviceId);
+  const matchingApproved = approvedDevices.find(
+    (d) => d.deviceKey === deviceKey || d.deviceId === deviceKey
+  );
 
-  // Determine allowed max devices (student override or system default 1)
   let maxAllowed = user.maxDevices;
   if (!maxAllowed || maxAllowed < 1) {
     const setting = await Setting.findOne().lean();
@@ -105,35 +155,36 @@ export async function studentLogin({ loginId, password }) {
   }
 
   // CASE 1: Device is already approved
-  if (isAlreadyApproved) {
+  if (matchingApproved) {
+    const activeDeviceId = matchingApproved.deviceId || matchingApproved.deviceKey || deviceKey;
     await Device.updateOne(
-      {
-        $or: [{ studentId: user._id }, { userId: user._id }],
-        deviceId,
-      },
+      { _id: matchingApproved._id },
       {
         $set: {
           lastUsedAt: now,
-          userAgent,
+          lastIp: ip,
           ip,
-          deviceLabel: label,
-          label,
+          browser: browserName,
+          userAgent,
+          city: city || matchingApproved.city || "",
+          country: country || matchingApproved.country || "",
         },
       }
     );
 
     user.lastLoginAt = now;
+    user.lastLoginIp = ip;
     await user.save();
 
     // Enforce one active session per device: replace old session
-    await Session.deleteMany({ userId: user._id, deviceId });
+    await Session.deleteMany({ userId: user._id, deviceId: activeDeviceId });
 
     const rawToken = generateSessionToken();
     const tokenHash = hashToken(rawToken);
 
     await Session.create({
       userId: user._id,
-      deviceId,
+      deviceId: activeDeviceId,
       tokenHash,
       lastSeenAt: now,
       expiresAt: sessionExpiresAt,
@@ -150,44 +201,54 @@ export async function studentLogin({ loginId, password }) {
     };
   }
 
-  // CASE 2: Device is NOT approved, but student has available slots (e.g. 0 devices or < maxAllowed)
+  // CASE 2: Device is NOT approved, but student has available slots (e.g. first login or < maxAllowed)
   if (approvedDevices.length < maxAllowed) {
     await Device.findOneAndUpdate(
       {
         $or: [{ studentId: user._id }, { userId: user._id }],
-        deviceId,
+        $or: [{ deviceKey }, { deviceId: deviceKey }],
       },
       {
         $set: {
           studentId: user._id,
           userId: user._id,
-          deviceId,
+          deviceId: deviceKey,
+          deviceKey,
+          deviceType,
+          os: osName,
+          browser: browserName,
+          model,
+          city,
+          country,
+          lastIp: ip,
+          ip,
           deviceLabel: label,
           label,
           userAgent,
-          ip,
           status: "approved",
+          firstLoginAt: now,
+          lastUsedAt: now,
           approvedAt: now,
           decidedAt: now,
           requestedAt: now,
-          lastUsedAt: now,
         },
       },
       { upsert: true, new: true }
     );
 
     user.lastLoginAt = now;
+    user.lastLoginIp = ip;
     await user.save();
 
     // One active session per device
-    await Session.deleteMany({ userId: user._id, deviceId });
+    await Session.deleteMany({ userId: user._id, deviceId: deviceKey });
 
     const rawToken = generateSessionToken();
     const tokenHash = hashToken(rawToken);
 
     await Session.create({
       userId: user._id,
-      deviceId,
+      deviceId: deviceKey,
       tokenHash,
       lastSeenAt: now,
       expiresAt: sessionExpiresAt,
@@ -205,50 +266,71 @@ export async function studentLogin({ loginId, password }) {
   }
 
   // CASE 3: Device is NOT approved and student has reached their allowed device limit
-  // Do NOT log in. Create/update a Device document with status 'pending' (only one pending request per device)
-  const existingDeviceDoc = await Device.findOne({
+  console.warn(
+    `[AUTH_LOGIN_PENDING] reason=device_pending loginId=${upperId} ip=${ip} deviceKey=${deviceKey}`
+  );
+
+  let pendingDoc = await Device.findOne({
     $or: [{ studentId: user._id }, { userId: user._id }],
-    deviceId,
+    $or: [{ deviceKey }, { deviceId: deviceKey }],
   });
 
-  let deviceDoc;
-  if (existingDeviceDoc) {
-    existingDeviceDoc.status = "pending";
-    existingDeviceDoc.deviceLabel = label;
-    existingDeviceDoc.label = label;
-    existingDeviceDoc.userAgent = userAgent;
-    existingDeviceDoc.ip = ip;
-    existingDeviceDoc.requestedAt = now;
-    await existingDeviceDoc.save();
-    deviceDoc = existingDeviceDoc;
+  if (pendingDoc) {
+    pendingDoc.status = "pending";
+    pendingDoc.lastAttemptAt = now;
+    pendingDoc.lastIp = ip;
+    pendingDoc.ip = ip;
+    pendingDoc.userAgent = userAgent;
+    pendingDoc.browser = browserName;
+    pendingDoc.deviceType = deviceType;
+    pendingDoc.os = osName;
+    pendingDoc.model = model;
+    pendingDoc.city = city;
+    pendingDoc.country = country;
+    pendingDoc.deviceLabel = label;
+    pendingDoc.label = label;
+    await pendingDoc.save();
   } else {
-    deviceDoc = await Device.create({
+    pendingDoc = await Device.create({
       studentId: user._id,
       userId: user._id,
-      deviceId,
+      deviceId: deviceKey,
+      deviceKey,
+      deviceType,
+      os: osName,
+      browser: browserName,
+      model,
+      city,
+      country,
+      lastIp: ip,
+      ip,
       deviceLabel: label,
       label,
       userAgent,
-      ip,
       status: "pending",
       requestedAt: now,
+      lastAttemptAt: now,
     });
   }
 
-  // Trigger admin notification (de-duplicated by entityId / deviceDoc._id)
+  // Trigger admin notification
   await createAdminNotification({
     type: "device_request",
     title: "New Device Request",
     message: `New device request from ${user.name || user.loginId || "Student"}`,
     link: "/admin/device-requests",
-    entityId: deviceDoc._id.toString(),
+    entityId: pendingDoc._id.toString(),
   });
+
+  const pendingNotice =
+    "This account is registered on another device. You cannot log in here. A request has been sent to RD Classes. You can log in after the admin approves this device.";
 
   return {
     success: false,
     pendingApproval: true,
-    message:
-      "This device is not approved. Your account works on one device only. A request has been sent to RD Classes. You can login once the admin approves it.",
+    reason: "device_pending",
+    message: pendingNotice,
+    error: pendingNotice,
   };
 }
 

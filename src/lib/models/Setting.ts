@@ -66,6 +66,11 @@ const settingSchema = new Schema(
       default: 1,
       min: 1,
     },
+    deviceLockMode: {
+      type: String,
+      enum: ["relaxed", "strict"],
+      default: "relaxed",
+    },
     workspaceName: {
       type: String,
       default: "RD Classes",

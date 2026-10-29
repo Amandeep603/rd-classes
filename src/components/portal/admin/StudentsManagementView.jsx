@@ -26,6 +26,9 @@ import {
   Eye,
   LogOut,
   RefreshCw,
+  Laptop,
+  Tablet,
+  Unlock,
 } from "lucide-react";
 import PageHeader from "@/components/admin/ui/PageHeader";
 import DataTable from "@/components/admin/ui/DataTable";
@@ -335,6 +338,23 @@ export default function StudentsManagementView({
     }
   };
 
+  // Unlock student login (clear rate limit locks)
+  const handleUnlockLogin = async (student) => {
+    try {
+      const res = await fetch(`/api/admin/students/${student._id}/unlock-login`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || `Login unlocked for ${student.name}.`);
+      } else {
+        alert(data.error || "Failed to unlock login.");
+      }
+    } catch (e) {
+      alert("Error unlocking login: " + e.message);
+    }
+  };
+
   // Import: Preview File
   const handleUploadFileForPreview = async (e) => {
     const file = e.target.files?.[0];
@@ -509,6 +529,70 @@ export default function StudentsManagementView({
       },
     },
     {
+      header: "First Device",
+      field: "firstDevice",
+      accessor: "firstDevice",
+      render: (student) => {
+        const fd = student.firstDevice;
+        if (!fd) {
+          return <span className="text-xs text-slate-400 italic">None</span>;
+        }
+        const isMobile = fd.type === "mobile";
+        const isTablet = fd.type === "tablet";
+        return (
+          <div className="flex items-center gap-1.5 text-xs text-slate-700">
+            {isMobile ? (
+              <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            ) : isTablet ? (
+              <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            ) : (
+              <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            )}
+            <span className="truncate max-w-[150px] font-medium" title={fd.label}>
+              {fd.label}
+            </span>
+          </div>
+        );
+      },
+      cell: (student) => {
+        const fd = student.firstDevice;
+        if (!fd) {
+          return <span className="text-xs text-slate-400 italic">None</span>;
+        }
+        const isMobile = fd.type === "mobile";
+        const isTablet = fd.type === "tablet";
+        return (
+          <div className="flex items-center gap-1.5 text-xs text-slate-700">
+            {isMobile ? (
+              <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            ) : isTablet ? (
+              <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            ) : (
+              <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            )}
+            <span className="truncate max-w-[150px] font-medium" title={fd.label}>
+              {fd.label}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      header: "Last Login IP",
+      field: "lastLoginIp",
+      accessor: "lastLoginIp",
+      render: (student) => (
+        <span className="text-xs text-slate-600 font-mono">
+          {student.lastLoginIp || "—"}
+        </span>
+      ),
+      cell: (student) => (
+        <span className="text-xs text-slate-600 font-mono">
+          {student.lastLoginIp || "—"}
+        </span>
+      ),
+    },
+    {
       header: "Device Status",
       field: "deviceStatus",
       accessor: "deviceStatus",
@@ -633,6 +717,13 @@ export default function StudentsManagementView({
             <KeyRound className="w-4 h-4" />
           </button>
           <button
+            onClick={() => handleUnlockLogin(student)}
+            title="Unlock Login"
+            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+          >
+            <Unlock className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => handleToggleBlock(student)}
             title={student.status === "active" ? "Block Student" : "Unblock Student"}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
@@ -678,6 +769,13 @@ export default function StudentsManagementView({
             className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
           >
             <KeyRound className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleUnlockLogin(student)}
+            title="Unlock Login"
+            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+          >
+            <Unlock className="w-4 h-4" />
           </button>
           <button
             onClick={() => handleToggleBlock(student)}
