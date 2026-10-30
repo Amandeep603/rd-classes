@@ -111,7 +111,7 @@ export default function CourseSyllabus({
   };
 
   const handleRowClick = (lec) => {
-    const hasVideo = Boolean(lec.vimeoId && lec.vimeoId.trim() !== "");
+    const hasVideo = Boolean(lec.hasVideo !== false && (lec.hasVideo || (lec.vimeoId && lec.vimeoId.trim() !== "")));
     const canAccess = isEnrolled || lec.isFree;
 
     if (!canAccess) {
@@ -121,6 +121,12 @@ export default function CourseSyllabus({
 
     if (!hasVideo) {
       // Coming soon - no action
+      return;
+    }
+
+    if (isEnrolled) {
+      const url = `${watchBaseUrl || "/student/watch"}/${lec._id}`;
+      window.location.href = url;
       return;
     }
 
@@ -234,7 +240,7 @@ export default function CourseSyllabus({
                     {isOpen && (
                       <div className="border-t border-[#F1F5F9] bg-[#FAFBFD] p-3 sm:p-4 space-y-2">
                         {ch.lectures.map((lec, idx) => {
-                          const hasVideo = Boolean(lec.vimeoId && lec.vimeoId.trim() !== "");
+                          const hasVideo = Boolean(lec.hasVideo !== false && (lec.hasVideo || (lec.vimeoId && lec.vimeoId.trim() !== "")));
                           const canAccess = isEnrolled || lec.isFree;
                           const isCompleted = completedLectureIds.includes(lec._id?.toString());
                           const progress = lectureProgressMap[lec._id?.toString()];
@@ -244,13 +250,12 @@ export default function CourseSyllabus({
                             <div
                               key={lec._id?.toString() || idx}
                               onClick={() => handleRowClick(lec)}
-                              className={`group relative rounded-[14px] p-3 sm:px-4 sm:py-3 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 border ${
-                                !canAccess
+                              className={`group relative rounded-[14px] p-3 sm:px-4 sm:py-3 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 border ${!canAccess
                                   ? "bg-white hover:bg-[#FFFDF9] border-[#EDF2F7] cursor-pointer"
                                   : hasVideo
-                                  ? "bg-white hover:border-[#FFC93C] border-[#E8ECF2] shadow-2xs"
-                                  : "bg-white/80 border-[#E8ECF2] opacity-85"
-                              }`}
+                                    ? "bg-white hover:border-[#FFC93C] border-[#E8ECF2] shadow-2xs"
+                                    : "bg-white/80 border-[#E8ECF2] opacity-85"
+                                }`}
                             >
                               {/* Left: Number + Title */}
                               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -261,9 +266,8 @@ export default function CourseSyllabus({
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span
-                                      className={`text-[14px] sm:text-[15px] font-semibold leading-snug truncate ${
-                                        canAccess ? "text-[#0B2A4A]" : "text-[#475569]"
-                                      }`}
+                                      className={`text-[14px] sm:text-[15px] font-semibold leading-snug truncate ${canAccess ? "text-[#0B2A4A]" : "text-[#475569]"
+                                        }`}
                                     >
                                       {lec.title}
                                     </span>
@@ -325,15 +329,9 @@ export default function CourseSyllabus({
 
                                 {/* STATE 2: Free without video yet */}
                                 {lec.isFree && !hasVideo && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider">
-                                      <Sparkles className="w-3 h-3" />
-                                      FREE
-                                    </span>
-                                    <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-500 border border-gray-200 px-2.5 py-1 text-[11px] font-medium">
-                                      Coming soon
-                                    </span>
-                                  </div>
+                                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold">
+                                    FREE · Coming soon
+                                  </span>
                                 )}
 
                                 {/* STATE 3: Enrolled student + Video exists */}
@@ -471,9 +469,8 @@ export default function CourseSyllabus({
 
             <div className="aspect-video w-full bg-black relative">
               <VimeoPlayer
-                vimeoId={freePreviewLecture.vimeoId}
-                vimeoHash={freePreviewLecture.vimeoHash}
                 lectureId={freePreviewLecture._id?.toString()}
+                isFreePreview={true}
                 durationSeconds={freePreviewLecture.durationSeconds}
                 enableProgress={false}
                 autoPlay={true}
@@ -502,4 +499,3 @@ export default function CourseSyllabus({
     </div>
   );
 }
-

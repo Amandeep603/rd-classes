@@ -51,40 +51,10 @@ async function WatchContent({ params }) {
     lectureDoc.isPreview === true
   );
 
-  const now = new Date();
-  const userIdObj = mongoose.Types.ObjectId.isValid(auth.user._id)
-    ? new mongoose.Types.ObjectId(auth.user._id)
-    : auth.user._id;
-
-  const enrollment = await Enrollment.findOne({
-    $and: [
-      {
-        $or: [
-          { userId: userIdObj },
-          { studentId: userIdObj },
-          { userId: auth.user._id },
-          { studentId: auth.user._id },
-        ],
-      },
-      { courseId: lectureDoc.courseId },
-      { status: { $ne: "cancelled" } },
-      {
-        $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-      },
-    ],
-  }).lean();
-
-  let isEnrolled = !!enrollment;
-  if (!isEnrolled) {
-    const dbUser = await User.findById(auth.user._id).lean();
-    const courseIdStr = String(lectureDoc.courseId);
-    const userCourses = [
-      ...(Array.isArray(dbUser?.courses) ? dbUser.courses : []),
-      ...(Array.isArray(dbUser?.enrolledCourses) ? dbUser.enrolledCourses : []),
-    ].map((c) => (c?._id ? String(c._id) : String(c)));
-    isEnrolled = userCourses.includes(courseIdStr);
-  }
-
+  // Check enrollment using single source of truth
+  const { getStudentCourseAccess } = await import("@/server/services/studentAccessService.js");
+  const access = await getStudentCourseAccess(auth);
+  const isEnrolled = access.isEnrolledInCourse(lectureDoc.courseId);
   const isLocked = !isEnrolled && !isFree;
 
   // 2. Fetch student's progress for this lecture

@@ -300,35 +300,30 @@ export async function getNotesList({
 /**
  * Gets notes accessible to an enrolled student.
  */
-export async function getStudentAccessibleNotes(userId, { courseId = "", kind = "" } = {}) {
+export async function getStudentAccessibleNotes(userOrId, { courseId = "", kind = "" } = {}) {
   await connectDB();
-  const now = new Date();
+  const { getStudentCourseAccess } = await import("./studentAccessService.js");
+  const access = await getStudentCourseAccess(userOrId);
 
-  // Find active enrollments
-  const enrollments = await Enrollment.find({
-    userId,
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-  }).select("courseId").lean();
-
-  const activeCourseIds = enrollments.map((e) => e.courseId);
-  if (activeCourseIds.length === 0) {
+  if (!access.authenticated || access.enrolledCourseIds.length === 0) {
     return [];
   }
 
   const query = {
-    courseIds: { $in: activeCourseIds },
+    $or: [
+      { courseIds: { $in: access.enrolledCourseIds } },
+      { courseId: { $in: access.enrolledCourseIds } },
+      { audience: "all" },
+    ],
     published: true,
   };
 
   if (courseId) {
-    const isEnrolledInCourse = activeCourseIds.some(
-      (id) => id.toString() === courseId.toString()
-    );
-    if (!isEnrolledInCourse) {
+    const isEnrolled = access.isEnrolledInCourse(courseId);
+    if (!isEnrolled) {
       return []; // Student is not enrolled in this specific course
     }
-    query.courseIds = courseId;
+    query.$or = [{ courseIds: courseId }, { courseId: courseId }];
   }
 
   if (kind && kind !== "all") {
@@ -367,20 +362,17 @@ export async function checkNoteAccess(noteId, user) {
   if (!user) return { allowed: false, reason: "unauthenticated" };
 
   // Rule 3: Enrolled student in any attached course (courseIds or courseId)
-  const now = new Date();
-  const allCourseIds = [
+  const { getStudentCourseAccess } = await import("./studentAccessService.js");
+  const access = await getStudentCourseAccess(user);
+
+  const allNoteCourseIds = [
     ...(Array.isArray(note.courseIds) ? note.courseIds : []),
     ...(note.courseId ? [note.courseId] : []),
-  ];
+  ].map((c) => (c?._id ? c._id.toString() : c.toString()));
 
-  const activeEnrollment = await Enrollment.findOne({
-    userId: user._id,
-    courseId: { $in: allCourseIds },
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-  }).lean();
+  const hasAccess = allNoteCourseIds.some((cId) => access.isEnrolledInCourse(cId));
 
-  if (!activeEnrollment) {
+  if (!hasAccess) {
     return { allowed: false, reason: "not_enrolled" };
   }
 

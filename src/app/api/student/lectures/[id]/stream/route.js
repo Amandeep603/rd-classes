@@ -102,30 +102,10 @@ export async function GET(request, { params }) {
       }
     }
 
-    // 2b. Verify Active Enrollment in this course
-    const now = new Date();
-    const enrollment = await Enrollment.findOne({
-      $or: [
-        { studentId: user._id, courseId: lecture.courseId, status: { $ne: "cancelled" } },
-        { userId: user._id, courseId: lecture.courseId, status: { $ne: "cancelled" } },
-      ],
-      $and: [
-        {
-          $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-        },
-      ],
-    }).lean();
-
-    let isEnrolled = !!enrollment;
-    if (!isEnrolled) {
-      const dbUser = await User.findById(user._id).lean();
-      const courseIdStr = String(lecture.courseId);
-      const userCourses = [
-        ...(Array.isArray(dbUser?.courses) ? dbUser.courses : []),
-        ...(Array.isArray(dbUser?.enrolledCourses) ? dbUser.enrolledCourses : []),
-      ].map((c) => (c?._id ? String(c._id) : String(c)));
-      isEnrolled = userCourses.includes(courseIdStr);
-    }
+    // 2b. Verify Active Enrollment in this course using single source of truth
+    const { getStudentCourseAccess } = await import("@/server/services/studentAccessService.js");
+    const access = await getStudentCourseAccess(user);
+    const isEnrolled = access.isEnrolledInCourse(lecture.courseId);
 
     if (!isEnrolled) {
       return Response.json(
@@ -134,7 +114,10 @@ export async function GET(request, { params }) {
           isFree: false,
           locked: true,
         },
-        { status: 403 }
+        {
+          status: 403,
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+        }
       );
     }
 

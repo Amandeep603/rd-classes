@@ -19,25 +19,16 @@ async function StudentNotesContent() {
   await connectDB();
   const now = new Date();
 
-  // Find active enrollments to get active courses
-  const enrollments = await Enrollment.find({
-    userId: auth.user._id,
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-  })
-    .populate("courseId", "title slug published")
-    .lean();
+  // Single source of truth for student course access
+  const { getStudentCourseAccess } = await import("@/server/services/studentAccessService.js");
+  const access = await getStudentCourseAccess(auth);
+  const activeCourses = access.activeCourses.map((c) => ({
+    _id: c._id.toString(),
+    title: c.title,
+    slug: c.slug,
+  }));
 
-  const activeCourses = enrollments
-    .map((e) => e.courseId)
-    .filter((c) => c && c.published)
-    .map((c) => ({
-      _id: c._id.toString(),
-      title: c.title,
-      slug: c.slug,
-    }));
-
-  const notes = await getStudentAccessibleNotes(auth.user._id);
+  const notes = await getStudentAccessibleNotes(auth);
 
   // Serialize notes for client component
   const serializedNotes = notes.map((note) => ({

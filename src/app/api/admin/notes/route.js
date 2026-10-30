@@ -181,6 +181,8 @@ export async function POST(request) {
       revalidateTag("notes");
       revalidateTag("courses");
       revalidatePath("/notes");
+      revalidatePath("/student/notes");
+      revalidatePath("/student");
     } catch {
       // ignore
     }

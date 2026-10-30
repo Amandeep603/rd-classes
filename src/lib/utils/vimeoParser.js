@@ -58,6 +58,6 @@ export function parseVimeoUrl(input) {
 export function buildVimeoEmbedUrl(vimeoId, vimeoHash) {
   if (!vimeoId) return "";
   const hashParam = vimeoHash ? `h=${encodeURIComponent(vimeoHash)}&` : "";
-  return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?${hashParam}dnt=1&title=0&byline=0&portrait=0&playsinline=1`;
+  return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?${hashParam}dnt=1&title=0&byline=0&portrait=0&like=0&watchlater=0&share=0&playsinline=1&pip=0`;
 }
 

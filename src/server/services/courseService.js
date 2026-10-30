@@ -1,4 +1,5 @@
 import "server-only";
+import mongoose from "mongoose";
 import { cacheTag, cacheLife } from "next/cache";
 import connectDB from "../db/connect.js";
 import { Course } from "../db/models/Course.js";
@@ -8,6 +9,8 @@ import { Progress } from "../db/models/Progress.js";
 import { Settings } from "../db/models/Settings.js";
 import { logAuditEvent } from "./audit.js";
 import { createAdminNotification } from "./notificationService.js";
+
+export { getStudentCourseAccess } from "./studentAccessService.js";
 
 export function slugify(text) {
   return text
@@ -30,7 +33,6 @@ export async function invalidateCoursesCache() {
     if (typeof revalidateTag === "function") {
       try {
         revalidateTag("courses");
-        revalidateTag("lectures");
       } catch (tErr) {
         // Tag invalidation
       }
@@ -38,8 +40,10 @@ export async function invalidateCoursesCache() {
     if (typeof revalidatePath === "function") {
       try {
         revalidatePath("/courses");
-        revalidatePath("/courses/[slug]");
-        revalidatePath("/courses/class-12-accountancy");
+        revalidatePath("/courses/[slug]", "page");
+        revalidatePath("/student", "layout");
+        revalidatePath("/student");
+        revalidatePath("/student/lectures");
         revalidatePath("/");
       } catch (pErr) {
         // Path invalidation
@@ -115,8 +119,19 @@ export async function getCachedCourseLectures(courseId) {
   cacheTag("courses");
   cacheLife("max");
   await connectDB();
+
+  let targetCourseId = courseId;
+  if (!mongoose.isValidObjectId(String(courseId))) {
+    const found = await Course.findOne({
+      slug: String(courseId).toLowerCase().trim(),
+    })
+      .select("_id")
+      .lean();
+    if (found) targetCourseId = found._id;
+  }
+
   const lectures = await Lecture.find({
-    courseId,
+    courseId: targetCourseId,
     status: { $ne: "archived" },
   })
     .populate("bookId", "title position status")
@@ -137,6 +152,8 @@ export async function getCachedCourseLectures(courseId) {
     const bookNo = lec.bookNo || lec.bookId?.position || 1;
     const chapterNo = lec.chapterNo || lec.chapterId?.position || 1;
     const lectureNo = lec.lectureNo || (lec.position !== undefined ? lec.position : (lec.order || 1));
+
+    const hasVideo = Boolean(lec.vimeoId && lec.vimeoId.trim() !== "");
 
     const base = {
       id: lec._id.toString(),
@@ -165,15 +182,8 @@ export async function getCachedCourseLectures(courseId) {
       freePreview: isFree,
       isPreview: isFree,
       locked: !isFree,
+      hasVideo,
     };
-
-    // Server safeguard: ONLY free lectures with a video include playable details for public visitor
-    if (isFree && lec.vimeoId) {
-      base.videoProvider = lec.videoProvider || "vimeo";
-      base.videoUrl = lec.videoUrl || "";
-      base.vimeoId = lec.vimeoId || "";
-      base.vimeoHash = lec.vimeoHash || "";
-    }
 
     return base;
   });

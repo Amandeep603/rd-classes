@@ -212,6 +212,26 @@ export default async function CourseDetailPage({ params }) {
     },
   };
 
+  // Ensure Course Includes uses real counts from the database
+  const dynamicIncludes = (course.includes || []).map((item) => {
+    const text = typeof item === "string" ? item : item.text || item.label || "";
+    const icon = typeof item === "object" ? item.icon : "";
+    if (
+      /\d+\s*hd\s*video\s*lectures/i.test(text) ||
+      /\d+\s*video\s*lectures/i.test(text) ||
+      (icon === "video" && /lectures/i.test(text))
+    ) {
+      const realText = `${lectures.length} HD Video Lectures`;
+      return typeof item === "string" ? realText : { ...item, text: realText };
+    }
+    return item;
+  });
+
+  const enrichedCourse = {
+    ...course,
+    includes: dynamicIncludes,
+  };
+
   return (
     <div className="min-h-screen w-full bg-[#FCFBF8] text-[#0F172A] pb-20 overflow-x-clip">
       <script
@@ -345,7 +365,7 @@ export default async function CourseDetailPage({ params }) {
       <main className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8">
         <Suspense fallback={<CourseDetailSkeleton />}>
           <CourseDetailClient
-            course={course}
+            course={enrichedCourse}
             lectures={lectures}
             initialNotes={notes}
             relatedCourses={relatedCourses}

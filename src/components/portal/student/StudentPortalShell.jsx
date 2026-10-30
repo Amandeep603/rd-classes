@@ -3,6 +3,7 @@
 import { useState } from "react";
 import StudentSidebar from "./StudentSidebar";
 import StudentTopbar from "./StudentTopbar";
+import StudentLiveRefresh from "./StudentLiveRefresh";
 
 export default function StudentPortalShell({
   student,
@@ -11,6 +12,7 @@ export default function StudentPortalShell({
   whatsappNumber,
   notifications,
   activeCourses = [],
+  courseProgress = null,
   children,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,9 +24,14 @@ export default function StudentPortalShell({
         background: "linear-gradient(180deg, #FFFBF2 0%, #FFFFFF 100%)",
       }}
     >
+      <StudentLiveRefresh />
+
       {/* 1. Desktop Sticky Sidebar (>= 1024px): attached to left edge, 260px, 100vh, no outer margin */}
       <div className="hidden lg:block shrink-0">
-        <StudentSidebar whatsappNumber={whatsappNumber} />
+        <StudentSidebar
+          whatsappNumber={whatsappNumber}
+          courseProgress={courseProgress}
+        />
       </div>
 
       {/* 2. Mobile/Tablet Slide-in Drawer (< 1024px) */}
@@ -46,6 +53,7 @@ export default function StudentPortalShell({
         >
           <StudentSidebar
             whatsappNumber={whatsappNumber}
+            courseProgress={courseProgress}
             onClose={() => setSidebarOpen(false)}
             isDrawer={true}
           />

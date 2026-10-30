@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/server/db/models/Lecture.js";
-import { Enrollment } from "@/server/db/models/Enrollment.js";
-import { User } from "@/server/db/models/User.js";
 import { getAuthorizedLecture, isLectureFree } from "@/server/services/lectureService.js";
-
-export const instant = false;
+import { getStudentCourseAccess } from "@/server/services/studentAccessService.js";
 
 export async function GET(request, { params }) {
   const { lectureId } = await params;
@@ -24,34 +21,17 @@ export async function GET(request, { params }) {
   const auth = await getCurrentUser();
 
   let isEnrolled = false;
-  if (auth?.user) {
-    const now = new Date();
-    const enrollment = await Enrollment.findOne({
-      $and: [
-        {
-          $or: [
-            { userId: auth.user._id },
-            { studentId: auth.user._id },
-            { userId: String(auth.user._id) },
-            { studentId: String(auth.user._id) },
-          ],
-        },
-        { courseId: lecture.courseId },
-        { status: { $ne: "cancelled" } },
-        { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
-      ],
-    }).lean();
+  let studentMeta = null;
 
-    if (enrollment) {
-      isEnrolled = true;
-    } else {
-      const dbUser = await User.findById(auth.user._id).lean();
-      const courseIdStr = String(lecture.courseId);
-      const userCourses = [
-        ...(Array.isArray(dbUser?.courses) ? dbUser.courses : []),
-        ...(Array.isArray(dbUser?.enrolledCourses) ? dbUser.enrolledCourses : []),
-      ].map((c) => (c?._id ? String(c._id) : String(c)));
-      isEnrolled = userCourses.includes(courseIdStr);
+  if (auth?.user) {
+    const access = await getStudentCourseAccess(auth);
+    isEnrolled = access.isEnrolledInCourse(lecture.courseId);
+    if (access.student) {
+      studentMeta = {
+        name: access.student.name,
+        loginId: access.student.loginId,
+        phone: access.student.phone || "",
+      };
     }
   }
 
@@ -59,14 +39,20 @@ export async function GET(request, { params }) {
   if (!isFree && !isEnrolled) {
     return NextResponse.json(
       { error: "Forbidden. This lecture is for enrolled students.", isFree: false, locked: true },
-      { status: 403 }
+      {
+        status: 403,
+        headers: { "Cache-Control": "private, no-store, max-age=0" },
+      }
     );
   }
 
   if (!lecture.vimeoId || lecture.vimeoId.trim() === "") {
     return NextResponse.json(
       { error: "Video coming soon. No video uploaded yet.", isFree, locked: false, hasVideo: false },
-      { status: 404 }
+      {
+        status: 404,
+        headers: { "Cache-Control": "private, no-store, max-age=0" },
+      }
     );
   }
 
@@ -78,9 +64,23 @@ export async function GET(request, { params }) {
   if (!data) {
     return NextResponse.json(
       { error: "Forbidden. Lecture is locked.", isFree: false, locked: true },
-      { status: 403 }
+      {
+        status: 403,
+        headers: { "Cache-Control": "private, no-store, max-age=0" },
+      }
     );
   }
 
-  return NextResponse.json({ success: true, data });
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        ...data,
+        student: studentMeta,
+      },
+    },
+    {
+      headers: { "Cache-Control": "private, no-store, max-age=0" },
+    }
+  );
 }

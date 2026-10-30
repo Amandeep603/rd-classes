@@ -7,6 +7,7 @@ import connectDB from "../db/connect.js";
 import { Session, User, Device } from "@/lib/models";
 import { getCookie, deleteCookie, COOKIE_NAMES, COOKIE_DURATIONS } from "./cookies.js";
 import { hashToken } from "./tokens.js";
+export { getStudentCourseAccess } from "../services/studentAccessService.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const FIVE_MINS_MS = 5 * 60 * 1000;

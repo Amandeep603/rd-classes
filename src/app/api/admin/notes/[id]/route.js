@@ -36,6 +36,8 @@ export async function DELETE(request, { params }) {
       revalidateTag("notes");
       revalidateTag("courses");
       revalidatePath("/notes");
+      revalidatePath("/student/notes");
+      revalidatePath("/student");
     } catch {
       // ignore
     }
@@ -199,6 +201,8 @@ export async function PATCH(request, { params }) {
       revalidateTag("notes");
       revalidateTag("courses");
       revalidatePath("/notes");
+      revalidatePath("/student/notes");
+      revalidatePath("/student");
     } catch {
       // ignore
     }

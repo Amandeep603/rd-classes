@@ -11,13 +11,10 @@ export async function GET() {
   try {
     await connectDB();
 
-    // Find student's active enrollments
-    const enrollments = await Enrollment.find({
-      studentId: student.user._id,
-      status: "active",
-    }).lean();
-
-    const enrolledCourseIds = enrollments.map((e) => e.courseId.toString());
+    // Find student's active enrollments using single source of truth
+    const { getStudentCourseAccess } = await import("@/server/services/studentAccessService.js");
+    const access = await getStudentCourseAccess(student.user);
+    const enrolledCourseIds = access.enrolledCourseIds;
     const now = new Date();
 
     const announcement = await Announcement.findOne({

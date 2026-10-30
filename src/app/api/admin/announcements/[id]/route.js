@@ -38,6 +38,15 @@ export async function PATCH(request, { params }) {
       meta: { title: announcement.title, pinned: announcement.pinned },
     });
 
+    try {
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      revalidatePath("/student", "layout");
+      revalidatePath("/student");
+      revalidateTag("announcements");
+    } catch {
+      // ignore
+    }
+
     return Response.json({ success: true, announcement });
   } catch (err) {
     return Response.json(
@@ -65,6 +74,15 @@ export async function DELETE(request, { params }) {
       entityId: id,
       meta: { title: announcement.title },
     });
+
+    try {
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      revalidatePath("/student", "layout");
+      revalidatePath("/student");
+      revalidateTag("announcements");
+    } catch {
+      // ignore
+    }
 
     return Response.json({ success: true, message: "Announcement deleted successfully." });
   } catch (err) {

@@ -15,10 +15,9 @@ export async function POST(request) {
     await connectDB();
 
     // 1. Bulk Actions Mode on Selected Lectures
-    if (body.action) {
-      const ids = Array.isArray(body.ids) ? body.ids : (body.updates?.map((u) => u.lectureId) || []);
-      const { action } = body;
-      if (ids.length === 0 && action !== "assign_vimeo_links") {
+    if (body.action && Array.isArray(body.ids)) {
+      const { action, ids } = body;
+      if (ids.length === 0) {
         return Response.json({ success: true, count: 0 });
       }
 

@@ -2,20 +2,15 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { cookies } from "next/headers";
 import mongoose from "mongoose";
-import Link from "next/link";
 import { MessageCircle, Video } from "lucide-react";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
-import { Enrollment } from "@/server/db/models/Enrollment.js";
-import { Course } from "@/server/db/models/Course.js";
-import { User } from "@/server/db/models/User.js";
-import { Book } from "@/lib/models/Book";
-import { Chapter } from "@/lib/models/Chapter";
 import { Lecture } from "@/lib/models/Lecture";
 import { LectureProgress } from "@/lib/models/LectureProgress";
 import { Settings as Setting } from "@/server/db/models/Settings.js";
 import CourseSyllabus from "@/components/course/CourseSyllabus";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
+import { getStudentCourseAccess } from "@/server/services/studentAccessService.js";
 
 export const metadata = {
   title: "Lectures | RD Classes Student Portal",
@@ -28,70 +23,14 @@ async function StudentLecturesContent({ searchParams }) {
   if (!auth?.user) return null;
 
   await connectDB();
-  const now = new Date();
   const userId = auth.user._id;
 
   const resolvedParams = (await searchParams) || {};
   const queryCourse = resolvedParams.course;
 
-  // 1. Fetch user's enrolled courses
-  const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : null;
-  const userStrId = String(userId);
-  const userQueries = [{ userId: userStrId }, { studentId: userStrId }];
-  if (userObjId) {
-    userQueries.push({ userId: userObjId }, { studentId: userObjId });
-  }
-
-  const enrollments = await Enrollment.find({
-    $and: [
-      { $or: userQueries },
-      { status: { $ne: "cancelled" } },
-      { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
-    ],
-  })
-    .populate("courseId")
-    .lean();
-
-  const dbUser = await User.findById(userId).lean();
-  const userCourseList = [];
-  if (Array.isArray(dbUser?.courses)) {
-    for (const c of dbUser.courses) {
-      if (c) userCourseList.push(c._id ? String(c._id) : String(c));
-    }
-  }
-  if (Array.isArray(dbUser?.enrolledCourses)) {
-    for (const c of dbUser.enrolledCourses) {
-      if (c) userCourseList.push(c._id ? String(c._id) : String(c));
-    }
-  }
-  if (Array.isArray(dbUser?.savedCourses)) {
-    for (const c of dbUser.savedCourses) {
-      if (c) userCourseList.push(String(c));
-    }
-  }
-
-  const enrolledFromEnrollments = enrollments.map((e) => e.courseId).filter(Boolean);
-  const existingCourseIdStrings = new Set(enrolledFromEnrollments.map((c) => String(c._id)));
-  const missingCourseIds = userCourseList.filter((id) => !existingCourseIdStrings.has(String(id)));
-
-  let directCourses = [];
-  if (missingCourseIds.length > 0) {
-    const validMissingIds = missingCourseIds.filter((id) => mongoose.isValidObjectId(id));
-    if (validMissingIds.length > 0) {
-      directCourses = await Course.find({ _id: { $in: validMissingIds } }).lean();
-    }
-  }
-
-  const allCourses = [...enrolledFromEnrollments, ...directCourses];
-  const activeCourses = [];
-  const seenCourseIds = new Set();
-  for (const c of allCourses) {
-    const cidStr = String(c._id);
-    if (!seenCourseIds.has(cidStr)) {
-      seenCourseIds.add(cidStr);
-      activeCourses.push(c);
-    }
-  }
+  // Single source of truth for student course access
+  const access = await getStudentCourseAccess(auth);
+  const activeCourses = [...access.activeCourses];
 
   const setting = await Setting.findOne().lean();
   const whatsappNumber = setting?.whatsappNumber || setting?.whatsapp || "918368545620";
@@ -100,7 +39,7 @@ async function StudentLecturesContent({ searchParams }) {
     "Hello Sir, I have logged into the student portal but do not see my course assigned yet."
   )}`;
 
-  // ZERO COURSES STATE
+  // ZERO COURSES STATE (only when student has zero enrolled courses)
   if (activeCourses.length === 0) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center rounded-[24px] border border-dashed border-[#CBD5E1] bg-white p-8 text-center space-y-4">
@@ -142,17 +81,21 @@ async function StudentLecturesContent({ searchParams }) {
     }
   }
 
-  // Fetch all 67 lectures for the course
+  const selectedCourseObjId = mongoose.isValidObjectId(selectedCourse._id)
+    ? new mongoose.Types.ObjectId(selectedCourse._id)
+    : selectedCourse._id;
+
+  // Fetch all curriculum lectures for the selected course
   const [lectures, progressList] = await Promise.all([
     Lecture.find({
-      courseId: selectedCourse._id,
+      courseId: selectedCourseObjId,
       status: { $ne: "archived" },
     })
       .sort({ bookNo: 1, chapterNo: 1, lectureNo: 1, position: 1, order: 1, createdAt: 1 })
       .lean(),
     LectureProgress.find({
       $or: [{ studentId: userId }, { userId }],
-      courseId: selectedCourse._id,
+      courseId: selectedCourseObjId,
     }).lean(),
   ]);
 

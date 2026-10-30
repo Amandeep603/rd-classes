@@ -25,6 +25,16 @@ export async function PATCH(request, { params }) {
 
     await test.save();
 
+    try {
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      revalidatePath("/student", "layout");
+      revalidatePath("/student");
+      revalidatePath("/student/tests");
+      revalidateTag("tests");
+    } catch {
+      // ignore
+    }
+
     return Response.json({ success: true, test });
   } catch (err) {
     return Response.json({ error: err?.message }, { status: 500 });
@@ -37,6 +47,17 @@ export async function DELETE(request, { params }) {
     const { id } = await params;
     await connectDB();
     await Test.findByIdAndDelete(id);
+
+    try {
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      revalidatePath("/student", "layout");
+      revalidatePath("/student");
+      revalidatePath("/student/tests");
+      revalidateTag("tests");
+    } catch {
+      // ignore
+    }
+
     return Response.json({ success: true });
   } catch (err) {
     return Response.json({ error: err?.message }, { status: 500 });

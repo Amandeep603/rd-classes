@@ -17,14 +17,10 @@ async function StudentTestsContent() {
   await connectDB();
   const now = new Date();
 
-  // Active courses
-  const enrollments = await Enrollment.find({
-    userId: auth.user._id,
-    status: "active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-  }).select("courseId");
-
-  const courseIds = enrollments.map((e) => e.courseId);
+  // Single source of truth for student course access
+  const { getStudentCourseAccess } = await import("@/server/services/studentAccessService.js");
+  const access = await getStudentCourseAccess(auth);
+  const courseIds = access.enrolledCourseIds;
 
   // Upcoming tests
   const upcomingTestsDocs = await Test.find({

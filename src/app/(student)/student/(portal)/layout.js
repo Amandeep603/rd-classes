@@ -4,13 +4,14 @@ import { connection } from "next/server";
 import { cookies } from "next/headers";
 import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
-import { Enrollment } from "@/server/db/models/Enrollment.js";
-import { Course } from "@/server/db/models/Course.js";
+import { Lecture } from "@/lib/models/Lecture";
+import { Progress } from "@/server/db/models/Progress.js";
 import { Settings as Setting } from "@/server/db/models/Settings.js";
 import { Announcement } from "@/server/db/models/Announcement.js";
 import { Note } from "@/server/db/models/Note.js";
 import StudentPortalShell from "@/components/portal/student/StudentPortalShell";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
+import { getStudentCourseAccess } from "@/server/services/studentAccessService.js";
 
 export const metadata = {
   title: "Student Portal | RD Classes",
@@ -33,67 +34,9 @@ async function StudentPortalLayoutContent({ children }) {
   const whatsappNumber =
     setting?.whatsappNumber || setting?.whatsapp || "918368545620";
 
-  // 2. Fetch Active Enrollments & Main Course
-  const userObjId = mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : null;
-  const userStrId = String(userId);
-  const userQueries = [{ userId: userStrId }, { studentId: userStrId }];
-  if (userObjId) {
-    userQueries.push({ userId: userObjId }, { studentId: userObjId });
-  }
-
-  const enrollments = await Enrollment.find({
-    $and: [
-      { $or: userQueries },
-      { status: { $ne: "cancelled" } },
-      { $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }] },
-    ],
-  })
-    .populate("courseId", "title slug classLabel category status published")
-    .lean();
-
-  const userCourseList = [];
-  if (Array.isArray(auth.user.courses)) {
-    for (const c of auth.user.courses) {
-      if (c) userCourseList.push(c._id ? String(c._id) : String(c));
-    }
-  }
-  if (Array.isArray(auth.user.savedCourses)) {
-    for (const c of auth.user.savedCourses) {
-      if (c) userCourseList.push(String(c));
-    }
-  }
-
-  const enrolledFromEnrollments = enrollments
-    .map((e) => e.courseId)
-    .filter(Boolean);
-
-  const existingCourseIdStrings = new Set(
-    enrolledFromEnrollments.map((c) => String(c._id))
-  );
-
-  const missingCourseIds = userCourseList.filter((id) => !existingCourseIdStrings.has(String(id)));
-  let directCourses = [];
-  if (missingCourseIds.length > 0) {
-    const validMissingIds = missingCourseIds.filter((id) => mongoose.isValidObjectId(id));
-    if (validMissingIds.length > 0) {
-      directCourses = await Course.find({
-        _id: { $in: validMissingIds },
-      })
-        .select("title slug classLabel category status published")
-        .lean();
-    }
-  }
-
-  const allCourses = [...enrolledFromEnrollments, ...directCourses];
-  const activeCourses = [];
-  const seenCourseIds = new Set();
-  for (const c of allCourses) {
-    const cidStr = String(c._id);
-    if (!seenCourseIds.has(cidStr)) {
-      seenCourseIds.add(cidStr);
-      activeCourses.push(c);
-    }
-  }
+  // 2. Fetch Active Courses from single source of truth
+  const access = await getStudentCourseAccess(auth);
+  const activeCourses = [...access.activeCourses];
 
   const cookieStore = await cookies();
   const selectedCourseCookie = cookieStore.get("rd_selected_course")?.value || null;
@@ -119,8 +62,47 @@ async function StudentPortalLayoutContent({ children }) {
     mainCourse?.classLabel ||
     (auth.user.className ? `Class ${auth.user.className}` : "Class 12");
 
+  // Compute selected course progress for the sidebar tracker
+  let courseProgress = null;
+  if (mainCourse) {
+    const mainCourseObjId = mongoose.isValidObjectId(mainCourse._id)
+      ? new mongoose.Types.ObjectId(mainCourse._id)
+      : mainCourse._id;
+
+    const [totalWithVideo, totalCurriculumLectures, completedCount] = await Promise.all([
+      Lecture.countDocuments({
+        courseId: mainCourseObjId,
+        vimeoId: { $exists: true, $ne: "" },
+        status: { $ne: "archived" },
+      }),
+      Lecture.countDocuments({
+        courseId: mainCourseObjId,
+        status: { $ne: "archived" },
+      }),
+      Progress.countDocuments({
+        $or: [{ userId: auth.user._id }, { studentId: auth.user._id }],
+        courseId: mainCourseObjId,
+        completed: true,
+      }),
+    ]);
+
+    const percent =
+      totalWithVideo > 0
+        ? Math.min(100, Math.round((completedCount / totalWithVideo) * 100))
+        : 0;
+
+    courseProgress = {
+      courseId: mainCourse._id,
+      courseSlug: mainCourse.slug,
+      courseTitle: mainCourse.title,
+      completedCount,
+      totalWithVideo,
+      totalCurriculumLectures,
+      percent,
+    };
+  }
+
   const activeCourseIds = activeCourses.map((c) => c._id);
-  const stringCourseIds = activeCourseIds.map((id) => id.toString());
 
   // 3. Fetch Notifications (Pinned announcements & Recent notes)
   const [announcements, recentNotes] = await Promise.all([
@@ -146,7 +128,6 @@ async function StudentPortalLayoutContent({ children }) {
             { audience: "all" },
             { "audience.all": true },
             { audience: { $in: activeCourseIds } },
-            { audience: { $in: stringCourseIds } },
             { "audience.courseIds": { $in: activeCourseIds } },
           ],
         },
@@ -162,6 +143,7 @@ async function StudentPortalLayoutContent({ children }) {
         { courseIds: { $in: activeCourseIds } },
       ],
       published: true,
+      status: { $ne: "archived" },
     })
       .sort({ createdAt: -1 })
       .limit(3)
@@ -194,6 +176,7 @@ async function StudentPortalLayoutContent({ children }) {
         title: c.title,
         slug: c.slug,
       }))}
+      courseProgress={courseProgress}
     >
       <Suspense fallback={<StudentDashboardSkeleton />}>
         {children}

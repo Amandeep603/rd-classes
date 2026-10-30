@@ -234,9 +234,8 @@ export default function PortalLecturesView({
     }
 
     // Valid link: update state & save to server
-    const fullEmbedUrl = `https://player.vimeo.com/video/${parsed.vimeoId}${
-      parsed.vimeoHash ? `?h=${parsed.vimeoHash}` : ""
-    }`;
+    const fullEmbedUrl = `https://player.vimeo.com/video/${parsed.vimeoId}${parsed.vimeoHash ? `?h=${parsed.vimeoHash}` : ""
+      }`;
 
     setRowStates((prev) => ({
       ...prev,
@@ -247,12 +246,12 @@ export default function PortalLecturesView({
       prev.map((l) =>
         l._id.toString() === lectureId
           ? {
-              ...l,
-              vimeoId: parsed.vimeoId,
-              vimeoHash: parsed.vimeoHash || "",
-              videoUrl: trimmed,
-              status: "published",
-            }
+            ...l,
+            vimeoId: parsed.vimeoId,
+            vimeoHash: parsed.vimeoHash || "",
+            videoUrl: trimmed,
+            status: "published",
+          }
           : l
       )
     );
@@ -335,7 +334,6 @@ export default function PortalLecturesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "assign_vimeo_links",
-          ids: updates.map((u) => u.lectureId),
           updates,
         }),
       });
@@ -759,13 +757,12 @@ export default function PortalLecturesView({
                                               }
                                             }}
                                             placeholder="Paste Vimeo embed or URL..."
-                                            className={`w-full h-9 px-3 rounded-lg border text-xs focus:outline-none transition-all ${
-                                              rowState.status === "error"
+                                            className={`w-full h-9 px-3 rounded-lg border text-xs focus:outline-none transition-all ${rowState.status === "error"
                                                 ? "border-rose-400 bg-rose-50/40 text-rose-800"
                                                 : rowState.status === "saved" && rowState.linkInput
-                                                ? "border-emerald-300 bg-emerald-50/30 text-[#0B2A4A]"
-                                                : "border-gray-200 bg-white text-[#0B2A4A] focus:border-[#FFC93C]"
-                                            }`}
+                                                  ? "border-emerald-300 bg-emerald-50/30 text-[#0B2A4A]"
+                                                  : "border-gray-200 bg-white text-[#0B2A4A] focus:border-[#FFC93C]"
+                                              }`}
                                           />
                                         </div>
 

@@ -73,6 +73,10 @@ export async function POST(request) {
         link: "/student",
         entityId: announcement._id.toString(),
       });
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      revalidatePath("/student", "layout");
+      revalidatePath("/student");
+      revalidateTag("announcements");
     } catch {
       // ignore
     }

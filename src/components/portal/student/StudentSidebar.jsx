@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -20,15 +21,46 @@ const NAV_ITEMS = [
   { id: "profile", label: "Profile", href: "/student/profile", icon: User },
 ];
 
-export default function StudentSidebar({ whatsappNumber, onClose, isDrawer = false }) {
+export default function StudentSidebar({
+  whatsappNumber,
+  courseProgress = null,
+  onClose,
+  isDrawer = false,
+}) {
   const pathname = usePathname();
+  const [progressData, setProgressData] = useState(courseProgress || null);
 
-  const cleanPhone = (whatsappNumber || "").replace(/\D/g, "");
-  const whatsappUrl = cleanPhone
-    ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-        "Hello Sir, I have a doubt regarding my RD Classes studies."
-      )}`
-    : null;
+  useEffect(() => {
+    if (courseProgress) {
+      setProgressData(courseProgress);
+    }
+  }, [courseProgress]);
+
+  useEffect(() => {
+    const handleProgressUpdate = (e) => {
+      if (e.detail && typeof e.detail.percent === "number") {
+        setProgressData((prev) => ({
+          ...prev,
+          ...e.detail,
+        }));
+      } else {
+        fetch("/api/student/progress/summary")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data) setProgressData(data);
+          })
+          .catch(() => {});
+      }
+    };
+
+    window.addEventListener("rd:progress_updated", handleProgressUpdate);
+    window.addEventListener("rd:lecture_completed", handleProgressUpdate);
+
+    return () => {
+      window.removeEventListener("rd:progress_updated", handleProgressUpdate);
+      window.removeEventListener("rd:lecture_completed", handleProgressUpdate);
+    };
+  }, []);
 
   return (
     <aside
@@ -53,70 +85,66 @@ export default function StudentSidebar({ whatsappNumber, onClose, isDrawer = fal
           aria-hidden="true"
         >
           <path
-            d="M210 260C165 235 140 165 175 95C188 140 205 190 210 260Z"
-            fill="#BAE6FD"
+            d="M200 120C140 130 110 180 120 260H200V120Z"
+            fill="#D4EAFB"
+            fillOpacity="0.7"
           />
           <path
-            d="M185 260C140 215 120 130 148 60C165 115 180 180 185 260Z"
-            fill="#CFE8FC"
+            d="M170 80C130 100 100 160 110 240C150 210 180 150 170 80Z"
+            fill="#BAE0FD"
+            fillOpacity="0.5"
           />
           <path
-            d="M145 260C110 230 90 170 118 115C130 160 140 205 145 260Z"
-            fill="#E0F2FE"
-          />
-          <path
-            d="M20 260C50 220 70 170 45 120C35 160 25 210 20 260Z"
-            fill="#E0F2FE"
+            d="M200 180C160 185 130 220 140 260H200V180Z"
+            fill="#9FD4FB"
+            fillOpacity="0.4"
           />
         </svg>
       </div>
 
-      {/* Top section: Logo block + Menu + WhatsApp */}
-      <div className="relative z-10 flex flex-col">
-        {/* Logo block (44px) + "RD Classes" bold + "STUDENT PORTAL" */}
-        <div className="flex items-center justify-between" style={{ padding: "20px 18px 0 18px" }}>
+      <div className="relative z-10">
+        {/* Top Header / Brand Row */}
+        <div className="flex items-center justify-between px-[22px] pt-[20px] pb-[16px]">
           <Link
             href="/student"
             onClick={() => onClose?.()}
-            className="flex items-center gap-3 transition-opacity hover:opacity-90"
+            className="flex items-center gap-[12px] group"
           >
-            <div className="relative h-[44px] w-[44px] flex items-center justify-center shrink-0">
+            <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[12px] bg-white border border-[#CBD5E1]/60 p-1 shadow-2xs group-hover:scale-102 transition-transform">
               <Image
-                src="/images/logo-rd.png"
-                alt="RD Classes"
-                width={44}
-                height={44}
+                src="/images/logo/logo-cropped.png"
+                alt="RD Classes Logo"
+                width={32}
+                height={32}
+                className="h-auto w-auto object-contain"
                 priority
-                className="h-[44px] w-auto object-contain select-none"
               />
             </div>
-            <div className="min-w-0">
-              <div className="text-[18px] font-bold leading-tight tracking-tight text-[#1F2A44]">
+            <div className="leading-[1.15]">
+              <span className="block text-[15px] font-extrabold tracking-tight text-[#1F2A44]">
                 RD Classes
-              </div>
-              <div className="text-[10.5px] font-semibold tracking-[0.14em] text-[#7E8B9B] mt-0.5">
+              </span>
+              <span className="block text-[9.5px] font-bold tracking-[0.16em] uppercase text-[#6B7385] mt-0.5">
                 STUDENT PORTAL
-              </div>
+              </span>
             </div>
           </Link>
-          {isDrawer && onClose && (
+
+          {/* Close button for Mobile/Tablet Drawer */}
+          {isDrawer && (
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close menu"
-              className="p-1.5 rounded-lg text-[#1F2A44] hover:bg-black/5 active:bg-black/10 transition-colors cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6B7385] hover:bg-white/60 hover:text-[#1F2A44] transition-colors"
+              aria-label="Close navigation menu"
             >
               <X className="h-5 w-5" />
             </button>
           )}
         </div>
 
-        {/* Nav Items (15px medium, 20px outline icons) */}
-        <nav
-          className="flex flex-col gap-[6px] px-[16px]"
-          style={{ marginTop: "24px" }}
-          role="navigation"
-        >
+        {/* Navigation Items (gap 4px, height 44px, active yellow #FFC93C pill) */}
+        <nav className="flex flex-col gap-[4px] px-[16px] mt-[10px]">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -129,11 +157,10 @@ export default function StudentSidebar({ whatsappNumber, onClose, isDrawer = fal
                 key={item.id}
                 href={item.href}
                 onClick={() => onClose?.()}
-                aria-current={isActive ? "page" : undefined}
-                className={`group flex items-center gap-[12px] h-[48px] w-full rounded-[14px] px-[16px] text-[15px] transition-all duration-150 ${
+                className={`group flex items-center gap-[12px] h-[44px] rounded-[14px] px-[16px] text-[15px] font-semibold transition-all duration-150 ${
                   isActive
-                    ? "bg-[#FFC93C] text-[#1F2A44] font-bold shadow-[0_4px_14px_rgba(255,201,60,0.35)]"
-                    : "text-[#1F2A44] font-medium hover:bg-white/60"
+                    ? "bg-[#FFC93C] text-[#1F2A44] shadow-xs"
+                    : "text-[#1F2A44] hover:bg-white/65 hover:text-[#0B1528]"
                 }`}
               >
                 <Icon
@@ -153,44 +180,47 @@ export default function StudentSidebar({ whatsappNumber, onClose, isDrawer = fal
         <div
           className="mx-[24px]"
           style={{
-            margin: "20px 24px 14px 24px",
+            margin: "18px 24px 14px 24px",
             borderTop: "1px solid rgba(31,42,68,0.12)",
           }}
         />
 
-        {/* Ask Sir on WhatsApp: green OUTLINE WhatsApp icon and green text */}
-        {whatsappUrl && (
+        {/* Your Progress Card for the SELECTED course */}
+        {progressData && (
           <div className="px-[16px]">
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/student/lectures"
               onClick={() => onClose?.()}
-              className="flex items-center gap-[12px] h-[46px] rounded-[14px] px-[16px] text-[15px] font-medium text-[#16A34A] hover:bg-emerald-50/60 transition-colors"
+              className="block rounded-[16px] bg-white border border-[#E8ECF2] p-3.5 shadow-xs hover:border-[#FFC93C] transition-all group"
             >
-              <div className="flex h-[24px] w-[24px] items-center justify-center shrink-0">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#16A34A"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="shrink-0"
-                  aria-hidden="true"
-                >
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                </svg>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#B7791F] truncate">
+                  {progressData.courseTitle || "Your Progress"}
+                </span>
+                <span className="text-[13px] font-extrabold text-[#1F2A44]">
+                  {progressData.percent || 0}%
+                </span>
               </div>
-              <span className="font-medium text-[#16A34A]">Ask Sir on WhatsApp</span>
-            </a>
+
+              {/* Yellow Progress Bar */}
+              <div className="mt-2 w-full h-2 rounded-full bg-[#F1F5F9] overflow-hidden">
+                <div
+                  className="h-full bg-[#FFC93C] rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, progressData.percent || 0))}%`,
+                  }}
+                />
+              </div>
+
+              <p className="mt-2 text-[12px] font-semibold text-[#5B6577] group-hover:text-[#1F2A44] transition-colors truncate">
+                {progressData.completedCount || 0} of {progressData.totalCurriculumLectures || progressData.totalWithVideo || 67} lectures completed
+              </p>
+            </Link>
           </div>
         )}
       </div>
 
-      {/* Bottom block: NO white card or border. Text directly on gradient + yellow underline + illustration bottom-right */}
+      {/* Bottom block: Text directly on gradient + yellow underline + illustration bottom-right */}
       <div className="relative z-10 mt-auto px-[22px] pb-[16px] pt-4 select-none">
         <div className="text-[20px] font-semibold leading-[1.25] text-[#1F2A44] select-none">
           Consistent<br />
@@ -238,37 +268,34 @@ export default function StudentSidebar({ whatsappNumber, onClose, isDrawer = fal
             />
 
             {/* Bottom Book (Navy #0B2A4A) */}
-            <g transform="translate(14, 60)">
-              {/* Base shadow */}
-              <rect x="6" y="24" width="90" height="15" rx="3" fill="#06182B" opacity="0.3" />
-              {/* Pages */}
-              <rect x="8" y="22" width="87" height="13" rx="2" fill="#F8FAFC" />
-              {/* Cover spine & top */}
-              <rect x="4" y="18" width="92" height="19" rx="3.5" fill="#0B2A4A" />
-              {/* Pages line texture */}
-              <line x1="93" y1="22" x2="93" y2="34" stroke="#E2E8F0" strokeWidth="1.5" />
+            <g transform="translate(10, 68) rotate(-4)">
+              <rect x="0" y="0" width="76" height="15" rx="3" fill="#0B2A4A" />
+              <rect x="5" y="2" width="69" height="11" rx="2" fill="#F8FAFC" />
+              <rect x="0" y="0" width="8" height="15" rx="2" fill="#0B2A4A" />
+              <line x1="2" y1="3" x2="2" y2="12" stroke="#FFC93C" strokeWidth="1.5" />
             </g>
 
-            {/* Middle Book (Sky Blue / White) */}
-            <g transform="translate(22, 44)">
-              <rect x="6" y="19" width="78" height="13" rx="2" fill="#CBD5E1" />
-              <rect x="8" y="17" width="75" height="12" rx="2" fill="#FFFFFF" />
-              <rect x="4" y="14" width="80" height="16" rx="3" fill="#E2E8F0" />
-              <rect x="4" y="14" width="14" height="16" rx="3" fill="#38BDF8" />
+            {/* Middle Book (Sky/Teal #2A6E96) */}
+            <g transform="translate(14, 52) rotate(2)">
+              <rect x="0" y="0" width="70" height="14" rx="3" fill="#1E5A8A" />
+              <rect x="5" y="2" width="63" height="10" rx="2" fill="#FFFFFF" />
+              <rect x="0" y="0" width="8" height="14" rx="2" fill="#1E5A8A" />
+              <line x1="2" y1="3" x2="2" y2="11" stroke="#FFD875" strokeWidth="1.2" />
             </g>
 
             {/* Top Book (Yellow/Gold #FFC93C) */}
-            <g transform="translate(26, 28)">
-              <rect x="6" y="19" width="70" height="13" rx="2" fill="#D97706" />
-              <rect x="8" y="17" width="67" height="12" rx="2" fill="#FFFBEB" />
-              <rect x="4" y="14" width="72" height="15" rx="3" fill="#FFC93C" />
-              <rect x="4" y="14" width="12" height="15" rx="3" fill="#E0A812" />
-              {/* Red ribbon bookmark */}
-              <path
-                d="M44 28L48 38L52 28V14H44V28Z"
-                fill="#EF4444"
-              />
+            <g transform="translate(18, 38) rotate(-1)">
+              <rect x="0" y="0" width="62" height="13" rx="3" fill="#FFC93C" />
+              <rect x="4" y="2" width="56" height="9" rx="1.5" fill="#FFFDF5" />
+              <rect x="0" y="0" width="7" height="13" rx="2" fill="#FFC93C" />
+              <line x1="2" y1="2.5" x2="2" y2="10.5" stroke="#0B2A4A" strokeWidth="1" />
             </g>
+
+            {/* Bookmark ribbon coming down from top book */}
+            <path
+              d="M32 44V60L36 57L40 60V44H32Z"
+              fill="#E11D48"
+            />
           </svg>
         </div>
       </div>
