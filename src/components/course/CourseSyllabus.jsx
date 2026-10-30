@@ -488,7 +488,7 @@ export default function CourseSyllabus({
 
             <div className="p-4 bg-[#081F38] flex items-center justify-between gap-4">
               <span className="text-[13px] text-white/80">
-                Enjoyed this preview? Enrol today to unlock all 67 video lectures!
+                Enjoyed this preview? Enrol today to unlock all {totalLecturesCount || 136} video lectures!
               </span>
               <a
                 href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(

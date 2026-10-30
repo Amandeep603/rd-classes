@@ -421,7 +421,7 @@ export default function StudentProfileClient({
                     </div>
                     <div className="flex items-center justify-between text-xs text-[#64748B]">
                       <span>
-                        {c.completedLectures || 0} of {c.totalLectures || 67} lectures
+                        {c.completedLectures || 0} of {c.totalLectures || 136} lectures
                       </span>
                       {c.validUntilFormatted && (
                         <span>Valid until: {c.validUntilFormatted}</span>

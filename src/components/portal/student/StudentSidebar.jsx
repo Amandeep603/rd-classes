@@ -219,7 +219,7 @@ export default function StudentSidebar({
               </div>
 
               <p className="mt-2 text-[12px] font-semibold text-[#5B6577] group-hover:text-[#1F2A44] transition-colors truncate">
-                {progressData.completedCount || 0} of {progressData.totalCurriculumLectures || progressData.totalWithVideo || 67} lectures completed
+                {progressData.completedCount || 0} of {progressData.totalCurriculumLectures || progressData.totalWithVideo || 136} lectures completed
               </p>
             </Link>
           </div>

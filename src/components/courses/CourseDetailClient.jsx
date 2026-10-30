@@ -421,7 +421,7 @@ export default function CourseDetailClient({
                 {course.title || "Class 12 Accountancy"}
               </h4>
               <p className="text-[13px] font-semibold text-[#5B6577] mt-1">
-                {userData.completedLectures || 0} of {userData.totalLectures || lectures.length || 67} lectures completed
+                {userData.completedLectures || 0} of {userData.totalLectures || lectures.length || 136} lectures completed
               </p>
             </div>
 

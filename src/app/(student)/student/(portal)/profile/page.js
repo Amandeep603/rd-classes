@@ -97,7 +97,7 @@ export default async function StudentProfilePage() {
     });
   }
   if (!totalCurriculumLectures && rawActiveCourses.length > 0) {
-    totalCurriculumLectures = 67;
+    totalCurriculumLectures = 136;
   }
 
   // 4. Enrich each enrolled course with real counts & progress
@@ -107,7 +107,7 @@ export default async function StudentProfilePage() {
         (await Lecture.countDocuments({
           courseId: course._id,
           status: { $ne: "archived" },
-        })) || 67;
+        })) || 136;
 
       const courseCompleted = progressDocs.filter(
         (p) => String(p.courseId) === String(course._id) && p.completed
