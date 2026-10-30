@@ -212,7 +212,7 @@ export default function ResumeRevisionCard({
             </Link>
           )}
 
-          {!isNoCourse && !hasNoLectures && (
+          {!isNoCourse && (
             <Link
               href={allLecturesUrl}
               className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#1F2A44] hover:text-[#0B2A4A] transition-colors"

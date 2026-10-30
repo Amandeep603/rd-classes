@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -8,12 +8,15 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  Lock,
+  MessageCircle,
+  Play,
+  Clock,
+  ToggleLeft,
+  ToggleRight,
   FileText,
   Eye,
   Download,
-  ToggleLeft,
-  ToggleRight,
-  Sparkles,
 } from "lucide-react";
 import VimeoPlayer from "@/components/student/VimeoPlayer";
 import { markLectureCompleteAction } from "@/server/actions/student.progress.actions.js";
@@ -21,13 +24,18 @@ import { markLectureCompleteAction } from "@/server/actions/student.progress.act
 export default function StudentWatchClient({
   lecture,
   playerUrl,
+  vimeoId,
+  vimeoHash,
   savedPositionSec = 0,
   initialCompleted = false,
   studentName,
   loginId,
   prevLecture,
   nextLecture,
+  chapterLectures = [],
   notes = [],
+  isLocked = false,
+  whatsappNumber = "918368545620",
 }) {
   const router = useRouter();
   const [completed, setCompleted] = useState(initialCompleted);
@@ -45,11 +53,13 @@ export default function StudentWatchClient({
   const handleToggleAutoplay = () => {
     const nextVal = !autoplayNext;
     setAutoplayNext(nextVal);
-    localStorage.setItem("student_autoplay_next", String(nextVal));
+    try {
+      localStorage.setItem("student_autoplay_next", String(nextVal));
+    } catch {}
   };
 
   const handleMarkComplete = async () => {
-    if (isMarking) return;
+    if (isMarking || isLocked) return;
     setIsMarking(true);
     try {
       await markLectureCompleteAction(lecture._id);
@@ -71,95 +81,136 @@ export default function StudentWatchClient({
   };
 
   const chapterLabel =
-    lecture.chapter || lecture.section || "Chapter Revision";
+    lecture.chapterTitle || lecture.chapter || lecture.section || "Chapter Revision";
+  const courseTitle = lecture.courseTitle || "Class 12 Accountancy";
+
+  const cleanPhone = (whatsappNumber || "").replace(/\D/g, "");
+  const whatsappUrl = `https://wa.me/${cleanPhone || "918368545620"}?text=${encodeURIComponent(
+    `Hello Sir, I want to unlock ${courseTitle}.`
+  )}`;
 
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb Navigation */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link
-          href={`/student/lectures/${lecture.courseSlug}`}
+          href={`/student/lectures`}
           className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6B7280] hover:text-[#111827] transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Back to {lecture.courseTitle || "Course Syllabus"}</span>
+          <span>Back to All Lectures</span>
         </Link>
 
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-amber-100/80 px-3 py-1 text-xs font-bold text-amber-900 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-[#FFFBEB] border border-[#FDE68A] px-3 py-1 text-xs font-bold text-[#B7791F]">
+            {courseTitle}
+          </span>
+          <span className="rounded-full bg-[#F1F5F9] px-3 py-1 text-xs font-semibold text-[#475467]">
             {chapterLabel}
           </span>
         </div>
       </div>
 
-      {/* Main Grid: Player Column & Sidebar Column */}
+      {/* Main Grid: Left Column (Player / Lock Screen) + Right Column (Playlist Sidebar) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Player + Controls + Actions */}
+        {/* Left Column */}
         <div className="lg:col-span-8 space-y-5">
-          {/* 16:9 Smooth Video Player Card with Fullscreen Support */}
-          <div className="relative aspect-video w-full overflow-hidden rounded-[22px] bg-black shadow-2xl border border-black/10">
-            {playerUrl ? (
-              <VimeoPlayer
-                playerUrl={playerUrl}
-                lectureId={lecture._id}
-                savedPositionSec={savedPositionSec}
-                studentName={studentName}
-                loginId={loginId}
-                onComplete={handleVideoComplete}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-white/50 text-sm">
-                Video player unavailable
+          {/* Video Player or Locked Screen */}
+          {isLocked ? (
+            <div className="relative aspect-video w-full rounded-[22px] bg-gradient-to-br from-[#0B2A4A] to-[#041324] border border-[#1E3A5F] p-8 flex flex-col items-center justify-center text-center shadow-2xl">
+              <div className="w-16 h-16 rounded-full bg-[#FFC93C]/15 border border-[#FFC93C]/30 text-[#FFC93C] flex items-center justify-center mb-4 shadow-lg">
+                <Lock className="w-8 h-8" />
               </div>
-            )}
-          </div>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                This lecture is locked
+              </h2>
+              <p className="mt-2 text-sm text-[#94A3B8] max-w-md">
+                This lecture is part of{" "}
+                <span className="font-bold text-white">{courseTitle}</span>. Contact RD Classes on WhatsApp to enroll and unlock.
+              </p>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-flex items-center gap-2.5 h-[48px] rounded-full bg-[#16A34A] hover:bg-[#15803D] px-6 text-sm font-bold text-white shadow-[0_4px_14px_rgba(22,163,74,0.4)] transition-all active:scale-98"
+              >
+                <MessageCircle className="h-4 w-4 fill-white" />
+                <span>Contact RD Classes on WhatsApp</span>
+              </a>
+            </div>
+          ) : (
+            <VimeoPlayer
+              playerUrl={playerUrl}
+              vimeoId={vimeoId}
+              vimeoHash={vimeoHash}
+              lectureId={lecture._id}
+              savedPositionSec={savedPositionSec}
+              durationSeconds={lecture.durationSeconds || lecture.durationSec || 0}
+              studentName={studentName}
+              loginId={loginId}
+              onComplete={handleVideoComplete}
+              autoPlay={false}
+            />
+          )}
 
-          {/* Action Row & Autoplay Toggle & Mark Complete */}
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 border border-black/5 shadow-xs">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#111827]">
+          {/* Action Row & Autoplay Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] bg-white p-5 border border-[#E8ECF2] shadow-sm">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#B7791F] uppercase tracking-wider">
+                  Part {lecture.lectureNo || lecture.partNumber || 1}
+                </span>
+                {lecture.isFree && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800">
+                    FREE PREVIEW
+                  </span>
+                )}
+              </div>
+              <h1 className="mt-1 text-xl sm:text-2xl font-extrabold text-[#1F2A44] leading-snug">
                 {lecture.title}
               </h1>
-              <p className="mt-1 text-xs text-[#6B7280]">
-                {lecture.courseTitle} • {chapterLabel}
+              <p className="mt-0.5 text-xs text-[#5B6577]">
+                {courseTitle} • {chapterLabel}
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Autoplay-Next Toggle */}
-              <button
-                type="button"
-                onClick={handleToggleAutoplay}
-                aria-pressed={autoplayNext}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all border ${
-                  autoplayNext
-                    ? "bg-amber-50 text-amber-900 border-amber-200"
-                    : "bg-neutral-50 text-[#6B7280] border-black/8 hover:text-[#111827]"
-                }`}
-              >
-                {autoplayNext ? (
-                  <ToggleRight className="h-4 w-4 text-amber-600" />
-                ) : (
-                  <ToggleLeft className="h-4 w-4 text-[#9CA3AF]" />
-                )}
-                <span>Autoplay Next</span>
-              </button>
+            {!isLocked && (
+              <div className="flex items-center gap-3 shrink-0">
+                {/* Autoplay-Next Toggle */}
+                <button
+                  type="button"
+                  onClick={handleToggleAutoplay}
+                  aria-pressed={autoplayNext}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all border ${
+                    autoplayNext
+                      ? "bg-amber-50 text-amber-900 border-amber-200"
+                      : "bg-neutral-50 text-[#6B7280] border-gray-200 hover:text-[#111827]"
+                  }`}
+                >
+                  {autoplayNext ? (
+                    <ToggleRight className="h-4 w-4 text-amber-600" />
+                  ) : (
+                    <ToggleLeft className="h-4 w-4 text-[#9CA3AF]" />
+                  )}
+                  <span>Autoplay Next</span>
+                </button>
 
-              {/* Mark as Completed Button */}
-              <button
-                type="button"
-                onClick={handleMarkComplete}
-                disabled={isMarking}
-                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs active:scale-98 ${
-                  completed
-                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                    : "bg-[#FDB813] text-[#111827] hover:bg-[#ffc633]"
-                }`}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>{completed ? "Completed" : "Mark as Completed"}</span>
-              </button>
-            </div>
+                {/* Mark as Completed */}
+                <button
+                  type="button"
+                  onClick={handleMarkComplete}
+                  disabled={isMarking}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs active:scale-98 ${
+                    completed
+                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                      : "bg-[#FFC93C] text-[#1F2A44] hover:bg-[#FDB813]"
+                  }`}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{completed ? "Completed" : "Mark Complete"}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Previous / Next Lecture Navigation Buttons */}
@@ -167,7 +218,7 @@ export default function StudentWatchClient({
             {prevLecture ? (
               <Link
                 href={`/student/watch/${prevLecture._id}`}
-                className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-[#374151] border border-black/8 hover:bg-neutral-50 shadow-2xs transition-all"
+                className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-[#374151] border border-[#CBD5E1] hover:bg-neutral-50 shadow-xs transition-all"
               >
                 <ChevronLeft className="h-4 w-4" />
                 <span className="truncate max-w-[140px] sm:max-w-xs">
@@ -181,7 +232,7 @@ export default function StudentWatchClient({
             {nextLecture ? (
               <Link
                 href={`/student/watch/${nextLecture._id}`}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#FDB813] px-4 py-2.5 text-xs font-bold text-[#111827] shadow-2xs hover:bg-[#ffc633] transition-all"
+                className="inline-flex items-center gap-2 rounded-2xl bg-[#FFC93C] hover:bg-[#FDB813] px-4 py-2.5 text-xs font-bold text-[#1F2A44] shadow-xs transition-all"
               >
                 <span className="truncate max-w-[140px] sm:max-w-xs">
                   {nextLecture.title}
@@ -193,28 +244,16 @@ export default function StudentWatchClient({
             )}
           </div>
 
-          {/* Lecture Description */}
-          {lecture.description && (
-            <div className="rounded-[22px] border border-black/5 bg-white p-6 shadow-xs">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#6B7280] mb-2">
-                About this Lecture
-              </h3>
-              <p className="text-sm text-[#4B5563] leading-relaxed whitespace-pre-line">
-                {lecture.description}
-              </p>
-            </div>
-          )}
-
-          {/* Related Notes Below */}
+          {/* Related Handouts / Notes */}
           {notes && notes.length > 0 && (
-            <div className="rounded-[22px] border border-black/5 bg-white p-6 shadow-xs space-y-4">
+            <div className="rounded-[22px] border border-[#E8ECF2] bg-white p-6 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-extrabold text-[#111827] uppercase tracking-wider">
-                    Related Chapter Notes &amp; Resources
+                  <h3 className="text-sm font-extrabold text-[#1F2A44] uppercase tracking-wider">
+                    Chapter Notes &amp; Revision Handouts
                   </h3>
-                  <p className="text-xs text-[#6B7280] mt-0.5">
-                    Handouts, formulas and board problem sheets for this chapter.
+                  <p className="text-xs text-[#5B6577] mt-0.5">
+                    Formula sheets and class problem sets for this chapter.
                   </p>
                 </div>
                 <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
@@ -222,21 +261,16 @@ export default function StudentWatchClient({
                 </span>
               </div>
 
-              <div className="divide-y divide-black/5 pt-1">
+              <div className="divide-y divide-[#F1F5F9] pt-1">
                 {notes.map((note) => (
-                  <div
-                    key={note._id}
-                    className="py-3 flex items-center justify-between gap-3 text-xs"
-                  >
+                  <div key={note._id} className="py-3 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                         <FileText className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-bold text-[#111827] truncate">
-                          {note.title}
-                        </h4>
-                        <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
+                        <h4 className="font-bold text-[#1F2A44] truncate">{note.title}</h4>
+                        <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
                           <span>{note.book || note.section || "Chapter Handout"}</span>
                           {note.size && <span>• {note.size}</span>}
                         </div>
@@ -248,7 +282,7 @@ export default function StudentWatchClient({
                         href={note.viewUrl || `/api/notes/${note._id}/stream`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-black/8 bg-white px-3 py-1.5 font-bold text-[#374151] hover:bg-neutral-50 shadow-2xs"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#CBD5E1] bg-white px-3 py-1.5 font-bold text-[#334155] hover:bg-gray-50 shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>View</span>
@@ -257,7 +291,7 @@ export default function StudentWatchClient({
                         href={note.downloadUrl || `/api/notes/${note._id}/stream?download=1`}
                         download
                         aria-label={`Download ${note.title}`}
-                        className="rounded-xl border border-black/8 bg-white p-1.5 text-[#4B5563] hover:text-[#111827] shadow-2xs inline-flex items-center"
+                        className="rounded-xl border border-[#CBD5E1] bg-white p-1.5 text-[#334155] hover:text-[#0F172A] shadow-xs inline-flex items-center"
                       >
                         <Download className="w-4 h-4" />
                       </a>
@@ -269,29 +303,77 @@ export default function StudentWatchClient({
           )}
         </div>
 
-        {/* Right Column: Helpful Tips & Batch Info */}
-        <div className="lg:col-span-4 space-y-5">
-          <div className="rounded-[22px] border border-black/5 bg-white p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-2.5">
-              <Sparkles className="h-5 w-5 text-amber-500" />
-              <h3 className="text-sm font-extrabold text-[#111827] uppercase tracking-wide">
-                Revision Tips
-              </h3>
+        {/* Right Column: Side playlist of other lectures in this chapter (stacked on mobile) */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="rounded-[22px] border border-[#E8ECF2] bg-white p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
+              <div>
+                <h3 className="text-sm font-extrabold text-[#1F2A44]">Chapter Playlist</h3>
+                <p className="text-xs text-gray-500">{chapterLabel}</p>
+              </div>
+              <span className="text-xs font-bold text-[#0B2A4A] bg-[#F1F5F9] px-2 py-0.5 rounded-md">
+                {chapterLectures.length} Videos
+              </span>
             </div>
-            <ul className="text-xs text-[#4B5563] space-y-2.5 leading-relaxed">
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
-                <span>Playback position auto-saves every 15 seconds. You can resume anytime.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
-                <span>Keep your formula sheets open while following Sir&apos;s numerical problems.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
-                <span>Mark lectures as completed to update your board preparation score ring.</span>
-              </li>
-            </ul>
+
+            {/* Playlist rows */}
+            <div className="space-y-1.5 max-h-[580px] overflow-y-auto pr-1">
+              {chapterLectures.map((item, idx) => {
+                const isCurrent = String(item._id) === String(lecture._id);
+                const isItemFree = Boolean(item.isFree || item.freePreview);
+                const isItemLocked = !isItemFree && isLocked;
+
+                return (
+                  <Link
+                    key={String(item._id)}
+                    href={`/student/watch/${item._id}`}
+                    className={`p-3 rounded-xl flex items-start gap-3 transition-all ${
+                      isCurrent
+                        ? "bg-[#FFF8E6] border border-[#FDE68A] shadow-xs"
+                        : "hover:bg-[#F8FAFC] border border-transparent"
+                    }`}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                        isCurrent
+                          ? "bg-[#FFC93C] text-[#1F2A44]"
+                          : isItemLocked
+                          ? "bg-slate-100 text-slate-500"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {isCurrent ? (
+                        <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                      ) : isItemLocked ? (
+                        <Lock className="w-3.5 h-3.5" />
+                      ) : (
+                        <span className="text-[11px] font-bold">{idx + 1}</span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h4
+                        className={`text-xs font-bold leading-snug line-clamp-2 ${
+                          isCurrent ? "text-[#B7791F]" : "text-[#1F2A44]"
+                        }`}
+                      >
+                        {item.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-400">
+                        <span className="font-mono">
+                          {item.durationSeconds ? `${Math.round(item.durationSeconds / 60)}m` : "—"}
+                        </span>
+                        {isItemFree && (
+                          <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1 rounded">
+                            FREE
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

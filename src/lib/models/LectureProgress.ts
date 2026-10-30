@@ -31,6 +31,10 @@ const lectureProgressSchema = new Schema(
       type: Number,
       default: 0,
     },
+    durationSeconds: {
+      type: Number,
+      default: 0,
+    },
     bookmarked: {
       type: Boolean,
       default: false,
@@ -60,6 +64,11 @@ lectureProgressSchema.pre("validate", function () {
     this.positionSec = this.watchedSeconds;
   } else if (this.positionSec && !this.watchedSeconds) {
     this.watchedSeconds = this.positionSec;
+  }
+  if (this.durationSeconds && !this.durationSec) {
+    this.durationSec = this.durationSeconds;
+  } else if (this.durationSec && !this.durationSeconds) {
+    this.durationSeconds = this.durationSec;
   }
 });
 

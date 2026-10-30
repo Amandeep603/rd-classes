@@ -167,9 +167,10 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
   let firstLectureId = null;
 
   if (activeCourseIds.length > 0) {
-    // Check first lecture in case nothing has been watched
+    // Check first lecture in case nothing has been watched (must have Vimeo link)
     const firstLecture = await Lecture.findOne({
       courseId: { $in: activeCourseIds },
+      vimeoId: { $exists: true, $ne: "" },
       status: { $ne: "archived" },
     })
       .sort({ position: 1, order: 1, createdAt: 1 })
@@ -295,6 +296,7 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
   if (activeCourseIds.length > 0) {
     totalPublishedLectures = await Lecture.countDocuments({
       courseId: { $in: activeCourseIds },
+      vimeoId: { $exists: true, $ne: "" },
       status: { $ne: "archived" },
     });
 
@@ -312,6 +314,10 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
 
   if (activeCourses.length > 0 && totalPublishedLectures === 0 && !resume) {
     const pCourse = activeCourses[0];
+    const totalAllLectures = await Lecture.countDocuments({
+      courseId: pCourse ? pCourse._id : activeCourseIds[0],
+      status: { $ne: "archived" },
+    });
     resume = {
       hasNoLectures: true,
       courseId: pCourse ? pCourse._id.toString() : (activeCourseIds[0] ? activeCourseIds[0].toString() : ""),
@@ -322,7 +328,7 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
       positionSec: 0,
       durationSec: 0,
       percent: 0,
-      totalCourseLectures: 0,
+      totalCourseLectures: totalAllLectures,
       bookmarked: false,
     };
   }
@@ -459,7 +465,7 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
     resume,
     firstLectureId,
     syllabus: {
-      courseTitle: primaryCourse?.title || "Board Preparation",
+      courseTitle: primaryCourse?.title || "Accountancy",
       totalLectures: totalPublishedLectures,
       completedLectures,
       percent: coveragePercent,

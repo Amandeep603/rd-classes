@@ -30,6 +30,7 @@ export async function invalidateCoursesCache() {
     if (typeof revalidateTag === "function") {
       try {
         revalidateTag("courses");
+        revalidateTag("lectures");
       } catch (tErr) {
         // Tag invalidation
       }
@@ -37,6 +38,8 @@ export async function invalidateCoursesCache() {
     if (typeof revalidatePath === "function") {
       try {
         revalidatePath("/courses");
+        revalidatePath("/courses/[slug]");
+        revalidatePath("/courses/class-12-accountancy");
         revalidatePath("/");
       } catch (pErr) {
         // Path invalidation
@@ -114,58 +117,66 @@ export async function getCachedCourseLectures(courseId) {
   await connectDB();
   const lectures = await Lecture.find({
     courseId,
-    $or: [{ status: "published" }, { published: true }],
+    status: { $ne: "archived" },
   })
     .populate("bookId", "title position status")
     .populate("chapterId", "title position status")
-    .sort({ position: 1, order: 1, createdAt: 1 })
+    .sort({ bookNo: 1, chapterNo: 1, lectureNo: 1, position: 1, order: 1, createdAt: 1 })
     .lean();
 
-  const sanitized = lectures
-    .filter((lec) => {
-      // Only show published books and chapters (or if unpopulated, allow published lecture)
-      if (lec.bookId && lec.bookId.status === "draft") return false;
-      if (lec.chapterId && lec.chapterId.status === "draft") return false;
-      return true;
-    })
-    .map((lec) => {
-      const isFree = isLectureFree(lec);
-      const bookTitle = lec.bookId?.title || lec.book || "Book 1";
-      const chapterTitle = lec.chapterId?.title || lec.chapter || lec.section || "General";
-      const dur = lec.durationSeconds || lec.durationSec || 0;
+  const sanitized = lectures.map((lec) => {
+    const isFree = Boolean(
+      lec.isFree === true ||
+      lec.isFreePreview === true ||
+      lec.freePreview === true ||
+      lec.isPreview === true
+    );
+    const bookTitle = lec.bookTitle || lec.bookId?.title || lec.book || "Book 1";
+    const chapterTitle = lec.chapterTitle || lec.chapterId?.title || lec.chapter || lec.section || "General";
+    const dur = lec.durationSeconds || lec.durationSec || 0;
+    const bookNo = lec.bookNo || lec.bookId?.position || 1;
+    const chapterNo = lec.chapterNo || lec.chapterId?.position || 1;
+    const lectureNo = lec.lectureNo || (lec.position !== undefined ? lec.position : (lec.order || 1));
 
-      const base = {
-        id: lec._id.toString(),
-        _id: lec._id.toString(),
-        title: lec.title,
-        partNumber: Number(lec.partNumber) || 1,
-        chapter: chapterTitle,
-        section: chapterTitle,
-        book: bookTitle,
-        bookId: lec.bookId?._id ? lec.bookId._id.toString() : lec.bookId ? lec.bookId.toString() : null,
-        chapterId: lec.chapterId?._id ? lec.chapterId._id.toString() : lec.chapterId ? lec.chapterId.toString() : null,
-        bookPosition: lec.bookId?.position ?? 0,
-        chapterPosition: lec.chapterId?.position ?? 0,
-        duration: dur,
-        durationSec: dur,
-        position: lec.position !== undefined ? lec.position : (lec.order || 0),
-        order: lec.position !== undefined ? lec.position : (lec.order || 0),
-        isFree,
-        freePreview: isFree,
-        isPreview: isFree,
-        locked: !isFree,
-      };
+    const base = {
+      id: lec._id.toString(),
+      _id: lec._id.toString(),
+      title: lec.title,
+      partNumber: lectureNo,
+      lectureNo: lectureNo,
+      bookNo: bookNo,
+      bookTitle: bookTitle,
+      chapterNo: chapterNo,
+      chapterTitle: chapterTitle,
+      chapter: chapterTitle,
+      section: chapterTitle,
+      book: bookTitle,
+      bookId: lec.bookId?._id ? lec.bookId._id.toString() : lec.bookId ? lec.bookId.toString() : null,
+      chapterId: lec.chapterId?._id ? lec.chapterId._id.toString() : lec.chapterId ? lec.chapterId.toString() : null,
+      bookPosition: bookNo,
+      chapterPosition: chapterNo,
+      duration: dur,
+      durationSec: dur,
+      durationSeconds: dur,
+      duration_mmss: lec.duration_mmss,
+      position: lectureNo,
+      order: lectureNo,
+      isFree,
+      freePreview: isFree,
+      isPreview: isFree,
+      locked: !isFree,
+    };
 
-      // Server safeguard: ONLY free lectures include playable details for public visitor
-      if (isFree) {
-        base.videoProvider = lec.videoProvider || "vimeo";
-        base.videoUrl = lec.videoUrl || "";
-        base.vimeoId = lec.vimeoId || "";
-        base.vimeoHash = lec.vimeoHash || "";
-      }
+    // Server safeguard: ONLY free lectures with a video include playable details for public visitor
+    if (isFree && lec.vimeoId) {
+      base.videoProvider = lec.videoProvider || "vimeo";
+      base.videoUrl = lec.videoUrl || "";
+      base.vimeoId = lec.vimeoId || "";
+      base.vimeoHash = lec.vimeoHash || "";
+    }
 
-      return base;
-    });
+    return base;
+  });
 
   return JSON.parse(JSON.stringify(sanitized));
 }

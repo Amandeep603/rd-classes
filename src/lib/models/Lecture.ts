@@ -20,6 +20,31 @@ const lectureSchema = new Schema(
       default: null,
       index: true,
     },
+    bookNo: {
+      type: Number,
+      default: 1,
+      index: true,
+    },
+    bookTitle: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    chapterNo: {
+      type: Number,
+      default: 1,
+      index: true,
+    },
+    chapterTitle: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    lectureNo: {
+      type: Number,
+      default: 1,
+      index: true,
+    },
     title: {
       type: String,
       required: true,
@@ -77,7 +102,6 @@ const lectureSchema = new Schema(
     },
     sourceKey: {
       type: String,
-      default: null,
       trim: true,
     },
 
@@ -142,15 +166,20 @@ lectureSchema.pre("validate", function () {
     this.position = this.order;
   }
 
-  // Sync status & published
-  if (this.status === "published") {
-    this.published = true;
-  } else if (this.status === "draft") {
-    this.published = false;
-  } else if (this.published) {
+  // Sync lectureNo & partNumber
+  if (this.lectureNo !== undefined && (!this.partNumber || this.partNumber === 1)) {
+    this.partNumber = this.lectureNo;
+  } else if (this.partNumber !== undefined && (!this.lectureNo || this.lectureNo === 1)) {
+    this.lectureNo = this.partNumber;
+  }
+
+  // Live status depends on having a Vimeo link
+  if (this.vimeoId && String(this.vimeoId).trim() !== "") {
     this.status = "published";
+    this.published = true;
   } else {
     this.status = "draft";
+    this.published = false;
   }
 
   // Sync isFree & legacy flags
@@ -173,7 +202,7 @@ lectureSchema.index({ courseId: 1, position: 1 });
 lectureSchema.index({ courseId: 1, bookId: 1, chapterId: 1, position: 1 });
 lectureSchema.index(
   { courseId: 1, sourceKey: 1 },
-  { unique: true, sparse: true }
+  { unique: true, partialFilterExpression: { sourceKey: { $type: "string" } } }
 );
 
 export const Lecture = mongoose.models.Lecture || mongoose.model("Lecture", lectureSchema);

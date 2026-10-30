@@ -5,7 +5,7 @@ export default function SyllabusCoverageCard({ syllabus }) {
   const percent = syllabus?.percent || 0;
   const completed = syllabus?.completedLectures || 0;
   const total = syllabus?.totalLectures || 0;
-  const courseHeading = syllabus?.courseTitle || "Board Preparation";
+  const courseHeading = syllabus?.courseTitle || "Accountancy";
 
   const targetScore = syllabus?.targetScore || "100/100";
   const rewardTargetText = syllabus?.rewardTargetText || "₹5,100 Cash Reward Target";

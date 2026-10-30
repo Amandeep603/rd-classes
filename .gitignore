@@ -46,12 +46,14 @@ next-env.d.ts
 /.local-uploads/
 /.local-emails/
 /backups/
+backup-lectures-*.json
 
 
 
 /.local-emails/
 /.local-uploads/
 /backups/
+backup-lectures-*.json
 /scratch/
 /reference/
 /docs/compare/

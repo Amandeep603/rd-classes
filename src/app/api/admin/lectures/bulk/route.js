@@ -5,6 +5,7 @@ import { Book } from "@/lib/models/Book";
 import { Chapter } from "@/lib/models/Chapter";
 import { detectVideoProvider } from "../route.js";
 import { invalidateCoursesCache } from "@/server/services/courseService.js";
+import { parseVimeoUrl } from "@/lib/utils/vimeoParser";
 
 export async function POST(request) {
   try {
@@ -14,13 +15,32 @@ export async function POST(request) {
     await connectDB();
 
     // 1. Bulk Actions Mode on Selected Lectures
-    if (body.action && Array.isArray(body.ids)) {
-      const { action, ids } = body;
-      if (ids.length === 0) {
+    if (body.action) {
+      const ids = Array.isArray(body.ids) ? body.ids : (body.updates?.map((u) => u.lectureId) || []);
+      const { action } = body;
+      if (ids.length === 0 && action !== "assign_vimeo_links") {
         return Response.json({ success: true, count: 0 });
       }
 
-      if (action === "make_free") {
+      if (action === "assign_vimeo_links") {
+        const { updates } = body;
+        if (Array.isArray(updates)) {
+          for (const item of updates) {
+            const parsed = parseVimeoUrl(item.vimeoUrl || "");
+            const update = {
+              videoProvider: "vimeo",
+              videoUrl: item.vimeoUrl || "",
+              vimeoId: parsed.vimeoId || "",
+              vimeoHash: parsed.vimeoHash || "",
+              status: parsed.vimeoId ? "published" : "draft",
+              published: Boolean(parsed.vimeoId),
+            };
+            await Lecture.findByIdAndUpdate(item.lectureId, { $set: update });
+          }
+        }
+        await invalidateCoursesCache();
+        return Response.json({ success: true, count: updates?.length || 0, action });
+      } else if (action === "make_free") {
         await Lecture.updateMany(
           { _id: { $in: ids } },
           { $set: { isFree: true, isFreePreview: true, freePreview: true, isPreview: true } }

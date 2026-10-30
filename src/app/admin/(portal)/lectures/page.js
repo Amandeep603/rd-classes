@@ -46,7 +46,9 @@ async function LecturesContent({ searchParams }) {
   }
 
   if (!activeCourse) {
-    activeCourse = courses[0];
+    activeCourse =
+      courses.find((c) => c.slug === "class-12-accountancy" || c.title?.toLowerCase().includes("class 12")) ||
+      courses[0];
   }
 
   const [books, chapters, lectures] = await Promise.all([
@@ -57,7 +59,7 @@ async function LecturesContent({ searchParams }) {
       .sort({ position: 1, createdAt: 1 })
       .lean(),
     Lecture.find({ courseId: activeCourse._id })
-      .sort({ position: 1, order: 1, createdAt: 1 })
+      .sort({ bookNo: 1, chapterNo: 1, lectureNo: 1, position: 1, order: 1, createdAt: 1 })
       .lean(),
   ]);
 

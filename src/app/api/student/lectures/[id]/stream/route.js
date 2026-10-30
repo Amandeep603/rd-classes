@@ -3,6 +3,7 @@ import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/lib/models/Lecture";
 import { Enrollment } from "@/lib/models/Enrollment";
 import { Device } from "@/lib/models/Device";
+import { User } from "@/server/db/models/User.js";
 import { LectureProgress } from "@/lib/models/LectureProgress";
 import { isLectureFree } from "@/server/services/lectureService.js";
 
@@ -105,8 +106,8 @@ export async function GET(request, { params }) {
     const now = new Date();
     const enrollment = await Enrollment.findOne({
       $or: [
-        { studentId: user._id, courseId: lecture.courseId, status: "active" },
-        { userId: user._id, courseId: lecture.courseId, status: "active" },
+        { studentId: user._id, courseId: lecture.courseId, status: { $ne: "cancelled" } },
+        { userId: user._id, courseId: lecture.courseId, status: { $ne: "cancelled" } },
       ],
       $and: [
         {
@@ -115,7 +116,18 @@ export async function GET(request, { params }) {
       ],
     }).lean();
 
-    if (!enrollment) {
+    let isEnrolled = !!enrollment;
+    if (!isEnrolled) {
+      const dbUser = await User.findById(user._id).lean();
+      const courseIdStr = String(lecture.courseId);
+      const userCourses = [
+        ...(Array.isArray(dbUser?.courses) ? dbUser.courses : []),
+        ...(Array.isArray(dbUser?.enrolledCourses) ? dbUser.enrolledCourses : []),
+      ].map((c) => (c?._id ? String(c._id) : String(c)));
+      isEnrolled = userCourses.includes(courseIdStr);
+    }
+
+    if (!isEnrolled) {
       return Response.json(
         {
           error: "Access denied. You are not actively enrolled in this course.",
@@ -123,6 +135,18 @@ export async function GET(request, { params }) {
           locked: true,
         },
         { status: 403 }
+      );
+    }
+
+    if (!lecture.vimeoId || lecture.vimeoId.trim() === "") {
+      return Response.json(
+        {
+          error: "Video coming soon. No video link uploaded yet.",
+          isFree: false,
+          locked: false,
+          hasVideo: false,
+        },
+        { status: 404 }
       );
     }
 
