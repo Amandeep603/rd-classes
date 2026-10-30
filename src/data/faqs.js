@@ -3,7 +3,7 @@ export const faqs = [
     id: 1,
     category: 'General',
     question: 'Where is RD Classes located?',
-    answer: 'RD Classes for Accountancy is located at SCF 59-60, Sector 9, Faridabad, Haryana 121006. It is centrally situated in Sector 9 market, easily accessible from Sector 7, 8, 10, 11, 12, 14, 15, 16, 17, NIT, and Ballabhgarh. You can click "Get Directions" in the footer for Google Maps.'
+    answer: 'R.D. Classes For Accountancy is located at SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9, Faridabad, Haryana. It is centrally situated in Sector 9 market, easily accessible from Sector 7, 8, 10, 11, 12, 14, 15, 16, 17, NIT, and Ballabhgarh. You can click "Get Directions" in the footer for Google Maps.'
   },
   {
     id: 2,

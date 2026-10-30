@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
+import { Book } from "@/lib/models/Book";
 import { Chapter } from "@/lib/models/Chapter";
 import { invalidateCoursesCache } from "@/server/services/courseService.js";
 
@@ -15,7 +16,9 @@ export async function GET(request) {
     if (courseId) filter.courseId = courseId;
     if (bookId) filter.bookId = bookId;
 
-    const chapters = await Chapter.find(filter).sort({ position: 1, createdAt: 1 }).lean();
+    const chapters = await Chapter.find(filter)
+      .sort({ chapterNo: 1, position: 1, createdAt: 1 })
+      .lean();
 
     return Response.json({ success: true, chapters });
   } catch (err) {
@@ -27,7 +30,7 @@ export async function POST(request) {
   try {
     await requireAdmin();
     const body = await request.json();
-    const { courseId, bookId, title, status = "draft" } = body;
+    const { courseId, bookId, title, status = "published" } = body;
 
     if (!courseId) {
       return Response.json({ error: "courseId is required" }, { status: 400 });
@@ -41,19 +44,47 @@ export async function POST(request) {
 
     await connectDB();
 
-    const maxChap = await Chapter.findOne({ courseId, bookId })
-      .sort({ position: -1 })
-      .select("position")
-      .lean();
-    const position = typeof body.position === "number" ? body.position : (maxChap?.position ?? -1) + 1;
+    const book = await Book.findById(bookId).lean();
+    if (!book) {
+      return Response.json({ error: "Parent book not found" }, { status: 404 });
+    }
+    const bookNo = book.bookNo ?? book.position ?? 1;
 
-    const chapter = await Chapter.create({
-      courseId,
-      bookId,
-      title: title.trim(),
-      position,
-      status: status === "published" ? "published" : "draft",
-    });
+    // Find highest chapterNo in this book
+    const maxChap = await Chapter.findOne({ courseId, bookId })
+      .sort({ chapterNo: -1, position: -1 })
+      .lean();
+    let nextChapterNo = Math.max(maxChap?.chapterNo ?? 0, maxChap?.position ?? 0) + 1;
+
+    let chapter = null;
+    let attempts = 0;
+    while (!chapter && attempts < 5) {
+      try {
+        chapter = await Chapter.create({
+          courseId,
+          bookId,
+          bookNo,
+          chapterNo: nextChapterNo,
+          position: nextChapterNo,
+          title: title.trim(),
+          status: status === "published" ? "published" : "draft",
+        });
+      } catch (err) {
+        if (err.code === 11000) {
+          attempts++;
+          const latestMax = await Chapter.findOne({ courseId, bookId })
+            .sort({ chapterNo: -1, position: -1 })
+            .lean();
+          nextChapterNo = Math.max(latestMax?.chapterNo ?? nextChapterNo, latestMax?.position ?? nextChapterNo) + 1;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!chapter) {
+      return Response.json({ error: "Could not allocate chapter number due to concurrent writes" }, { status: 409 });
+    }
 
     await invalidateCoursesCache();
 
@@ -62,4 +93,3 @@ export async function POST(request) {
     return Response.json({ error: err?.message }, { status: 500 });
   }
 }
-

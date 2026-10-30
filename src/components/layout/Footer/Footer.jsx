@@ -36,10 +36,12 @@ const SOCIAL_ICON_MAP = {
 function FooterColumns({ dbSetting }) {
   const instituteName = dbSetting?.instituteName || "RD Classes for Accountancy";
   const phone = dbSetting?.phone || FOOTER_CONTACT.phoneDisplay;
-  const phoneTel = (dbSetting?.phone || FOOTER_CONTACT.phoneTel).replace(/[^\d+]/g, "");
+  const rawPhone = dbSetting?.phone || FOOTER_CONTACT.phoneTel;
+  const phoneDigits = rawPhone.replace(/\D/g, "");
+  const phoneTel = phoneDigits.startsWith("91") ? `+${phoneDigits}` : `+91${phoneDigits}`;
   const whatsappNum = (dbSetting?.whatsapp || "918368545620").replace(/\D/g, "");
   const email = dbSetting?.email || FOOTER_CONTACT.email;
-  const address = dbSetting?.address || "SCF 59-60, 2nd Floor, Sector 9,\nFaridabad, Haryana 121006";
+  const address = dbSetting?.address || FOOTER_CONTACT.address;
 
   const socials = FOOTER_SOCIALS.map((social) => {
     let href = social.href;

@@ -8,7 +8,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
 const orgJsonLd = {
   "@context": "https://schema.org",
   "@type": "EducationalOrganization",
-  name: "RD Classes for Accountancy",
+  name: "R.D. Classes For Accountancy",
   description:
     "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad.",
   url: siteUrl,
@@ -17,7 +17,7 @@ const orgJsonLd = {
   email: FOOTER_CONTACT.email,
   address: {
     "@type": "PostalAddress",
-    streetAddress: "SCF 59-60, 2nd Floor, Sector 9 Market",
+    streetAddress: "SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9",
     addressLocality: "Faridabad",
     addressRegion: "Haryana",
     postalCode: "121006",

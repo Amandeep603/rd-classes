@@ -37,7 +37,6 @@ export async function PATCH(request, { params }) {
     if (body.action === "publish") {
       book.status = "published";
       await book.save();
-      // Also publish all chapters in this book
       await Chapter.updateMany({ bookId: id }, { $set: { status: "published" } });
       await invalidateCoursesCache();
       return Response.json({ success: true, book });
@@ -51,8 +50,13 @@ export async function PATCH(request, { params }) {
     }
 
     // Standard updates
-    if (body.title !== undefined) book.title = body.title.trim();
+    if (body.title !== undefined) {
+      book.title = body.title.trim();
+      // Update bookTitle in lectures
+      await Lecture.updateMany({ bookId: id }, { $set: { bookTitle: book.title, book: book.title } });
+    }
     if (body.status !== undefined) book.status = body.status === "published" ? "published" : "draft";
+    if (body.bookNo !== undefined) book.bookNo = Number(body.bookNo);
     if (body.position !== undefined) book.position = Number(body.position);
 
     await book.save();
@@ -70,16 +74,35 @@ export async function DELETE(request, { params }) {
     const { id } = await params;
 
     await connectDB();
-    await Book.findByIdAndDelete(id);
+    const book = await Book.findById(id);
+    if (!book) return Response.json({ error: "Book not found" }, { status: 404 });
+
+    const courseId = book.courseId;
 
     // Delete associated chapters and lectures
     await Chapter.deleteMany({ bookId: id });
     await Lecture.deleteMany({ bookId: id });
+    await Book.findByIdAndDelete(id);
+
+    // Renumber remaining books in course 1..n
+    const remainingBooks = await Book.find({ courseId }).sort({ bookNo: 1, position: 1, createdAt: 1 });
+    for (let i = 0; i < remainingBooks.length; i++) {
+      const b = remainingBooks[i];
+      const newNo = i + 1;
+      if (b.bookNo !== newNo || b.position !== newNo) {
+        b.bookNo = newNo;
+        b.position = newNo;
+        await b.save();
+
+        // Update chapters and lectures with new bookNo
+        await Chapter.updateMany({ bookId: b._id }, { $set: { bookNo: newNo } });
+        await Lecture.updateMany({ bookId: b._id }, { $set: { bookNo: newNo } });
+      }
+    }
 
     await invalidateCoursesCache();
-    return Response.json({ success: true });
+    return Response.json({ success: true, message: "Book deleted and course books renumbered" });
   } catch (err) {
     return Response.json({ error: err?.message }, { status: 500 });
   }
 }
-

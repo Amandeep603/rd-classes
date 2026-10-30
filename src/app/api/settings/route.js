@@ -1,5 +1,6 @@
 import connectDB from "@/lib/mongodb";
 import { Setting } from "@/lib/models/Setting";
+import { SITE_CONFIG } from "@/constants/site";
 
 export async function GET() {
   try {
@@ -8,24 +9,34 @@ export async function GET() {
     return Response.json({
       success: true,
       settings: {
-        instituteName: settings?.instituteName || "RD Classes",
-        phone: settings?.phone || "+91 83685 45620",
-        whatsapp: settings?.whatsapp || "918368545620",
-        email: settings?.email || "contact@rdclasses.com",
-        address: settings?.address || "SCF 59-60, 2nd Floor, Sector 9, Faridabad, Haryana 121006",
-        socialLinks: settings?.socialLinks || {},
+        instituteName: settings?.instituteName || SITE_CONFIG.name,
+        businessName: settings?.businessName || SITE_CONFIG.businessName,
+        phone: settings?.phone || SITE_CONFIG.contact.phone,
+        phoneDisplay: settings?.phoneDisplay || SITE_CONFIG.contact.phoneDisplay,
+        whatsapp: settings?.whatsapp || SITE_CONFIG.contact.whatsappPhone,
+        whatsappNumber: settings?.whatsappNumber || SITE_CONFIG.contact.whatsappPhone,
+        email: settings?.email || SITE_CONFIG.contact.email,
+        address: settings?.address || SITE_CONFIG.address,
+        googleMapsUrl: settings?.googleMapsUrl || SITE_CONFIG.googleMapsUrl,
+        website: settings?.website || SITE_CONFIG.website,
+        socialLinks: settings?.socialLinks || SITE_CONFIG.socialLinks,
       },
     });
   } catch {
     return Response.json({
       success: true,
       settings: {
-        instituteName: "RD Classes",
-        phone: "+91 83685 45620",
-        whatsapp: "918368545620",
-        email: "contact@rdclasses.com",
-        address: "SCF 59-60, 2nd Floor, Sector 9, Faridabad, Haryana 121006",
-        socialLinks: {},
+        instituteName: SITE_CONFIG.name,
+        businessName: SITE_CONFIG.businessName,
+        phone: SITE_CONFIG.contact.phone,
+        phoneDisplay: SITE_CONFIG.contact.phoneDisplay,
+        whatsapp: SITE_CONFIG.contact.whatsappPhone,
+        whatsappNumber: SITE_CONFIG.contact.whatsappPhone,
+        email: SITE_CONFIG.contact.email,
+        address: SITE_CONFIG.address,
+        googleMapsUrl: SITE_CONFIG.googleMapsUrl,
+        website: SITE_CONFIG.website,
+        socialLinks: SITE_CONFIG.socialLinks,
       },
     });
   }

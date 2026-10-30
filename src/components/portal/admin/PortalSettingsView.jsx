@@ -48,13 +48,13 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
     initialSettings.whatsappDefaultMessage ||
       "Hi Sir, I am interested in {course}. Can you please share the syllabus and demo lecture access?{studentLine}"
   );
-  const [email, setEmail] = useState(initialSettings.email || "contact@rdclasses.com");
+  const [email, setEmail] = useState(initialSettings.email || "rdclasses177@gmail.com");
   const [address, setAddress] = useState(
-    initialSettings.address || "SCF 59-60, 2nd Floor, Sector 9, Faridabad, Haryana 121006"
+    initialSettings.address || "R.D. Classes for Accountancy, SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9, Faridabad, Haryana"
   );
   const [city, setCity] = useState(initialSettings.city || "Faridabad");
   const [googleMapsUrl, setGoogleMapsUrl] = useState(
-    initialSettings.googleMapsUrl || "https://maps.google.com/?q=RD+Classes+Sector+9+Faridabad"
+    initialSettings.googleMapsUrl || "https://maps.app.goo.gl/pugUPd8WhwRYYLGE8"
   );
   const [workingHours, setWorkingHours] = useState(
     initialSettings.workingHours || "Mon - Sat: 9:00 AM - 7:30 PM"
@@ -62,13 +62,13 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
 
   // Social Links
   const [instagram, setInstagram] = useState(
-    initialSettings.socialLinks?.instagram || "https://instagram.com"
+    initialSettings.socialLinks?.instagram || "https://www.instagram.com/rd___classes?igshid=OGQ5ZDc2ODk2ZA=="
   );
   const [youtube, setYoutube] = useState(
-    initialSettings.socialLinks?.youtube || "https://youtube.com"
+    initialSettings.socialLinks?.youtube || "https://youtube.com/@rd__classes?si=W94GkQ8Qegtcek3J"
   );
   const [facebook, setFacebook] = useState(
-    initialSettings.socialLinks?.facebook || "https://facebook.com"
+    initialSettings.socialLinks?.facebook || "https://www.facebook.com/profile.php?id=61584294945140"
   );
   const [telegram, setTelegram] = useState(
     initialSettings.socialLinks?.telegram || "https://telegram.org"

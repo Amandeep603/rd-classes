@@ -196,7 +196,7 @@ export default function CtaBannerSection() {
                   <div className="w-8 h-8 rounded-full bg-[#E0F2FE] flex items-center justify-center shrink-0">
                     <MapPin className="w-4 h-4 text-[#0284C7]" />
                   </div>
-                  <span>SCF 59-60, 2nd Floor, Sector 9 Market, Faridabad</span>
+                  <span>{SITE_CONFIG.address}</span>
                 </div>
 
                 <div className="hidden sm:block w-[1px] h-6 bg-black/10" aria-hidden="true" />

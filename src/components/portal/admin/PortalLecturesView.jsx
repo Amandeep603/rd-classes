@@ -16,6 +16,7 @@ import {
   ClipboardPaste,
   Layers,
   FolderPlus,
+  Pencil,
 } from "lucide-react";
 import { parseVimeoUrl, buildVimeoEmbedUrl } from "@/lib/utils/vimeoParser";
 
@@ -24,6 +25,45 @@ function formatDuration(sec) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function validateAndParseDuration(str) {
+  const clean = String(str || "").trim();
+  if (!clean) return { isValid: false, error: "Duration required" };
+
+  // Match mm:ss or m:ss or h:mm:ss
+  const mmssMatch = clean.match(/^(\d+):([0-5]?\d)$/);
+  if (mmssMatch) {
+    const m = parseInt(mmssMatch[1], 10);
+    const s = parseInt(mmssMatch[2], 10);
+    const total = m * 60 + s;
+    const formatted = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return { isValid: true, seconds: total, formatted };
+  }
+
+  const hmmssMatch = clean.match(/^(\d+):([0-5]?\d):([0-5]?\d)$/);
+  if (hmmssMatch) {
+    const h = parseInt(hmmssMatch[1], 10);
+    const m = parseInt(hmmssMatch[2], 10);
+    const s = parseInt(hmmssMatch[3], 10);
+    const total = h * 3600 + m * 60 + s;
+    const formatted = `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return { isValid: true, seconds: total, formatted };
+  }
+
+  // Pure integer seconds fallback
+  if (/^\d+$/.test(clean)) {
+    const sec = parseInt(clean, 10);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return {
+      isValid: true,
+      seconds: sec,
+      formatted: `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+    };
+  }
+
+  return { isValid: false, error: "Use mm:ss or h:mm:ss" };
 }
 
 export default function PortalLecturesView({
@@ -61,7 +101,6 @@ export default function PortalLecturesView({
   });
 
   // Local feedback & input states for inline Vimeo fields
-  // map of lectureId -> { linkInput: string, status: "idle" | "saved" | "error", errorMsg: "" }
   const [rowStates, setRowStates] = useState(() => {
     const map = {};
     initialLectures.forEach((l) => {
@@ -77,8 +116,32 @@ export default function PortalLecturesView({
     return map;
   });
 
+  // Inline duration edit states: lectureId -> value
+  const [durationInputs, setDurationInputs] = useState(() => {
+    const map = {};
+    initialLectures.forEach((l) => {
+      map[l._id.toString()] = l.duration_mmss || formatDuration(l.durationSeconds || l.durationSec);
+    });
+    return map;
+  });
+  const [durationErrors, setDurationErrors] = useState({});
+  const [durationSaved, setDurationSaved] = useState({});
+  const [titleSaved, setTitleSaved] = useState({});
+
+  // Inline book & chapter title editing states
+  const [editingBookId, setEditingBookId] = useState(null);
+  const [bookTitleInputs, setBookTitleInputs] = useState({});
+  const [bookSaved, setBookSaved] = useState({});
+
+  const [editingChapterId, setEditingChapterId] = useState(null);
+  const [chapterTitleInputs, setChapterTitleInputs] = useState({});
+  const [chapterSaved, setChapterSaved] = useState({});
+
+  // Highlight newly added row
+  const [highlightedRowId, setHighlightedRowId] = useState(null);
+
   // Modals state
-  const [pasteModalChapter, setPasteModalChapter] = useState(null); // Chapter object
+  const [pasteModalChapter, setPasteModalChapter] = useState(null);
   const [pasteLinksText, setPasteLinksText] = useState("");
   const [savingPaste, setSavingPaste] = useState(false);
 
@@ -96,24 +159,41 @@ export default function PortalLecturesView({
 
   const [statusBanner, setStatusBanner] = useState("");
 
-  // Sync state if initialLectures changes
+  // Sync state if initial data changes
   useEffect(() => {
     setBooks(initialBooks);
     setChapters(initialChapters);
     setLectures(initialLectures);
 
-    const map = {};
+    const vimeoMap = {};
+    const durMap = {};
+    const bTitleMap = {};
+    const cTitleMap = {};
+
     initialLectures.forEach((l) => {
       const existingUrl = l.vimeoId
         ? `https://player.vimeo.com/video/${l.vimeoId}${l.vimeoHash ? `?h=${l.vimeoHash}` : ""}`
         : "";
-      map[l._id.toString()] = {
+      vimeoMap[l._id.toString()] = {
         linkInput: existingUrl,
         status: l.vimeoId ? "saved" : "idle",
         errorMsg: "",
       };
+      durMap[l._id.toString()] = l.duration_mmss || formatDuration(l.durationSeconds || l.durationSec);
     });
-    setRowStates(map);
+
+    initialBooks.forEach((b) => {
+      bTitleMap[b._id.toString()] = b.title;
+    });
+
+    initialChapters.forEach((ch) => {
+      cTitleMap[ch._id.toString()] = ch.title;
+    });
+
+    setRowStates(vimeoMap);
+    setDurationInputs(durMap);
+    setBookTitleInputs(bTitleMap);
+    setChapterTitleInputs(cTitleMap);
 
     if (initialChapters.length > 0) {
       setOpenChapters((prev) => ({
@@ -151,7 +231,6 @@ export default function PortalLecturesView({
     const clean = (newTitle || "").trim();
     if (!clean) return;
 
-    // optimistic update
     setLectures((prev) =>
       prev.map((l) => (l._id.toString() === lectureId ? { ...l, title: clean } : l))
     );
@@ -162,8 +241,117 @@ export default function PortalLecturesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: clean }),
       });
+      setTitleSaved((prev) => ({ ...prev, [lectureId]: true }));
+      setTimeout(() => {
+        setTitleSaved((prev) => ({ ...prev, [lectureId]: false }));
+      }, 2000);
     } catch (err) {
       console.error("Failed to update title:", err);
+    }
+  };
+
+  // Inline Duration Save
+  const handleDurationBlur = async (lectureId, rawInput) => {
+    const parsed = validateAndParseDuration(rawInput);
+    if (!parsed.isValid) {
+      setDurationErrors((prev) => ({ ...prev, [lectureId]: parsed.error }));
+      return;
+    }
+
+    // Clear error
+    setDurationErrors((prev) => {
+      const next = { ...prev };
+      delete next[lectureId];
+      return next;
+    });
+
+    // Optimistically update
+    setDurationInputs((prev) => ({ ...prev, [lectureId]: parsed.formatted }));
+    setLectures((prev) =>
+      prev.map((l) =>
+        l._id.toString() === lectureId
+          ? {
+              ...l,
+              duration_mmss: parsed.formatted,
+              durationSeconds: parsed.seconds,
+              durationSec: parsed.seconds,
+            }
+          : l
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/admin/lectures/${lectureId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          duration_mmss: parsed.formatted,
+          durationSeconds: parsed.seconds,
+          durationSec: parsed.seconds,
+        }),
+      });
+
+      if (res.ok) {
+        setDurationSaved((prev) => ({ ...prev, [lectureId]: true }));
+        setTimeout(() => {
+          setDurationSaved((prev) => ({ ...prev, [lectureId]: false }));
+        }, 2000);
+      } else {
+        setDurationErrors((prev) => ({ ...prev, [lectureId]: "Save failed" }));
+      }
+    } catch (err) {
+      console.error("Failed to update duration:", err);
+      setDurationErrors((prev) => ({ ...prev, [lectureId]: "Network error" }));
+    }
+  };
+
+  // Inline Book Title Save
+  const handleBookTitleBlur = async (bookId, newTitle) => {
+    const clean = (newTitle || "").trim();
+    setEditingBookId(null);
+    if (!clean) return;
+
+    setBooks((prev) =>
+      prev.map((b) => (b._id.toString() === bookId ? { ...b, title: clean } : b))
+    );
+
+    try {
+      await fetch(`/api/admin/books/${bookId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: clean }),
+      });
+      setBookSaved((prev) => ({ ...prev, [bookId]: true }));
+      setTimeout(() => {
+        setBookSaved((prev) => ({ ...prev, [bookId]: false }));
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to update book title:", err);
+    }
+  };
+
+  // Inline Chapter Title Save
+  const handleChapterTitleBlur = async (chapterId, newTitle) => {
+    const clean = (newTitle || "").trim();
+    setEditingChapterId(null);
+    if (!clean) return;
+
+    setChapters((prev) =>
+      prev.map((c) => (c._id.toString() === chapterId ? { ...c, title: clean } : c))
+    );
+
+    try {
+      await fetch(`/api/admin/chapters/${chapterId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: clean }),
+      });
+      setChapterSaved((prev) => ({ ...prev, [chapterId]: true }));
+      setTimeout(() => {
+        setChapterSaved((prev) => ({ ...prev, [chapterId]: false }));
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to update chapter title:", err);
     }
   };
 
@@ -190,7 +378,6 @@ export default function PortalLecturesView({
     const trimmed = (rawInput || "").trim();
 
     if (!trimmed) {
-      // Clear video link
       setRowStates((prev) => ({
         ...prev,
         [lectureId]: { linkInput: "", status: "idle", errorMsg: "" },
@@ -233,9 +420,9 @@ export default function PortalLecturesView({
       return;
     }
 
-    // Valid link: update state & save to server
-    const fullEmbedUrl = `https://player.vimeo.com/video/${parsed.vimeoId}${parsed.vimeoHash ? `?h=${parsed.vimeoHash}` : ""
-      }`;
+    const fullEmbedUrl = `https://player.vimeo.com/video/${parsed.vimeoId}${
+      parsed.vimeoHash ? `?h=${parsed.vimeoHash}` : ""
+    }`;
 
     setRowStates((prev) => ({
       ...prev,
@@ -246,12 +433,12 @@ export default function PortalLecturesView({
       prev.map((l) =>
         l._id.toString() === lectureId
           ? {
-            ...l,
-            vimeoId: parsed.vimeoId,
-            vimeoHash: parsed.vimeoHash || "",
-            videoUrl: trimmed,
-            status: "published",
-          }
+              ...l,
+              vimeoId: parsed.vimeoId,
+              vimeoHash: parsed.vimeoHash || "",
+              videoUrl: trimmed,
+              status: "published",
+            }
           : l
       )
     );
@@ -281,7 +468,7 @@ export default function PortalLecturesView({
     }
   };
 
-  // Delete Lecture
+  // Delete Lecture (with automatic renumbering in UI)
   const handleDeleteLecture = async (lecture) => {
     if (!window.confirm(`Delete lecture "${lecture.title}"?`)) return;
 
@@ -290,7 +477,35 @@ export default function PortalLecturesView({
         method: "DELETE",
       });
       if (res.ok) {
-        setLectures((prev) => prev.filter((l) => l._id.toString() !== lecture._id.toString()));
+        const chId = (lecture.chapterId?._id || lecture.chapterId)?.toString();
+
+        // Remove deleted lecture and renumber remaining in that chapter
+        setLectures((prev) => {
+          const remainingInChapter = prev
+            .filter(
+              (l) =>
+                l._id.toString() !== lecture._id.toString() &&
+                (l.chapterId?._id || l.chapterId)?.toString() === chId
+            )
+            .sort((a, b) => (a.lectureNo || a.position || 0) - (b.lectureNo || b.position || 0));
+
+          const otherLecs = prev.filter(
+            (l) =>
+              l._id.toString() !== lecture._id.toString() &&
+              (l.chapterId?._id || l.chapterId)?.toString() !== chId
+          );
+
+          const renumbered = remainingInChapter.map((lec, idx) => ({
+            ...lec,
+            lectureNo: idx + 1,
+            position: idx + 1,
+            order: idx + 1,
+            partNumber: idx + 1,
+          }));
+
+          return [...otherLecs, ...renumbered];
+        });
+
         showStatus(`Deleted lecture: ${lecture.title}`);
       }
     } catch (err) {
@@ -339,7 +554,6 @@ export default function PortalLecturesView({
       });
 
       if (res.ok) {
-        // Update local state
         const updatedIdsMap = {};
         updates.forEach((u) => {
           const parsed = parseVimeoUrl(u.vimeoUrl);
@@ -408,9 +622,16 @@ export default function PortalLecturesView({
       const data = await res.json();
       if (data.success && data.book) {
         setBooks((prev) => [...prev, data.book]);
+        setBookTitleInputs((prev) => ({ ...prev, [data.book._id.toString()]: data.book.title }));
         setShowAddBookModal(false);
         setNewBookTitle("");
-        showStatus(`✓ Book "${data.book.title}" added`);
+        showStatus(`✓ Book "${data.book.title}" added as Book ${data.book.bookNo || data.book.position}`);
+
+        // Highlight
+        setHighlightedRowId(`book-${data.book._id}`);
+        setTimeout(() => setHighlightedRowId(null), 2000);
+      } else {
+        alert(data.error || "Failed to create book");
       }
     } catch (err) {
       console.error(err);
@@ -436,10 +657,17 @@ export default function PortalLecturesView({
       const data = await res.json();
       if (data.success && data.chapter) {
         setChapters((prev) => [...prev, data.chapter]);
+        setChapterTitleInputs((prev) => ({ ...prev, [data.chapter._id.toString()]: data.chapter.title }));
         setOpenChapters((prev) => ({ ...prev, [data.chapter._id.toString()]: true }));
         setShowAddChapterModal(false);
         setNewChapterTitle("");
-        showStatus(`✓ Chapter "${data.chapter.title}" added`);
+        showStatus(`✓ Chapter "${data.chapter.title}" added as Chapter ${data.chapter.chapterNo || data.chapter.position}`);
+
+        // Scroll & Highlight
+        setHighlightedRowId(`chapter-${data.chapter._id}`);
+        setTimeout(() => setHighlightedRowId(null), 2000);
+      } else {
+        alert(data.error || "Failed to create chapter");
       }
     } catch (err) {
       console.error(err);
@@ -454,13 +682,9 @@ export default function PortalLecturesView({
     const chapter = chapters.find((c) => c._id.toString() === newLectureChapterId);
     const bookId = chapter?.bookId?._id || chapter?.bookId || books[0]?._id;
 
-    let durSeconds = 1200;
-    if (newLectureDuration.includes(":")) {
-      const [m, s] = newLectureDuration.split(":").map(Number);
-      durSeconds = (m || 0) * 60 + (s || 0);
-    } else {
-      durSeconds = parseInt(newLectureDuration, 10) || 1200;
-    }
+    const parsedDur = validateAndParseDuration(newLectureDuration);
+    const durSeconds = parsedDur.isValid ? parsedDur.seconds : 1200;
+    const durFormatted = parsedDur.isValid ? parsedDur.formatted : "20:00";
 
     try {
       const res = await fetch("/api/admin/lectures", {
@@ -472,16 +696,38 @@ export default function PortalLecturesView({
           chapterId: newLectureChapterId,
           title: newLectureTitle.trim(),
           durationSeconds: durSeconds,
+          duration_mmss: durFormatted,
           status: "draft",
           isFree: false,
         }),
       });
       const data = await res.json();
       if (data.success && data.lecture) {
-        setLectures((prev) => [...prev, data.lecture]);
+        const newLec = data.lecture;
+        setLectures((prev) => [...prev, newLec]);
+        setDurationInputs((prev) => ({ ...prev, [newLec._id.toString()]: durFormatted }));
+        setRowStates((prev) => ({
+          ...prev,
+          [newLec._id.toString()]: { linkInput: "", status: "idle", errorMsg: "" },
+        }));
+
+        // Ensure chapter is open
+        setOpenChapters((prev) => ({ ...prev, [newLectureChapterId]: true }));
         setShowAddLectureModal(false);
         setNewLectureTitle("");
-        showStatus(`✓ Lecture "${data.lecture.title}" added`);
+        showStatus(`✓ Lecture "${newLec.title}" added as Lecture ${newLec.lectureNo || newLec.position}`);
+
+        // Highlight & scroll to new row
+        setHighlightedRowId(newLec._id.toString());
+        setTimeout(() => {
+          const el = document.getElementById(`lecture-row-${newLec._id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
+        setTimeout(() => setHighlightedRowId(null), 2200);
+      } else {
+        alert(data.error || "Failed to create lecture");
       }
     } catch (err) {
       console.error(err);
@@ -491,6 +737,30 @@ export default function PortalLecturesView({
   const showStatus = (msg) => {
     setStatusBanner(msg);
     setTimeout(() => setStatusBanner(""), 4000);
+  };
+
+  // Helper sequence numbers for modals
+  const nextBookSequenceNo = useMemo(() => {
+    if (!books || books.length === 0) return 1;
+    return Math.max(...books.map((b) => b.bookNo || b.position || 0)) + 1;
+  }, [books]);
+
+  const getNextChapterSequenceNo = (bookId) => {
+    if (!bookId) return 1;
+    const bChaps = chapters.filter(
+      (c) => (c.bookId?._id || c.bookId)?.toString() === bookId.toString()
+    );
+    if (bChaps.length === 0) return 1;
+    return Math.max(...bChaps.map((c) => c.chapterNo || c.position || 0)) + 1;
+  };
+
+  const getNextLectureSequenceNo = (chapterId) => {
+    if (!chapterId) return 1;
+    const chLecs = lectures.filter(
+      (l) => (l.chapterId?._id || l.chapterId)?.toString() === chapterId.toString()
+    );
+    if (chLecs.length === 0) return 1;
+    return Math.max(...chLecs.map((l) => l.lectureNo || l.position || 0)) + 1;
   };
 
   return (
@@ -530,7 +800,10 @@ export default function PortalLecturesView({
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               type="button"
-              onClick={() => setShowAddLectureModal(true)}
+              onClick={() => {
+                if (chapters.length > 0) setNewLectureChapterId(chapters[0]._id.toString());
+                setShowAddLectureModal(true);
+              }}
               className="h-10 px-4 rounded-xl bg-[#0B2A4A] hover:bg-[#152B52] text-white font-bold text-[13px] flex items-center gap-1.5 shadow-2xs transition-transform active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -566,7 +839,7 @@ export default function PortalLecturesView({
             i
           </div>
           <p className="text-[13px] font-semibold text-[#8C4A00] leading-snug">
-            <span className="font-bold">How to add Vimeo videos:</span> 1. Open the video in Vimeo &nbsp;→&nbsp; 2. Share &gt; Embed &gt; Copy &nbsp;→&nbsp; 3. Paste it in the Vimeo link box.
+            <span className="font-bold">How to add Vimeo videos:</span> 1. Open the video in Vimeo &nbsp;→&nbsp; 2. Share &gt; Embed &gt; Copy &nbsp;→&nbsp; 3. Paste it in the Vimeo link box. Duration and names are editable inline.
           </p>
         </div>
 
@@ -580,27 +853,90 @@ export default function PortalLecturesView({
 
       {/* 2. BOOKS & CHAPTERS SECTIONS */}
       {books.map((book, bIdx) => {
+        const bookId = book._id.toString();
+        const bookNo = book.bookNo || book.position || bIdx + 1;
         const bookChapters = chapters.filter(
-          (c) => (c.bookId?._id || c.bookId)?.toString() === book._id.toString()
+          (c) => (c.bookId?._id || c.bookId)?.toString() === bookId
         );
+        const isHighlightedBook = highlightedRowId === `book-${bookId}`;
 
         return (
-          <div key={book._id.toString()} className="space-y-4">
+          <div
+            key={bookId}
+            id={`book-${bookId}`}
+            className={`space-y-4 rounded-2xl p-2 transition-colors duration-500 ${
+              isHighlightedBook ? "bg-[#FEF3C7]/60" : ""
+            }`}
+          >
             {/* Book Header */}
-            <div className="flex items-center gap-3 px-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0B2A4A] text-white font-black text-xs shadow-xs">
-                {bIdx + 1}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-2">
+              <div className="flex items-center gap-3 group">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0B2A4A] text-white font-black text-xs shadow-xs shrink-0">
+                  {bookNo}
+                </div>
+
+                {editingBookId === bookId ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={bookTitleInputs[bookId] ?? book.title}
+                    onChange={(e) =>
+                      setBookTitleInputs((prev) => ({ ...prev, [bookId]: e.target.value }))
+                    }
+                    onBlur={(e) => handleBookTitleBlur(bookId, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                      if (e.key === "Escape") setEditingBookId(null);
+                    }}
+                    className="text-[19px] font-extrabold text-[#0B2A4A] bg-white border border-[#FFC93C] rounded-lg px-2.5 py-0.5 focus:outline-none shadow-xs"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h3
+                      onClick={() => setEditingBookId(bookId)}
+                      className="text-[19px] font-extrabold text-[#0B2A4A] tracking-tight cursor-pointer hover:text-[#B7791F] transition-colors"
+                      title="Click to edit Book title"
+                    >
+                      Book {bookNo}: {book.title}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setEditingBookId(bookId)}
+                      className="p-1 rounded text-gray-400 hover:text-[#0B2A4A] transition-colors"
+                      title="Edit book title"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    {bookSaved[bookId] && (
+                      <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-0.5">
+                        <Check className="w-3 h-3 text-emerald-600" /> Saved
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-              <h3 className="text-[19px] font-extrabold text-[#0B2A4A] tracking-tight">
-                Book {book.position || bIdx + 1}: {book.title}
-              </h3>
+
+              {/* Contextual "+ Add Chapter" for this book */}
+              <button
+                type="button"
+                onClick={() => {
+                  setNewChapterBookId(bookId);
+                  setShowAddChapterModal(true);
+                }}
+                className="h-8 px-3 rounded-lg bg-white border border-[#CBD5E1] hover:bg-gray-50 text-[#0B2A4A] font-bold text-[12px] flex items-center gap-1.5 shadow-2xs transition-colors self-start sm:self-auto cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#B7791F]" />
+                <span>Add Chapter</span>
+              </button>
             </div>
 
             {/* Chapters */}
             <div className="space-y-4">
               {bookChapters.map((ch) => {
                 const chId = ch._id.toString();
+                const chNo = ch.chapterNo || ch.position || 1;
                 const isOpen = !!openChapters[chId];
+                const isHighlightedChapter = highlightedRowId === `chapter-${chId}`;
 
                 // Lectures belonging to this chapter
                 const chapterLectures = lectures
@@ -614,31 +950,89 @@ export default function PortalLecturesView({
                 return (
                   <div
                     key={chId}
-                    className="rounded-[20px] border border-[#E8ECF2] bg-white overflow-hidden shadow-xs transition-all"
+                    id={`chapter-${chId}`}
+                    className={`rounded-[20px] border border-[#E8ECF2] bg-white overflow-hidden shadow-xs transition-colors duration-500 ${
+                      isHighlightedChapter ? "ring-2 ring-[#FFC93C] bg-[#FFF8EE]" : ""
+                    }`}
                   >
                     {/* Chapter Header */}
                     <div className="px-5 py-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAFBFD] border-b border-[#F1F5F9]">
-                      <button
-                        type="button"
-                        onClick={() => toggleChapter(chId)}
-                        className="flex items-center gap-3 text-left min-w-0 flex-1 cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-[#FFF8EE] text-[#E8870E] border border-[rgba(232,135,14,0.25)] flex items-center justify-center font-black text-xs shrink-0">
-                          {ch.chapterNo || ch.position || 1}
+                      <div className="flex items-center gap-3 text-left min-w-0 flex-1">
+                        <div
+                          onClick={() => toggleChapter(chId)}
+                          className="w-8 h-8 rounded-lg bg-[#FFF8EE] text-[#E8870E] border border-[rgba(232,135,14,0.25)] flex items-center justify-center font-black text-xs shrink-0 cursor-pointer"
+                        >
+                          {chNo}
                         </div>
 
-                        <div className="min-w-0">
-                          <h4 className="text-[16px] font-bold text-[#0B2A4A] truncate">
-                            Chapter {ch.chapterNo || ch.position || 1} · {ch.title}
-                          </h4>
+                        <div className="min-w-0 flex-1">
+                          {editingChapterId === chId ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={chapterTitleInputs[chId] ?? ch.title}
+                              onChange={(e) =>
+                                setChapterTitleInputs((prev) => ({
+                                  ...prev,
+                                  [chId]: e.target.value,
+                                }))
+                              }
+                              onBlur={(e) => handleChapterTitleBlur(chId, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") e.currentTarget.blur();
+                                if (e.key === "Escape") setEditingChapterId(null);
+                              }}
+                              className="text-[16px] font-bold text-[#0B2A4A] bg-white border border-[#FFC93C] rounded-md px-2 py-0.5 focus:outline-none w-full max-w-md shadow-xs"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <h4
+                                onClick={() => toggleChapter(chId)}
+                                className="text-[16px] font-bold text-[#0B2A4A] truncate cursor-pointer hover:text-[#B7791F] transition-colors"
+                              >
+                                Chapter {chNo} · {ch.title}
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingChapterId(chId);
+                                }}
+                                className="p-1 rounded text-gray-400 hover:text-[#0B2A4A] transition-colors"
+                                title="Edit chapter title"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {chapterSaved[chId] && (
+                                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-0.5">
+                                  <Check className="w-3 h-3 text-emerald-600" /> Saved
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <span className="text-[12px] font-semibold text-[#64748B]">
-                            <span className="text-[#E8870E] font-bold">{addedCount}</span> of {chapterLectures.length} videos added
+                            <span className="text-[#E8870E] font-bold">{addedCount}</span> of{" "}
+                            {chapterLectures.length} videos added
                           </span>
                         </div>
-                      </button>
+                      </div>
 
                       {/* Right Chapter Controls */}
-                      <div className="flex items-center gap-2 self-end sm:self-center">
+                      <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
+                        {/* Contextual "+ Add Lecture" button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewLectureChapterId(chId);
+                            setShowAddLectureModal(true);
+                          }}
+                          className="h-8 px-3 rounded-lg bg-[#0B2A4A] hover:bg-[#152B52] text-white font-bold text-[12px] flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Lecture</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -679,7 +1073,7 @@ export default function PortalLecturesView({
                               <tr className="border-b border-[#F1F5F9] text-[11px] font-bold uppercase tracking-wider text-[#64748B] bg-white">
                                 <th className="py-3 px-4 w-12 text-center">No.</th>
                                 <th className="py-3 px-4 min-w-[280px]">Title</th>
-                                <th className="py-3 px-4 w-28">Duration</th>
+                                <th className="py-3 px-4 w-36">Duration</th>
                                 <th className="py-3 px-4 min-w-[320px]">Vimeo Link</th>
                                 <th className="py-3 px-4 w-20 text-center">Free</th>
                                 <th className="py-3 px-4 w-12 text-center"></th>
@@ -695,11 +1089,17 @@ export default function PortalLecturesView({
                                 };
                                 const isTitleIncomplete =
                                   lec.checkTitle || (lec.title && lec.title.endsWith("..."));
+                                const isHighlightedRow = highlightedRowId === lecId;
 
                                 return (
                                   <tr
                                     key={lecId}
-                                    className="hover:bg-[#FAFBFD] transition-colors"
+                                    id={`lecture-row-${lecId}`}
+                                    className={`transition-colors duration-500 ${
+                                      isHighlightedRow
+                                        ? "bg-[#FEF3C7]"
+                                        : "hover:bg-[#FAFBFD]"
+                                    }`}
                                   >
                                     {/* 1. No */}
                                     <td className="py-3 px-4 text-center font-bold text-gray-500 text-xs">
@@ -709,17 +1109,24 @@ export default function PortalLecturesView({
                                     {/* 2. Title (Editable in place) */}
                                     <td className="py-3 px-4">
                                       <div className="flex flex-col gap-1">
-                                        <input
-                                          type="text"
-                                          defaultValue={lec.title}
-                                          onBlur={(e) => handleTitleBlur(lecId, e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              e.currentTarget.blur();
-                                            }
-                                          }}
-                                          className="w-full font-medium text-[#0B2A4A] bg-transparent hover:bg-white focus:bg-white px-2 py-1 -mx-2 rounded border border-transparent hover:border-gray-200 focus:border-[#FFC93C] focus:outline-none text-[14px]"
-                                        />
+                                        <div className="flex items-center gap-1.5">
+                                          <input
+                                            type="text"
+                                            defaultValue={lec.title}
+                                            onBlur={(e) => handleTitleBlur(lecId, e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.currentTarget.blur();
+                                              }
+                                            }}
+                                            className="w-full font-medium text-[#0B2A4A] bg-transparent hover:bg-white focus:bg-white px-2 py-1 -mx-2 rounded border border-transparent hover:border-gray-200 focus:border-[#FFC93C] focus:outline-none text-[14px]"
+                                          />
+                                          {titleSaved[lecId] && (
+                                            <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-0.5 shrink-0">
+                                              <Check className="w-3 h-3 text-emerald-600" />
+                                            </span>
+                                          )}
+                                        </div>
                                         {isTitleIncomplete && (
                                           <span className="self-start inline-flex items-center gap-1 rounded bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.2 text-[10px] font-bold">
                                             title incomplete
@@ -728,9 +1135,56 @@ export default function PortalLecturesView({
                                       </div>
                                     </td>
 
-                                    {/* 3. Duration */}
-                                    <td className="py-3 px-4 text-xs font-semibold text-[#64748B] tabular-nums">
-                                      {lec.duration_mmss || formatDuration(lec.durationSeconds || lec.durationSec)}
+                                    {/* 3. Duration (Editable in place with validation & saved tick) */}
+                                    <td className="py-3 px-4">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <input
+                                            type="text"
+                                            value={
+                                              durationInputs[lecId] ??
+                                              lec.duration_mmss ??
+                                              formatDuration(lec.durationSeconds || lec.durationSec)
+                                            }
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setDurationInputs((prev) => ({
+                                                ...prev,
+                                                [lecId]: val,
+                                              }));
+                                              if (durationErrors[lecId]) {
+                                                setDurationErrors((prev) => {
+                                                  const n = { ...prev };
+                                                  delete n[lecId];
+                                                  return n;
+                                                });
+                                              }
+                                            }}
+                                            onBlur={(e) => handleDurationBlur(lecId, e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.currentTarget.blur();
+                                              }
+                                            }}
+                                            placeholder="mm:ss"
+                                            className={`w-20 px-2 py-1 rounded text-xs font-semibold tabular-nums focus:outline-none border transition-colors ${
+                                              durationErrors[lecId]
+                                                ? "border-red-400 bg-red-50 text-red-700"
+                                                : "border-gray-200 bg-transparent hover:bg-white focus:bg-white focus:border-[#FFC93C] text-[#64748B]"
+                                            }`}
+                                          />
+                                          {durationSaved[lecId] && (
+                                            <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-0.5 shrink-0">
+                                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                            </span>
+                                          )}
+                                        </div>
+                                        {durationErrors[lecId] && (
+                                          <p className="text-[10px] font-bold text-red-500">
+                                            {durationErrors[lecId]}
+                                          </p>
+                                        )}
+                                      </div>
                                     </td>
 
                                     {/* 4. Vimeo Link Box (ONE box, auto-saves) */}
@@ -757,12 +1211,13 @@ export default function PortalLecturesView({
                                               }
                                             }}
                                             placeholder="Paste Vimeo embed or URL..."
-                                            className={`w-full h-9 px-3 rounded-lg border text-xs focus:outline-none transition-all ${rowState.status === "error"
+                                            className={`w-full h-9 px-3 rounded-lg border text-xs focus:outline-none transition-all ${
+                                              rowState.status === "error"
                                                 ? "border-rose-400 bg-rose-50/40 text-rose-800"
                                                 : rowState.status === "saved" && rowState.linkInput
-                                                  ? "border-emerald-300 bg-emerald-50/30 text-[#0B2A4A]"
-                                                  : "border-gray-200 bg-white text-[#0B2A4A] focus:border-[#FFC93C]"
-                                              }`}
+                                                ? "border-emerald-300 bg-emerald-50/30 text-[#0B2A4A]"
+                                                : "border-gray-200 bg-white text-[#0B2A4A] focus:border-[#FFC93C]"
+                                            }`}
                                           />
                                         </div>
 
@@ -915,7 +1370,12 @@ export default function PortalLecturesView({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-[18px] font-bold text-[#0B2A4A]">+ Add Book</h3>
+              <div>
+                <h3 className="text-[18px] font-bold text-[#0B2A4A]">+ Add Book</h3>
+                <p className="text-xs font-semibold text-[#E8870E] mt-0.5">
+                  This will be Book {nextBookSequenceNo}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddBookModal(false)}
@@ -933,7 +1393,7 @@ export default function PortalLecturesView({
                 required
                 value={newBookTitle}
                 onChange={(e) => setNewBookTitle(e.target.value)}
-                placeholder="e.g. Book 2: Company Accounts"
+                placeholder="e.g. Book 5: Financial Management"
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#FFC93C]"
               />
             </div>
@@ -947,7 +1407,7 @@ export default function PortalLecturesView({
               </button>
               <button
                 type="submit"
-                className="h-9 px-4 rounded-xl bg-[#0B2A4A] text-white text-xs font-bold shadow-xs"
+                className="h-9 px-4 rounded-xl bg-[#0B2A4A] text-white text-xs font-bold shadow-xs cursor-pointer"
               >
                 Create Book
               </button>
@@ -968,7 +1428,12 @@ export default function PortalLecturesView({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-[18px] font-bold text-[#0B2A4A]">+ Add Chapter</h3>
+              <div>
+                <h3 className="text-[18px] font-bold text-[#0B2A4A]">+ Add Chapter</h3>
+                <p className="text-xs font-semibold text-[#E8870E] mt-0.5">
+                  This will be Chapter {getNextChapterSequenceNo(newChapterBookId || books[0]?._id?.toString())}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddChapterModal(false)}
@@ -980,7 +1445,7 @@ export default function PortalLecturesView({
 
             <div>
               <label className="text-xs font-bold text-[#475569] block mb-1">
-                Select Book
+                Parent Book
               </label>
               <select
                 value={newChapterBookId}
@@ -989,7 +1454,7 @@ export default function PortalLecturesView({
               >
                 {books.map((b) => (
                   <option key={b._id.toString()} value={b._id.toString()}>
-                    Book {b.position || 1}: {b.title}
+                    Book {b.bookNo || b.position || 1}: {b.title}
                   </option>
                 ))}
               </select>
@@ -1019,7 +1484,7 @@ export default function PortalLecturesView({
               </button>
               <button
                 type="submit"
-                className="h-9 px-4 rounded-xl bg-[#0B2A4A] text-white text-xs font-bold shadow-xs"
+                className="h-9 px-4 rounded-xl bg-[#0B2A4A] text-white text-xs font-bold shadow-xs cursor-pointer"
               >
                 Create Chapter
               </button>
@@ -1040,7 +1505,12 @@ export default function PortalLecturesView({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-[18px] font-bold text-[#0B2A4A]">+ Add Lecture</h3>
+              <div>
+                <h3 className="text-[18px] font-bold text-[#0B2A4A]">+ Add Lecture</h3>
+                <p className="text-xs font-semibold text-[#E8870E] mt-0.5">
+                  This will be Lecture {getNextLectureSequenceNo(newLectureChapterId || chapters[0]?._id?.toString())}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddLectureModal(false)}
@@ -1052,18 +1522,23 @@ export default function PortalLecturesView({
 
             <div>
               <label className="text-xs font-bold text-[#475569] block mb-1">
-                Select Chapter
+                Parent Chapter
               </label>
               <select
                 value={newLectureChapterId || chapters[0]?._id?.toString() || ""}
                 onChange={(e) => setNewLectureChapterId(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#FFC93C]"
               >
-                {chapters.map((ch) => (
-                  <option key={ch._id.toString()} value={ch._id.toString()}>
-                    Ch {ch.chapterNo || ch.position || 1}: {ch.title}
-                  </option>
-                ))}
+                {chapters.map((ch) => {
+                  const b = books.find(
+                    (bk) => bk._id.toString() === (ch.bookId?._id || ch.bookId)?.toString()
+                  );
+                  return (
+                    <option key={ch._id.toString()} value={ch._id.toString()}>
+                      {b ? `Book ${b.bookNo || b.position} · ` : ""}Ch {ch.chapterNo || ch.position || 1}: {ch.title}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -1083,7 +1558,7 @@ export default function PortalLecturesView({
 
             <div>
               <label className="text-xs font-bold text-[#475569] block mb-1">
-                Duration (mm:ss)
+                Duration (mm:ss or h:mm:ss)
               </label>
               <input
                 type="text"
@@ -1104,7 +1579,7 @@ export default function PortalLecturesView({
               </button>
               <button
                 type="submit"
-                className="h-9 px-4 rounded-xl bg-[#0B2A4A] text-white text-xs font-bold shadow-xs"
+                className="h-9 px-4 rounded-xl bg-[#0B2A4A] text-white text-xs font-bold shadow-xs cursor-pointer"
               >
                 Create Lecture
               </button>

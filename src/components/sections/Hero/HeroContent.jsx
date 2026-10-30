@@ -9,6 +9,7 @@ import { SITE_CONFIG } from "@/constants/site";
  */
 export default function HeroContent() {
   const { hero, cta } = SITE_CONFIG;
+  const metaItems = hero?.metaItems || ["CLASS 11", "CLASS 12", "ACCOUNTANCY"];
   const wordLetters = "Accountancy.".split("");
 
   return (
@@ -152,11 +153,11 @@ export default function HeroContent() {
             className="tracking-[0.2em] font-normal uppercase text-[#D6D6D6] select-none flex items-center gap-2"
             style={{ fontSize: "max(11px, calc(var(--u) * 13))" }}
           >
-            <span>{hero.metaItems[0]}</span>
+            <span>{metaItems[0]}</span>
             <span className="text-white/50" aria-hidden="true">/</span>
-            <span>{hero.metaItems[1]}</span>
+            <span>{metaItems[1]}</span>
             <span className="text-white/50" aria-hidden="true">/</span>
-            <span>{hero.metaItems[2]}</span>
+            <span>{metaItems[2]}</span>
           </div>
         </div>
       </div>

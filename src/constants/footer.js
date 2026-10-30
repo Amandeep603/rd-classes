@@ -1,4 +1,5 @@
 import { getWhatsAppUrl } from "@/lib/whatsapp";
+import { SITE_CONFIG } from "@/constants/site";
 
 export const FOOTER_COURSES = [
   { label: "Class 12 Accountancy (Full Year)", href: "/courses/class-12-accountancy-full-year" },
@@ -23,35 +24,35 @@ export const FOOTER_QUICK_LINKS = [
 ];
 
 export const FOOTER_CONTACT = {
-  address: "SCF 59-60, 2nd Floor, Sector 9,\nFaridabad, Haryana 121006",
+  address:
+    "R.D. Classes for Accountancy, SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9, Faridabad, Haryana",
   phoneDisplay: "+91 83685 45620",
   phoneTel: "+918368545620",
   email: "rdclasses177@gmail.com",
-  mapsUrl:
-    "https://www.google.com/maps/search/?api=1&query=SCF+59-60+Sector+9+Faridabad+Haryana+121006",
+  mapsUrl: "https://maps.app.goo.gl/pugUPd8WhwRYYLGE8",
 };
 
 export const FOOTER_SOCIALS = [
   {
     platform: "Instagram",
-    href: "https://www.instagram.com/rdclasses",
-    ariaLabel: "Follow RD Classes on Instagram",
+    href: "https://www.instagram.com/rd___classes?igshid=OGQ5ZDc2ODk2ZA==",
+    ariaLabel: "Follow R.D. Classes For Accountancy on Instagram",
   },
   {
     platform: "YouTube",
-    href: "https://www.youtube.com/@rdclasses",
-    ariaLabel: "Subscribe to RD Classes on YouTube",
+    href: "https://youtube.com/@rd__classes?si=W94GkQ8Qegtcek3J",
+    ariaLabel: "Subscribe to R.D. Classes For Accountancy on YouTube",
   },
   {
     platform: "Facebook",
-    href: "https://www.facebook.com/rdclasses",
-    ariaLabel: "Follow RD Classes on Facebook",
+    href: "https://www.facebook.com/profile.php?id=61584294945140",
+    ariaLabel: "Follow R.D. Classes For Accountancy on Facebook",
   },
   {
     platform: "WhatsApp",
     get href() {
       return getWhatsAppUrl("Hello RD Classes, I would like to connect on WhatsApp.");
     },
-    ariaLabel: "Chat with RD Classes on WhatsApp",
+    ariaLabel: "Chat with R.D. Classes For Accountancy on WhatsApp",
   },
 ];

@@ -47,6 +47,11 @@ const lectureSchema = new Schema(
       type: Number,
       default: 0,
     },
+    duration_mmss: {
+      type: String,
+      default: "00:00",
+      trim: true,
+    },
     position: {
       type: Number,
       default: 0,

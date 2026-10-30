@@ -33,6 +33,45 @@ export function detectVideoProvider(url) {
   return "direct";
 }
 
+function parseDurationInput(val) {
+  if (typeof val === "number") {
+    const m = Math.floor(val / 60);
+    const s = val % 60;
+    return {
+      seconds: val,
+      mmss: `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+    };
+  }
+  const clean = String(val || "").trim();
+  if (!clean) return { seconds: 0, mmss: "00:00" };
+
+  const parts = clean.split(":").map((p) => parseInt(p, 10) || 0);
+  if (parts.length === 2) {
+    const [m, s] = parts;
+    const total = m * 60 + s;
+    return {
+      seconds: total,
+      mmss: `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+    };
+  }
+  if (parts.length === 3) {
+    const [h, m, s] = parts;
+    const total = h * 3600 + m * 60 + s;
+    return {
+      seconds: total,
+      mmss: `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+    };
+  }
+
+  const sec = parseInt(clean, 10) || 0;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return {
+    seconds: sec,
+    mmss: `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+  };
+}
+
 export async function GET(request) {
   try {
     await requireAdmin();
@@ -52,9 +91,9 @@ export async function GET(request) {
     }
 
     const lectures = await Lecture.find(filter)
-      .populate("bookId", "title position status")
-      .populate("chapterId", "title position status")
-      .sort({ position: 1, order: 1, createdAt: 1 })
+      .populate("bookId", "title position status bookNo")
+      .populate("chapterId", "title position status chapterNo")
+      .sort({ lectureNo: 1, position: 1, order: 1, createdAt: 1 })
       .lean();
 
     const formatted = lectures.map((lec) => ({
@@ -105,13 +144,22 @@ export async function POST(request) {
     let bookTitle = body.book || "";
     let chapterTitle = body.chapter || body.section || "";
 
+    if (chapterId && !bookId) {
+      const chDoc = await Chapter.findById(chapterId).lean();
+      if (chDoc) {
+        bookId = chDoc.bookId;
+        chapterTitle = chDoc.title;
+      }
+    }
+
     if (!bookId && body.courseId) {
-      // Find or create default book
       let book = await Book.findOne({ courseId: body.courseId, title: bookTitle || "Book 1" });
       if (!book) {
         book = await Book.create({
           courseId: body.courseId,
           title: bookTitle || "Book 1",
+          bookNo: 1,
+          position: 1,
           status: "published",
         });
       }
@@ -120,12 +168,14 @@ export async function POST(request) {
     }
 
     if (!chapterId && bookId) {
-      // Find or create default chapter
       let chapter = await Chapter.findOne({ courseId: body.courseId, bookId, title: chapterTitle || "Chapter 1" });
       if (!chapter) {
         chapter = await Chapter.create({
           courseId: body.courseId,
           bookId,
+          bookNo: 1,
+          chapterNo: 1,
+          position: 1,
           title: chapterTitle || "Chapter 1",
           status: "published",
         });
@@ -133,6 +183,18 @@ export async function POST(request) {
       chapterId = chapter._id;
       chapterTitle = chapter.title;
     }
+
+    // Resolve bookNo and chapterNo
+    const bookDoc = await Book.findById(bookId).lean();
+    const chapterDoc = await Chapter.findById(chapterId).lean();
+
+    const bookNo = bookDoc?.bookNo ?? bookDoc?.position ?? 1;
+    const chapterNo = chapterDoc?.chapterNo ?? chapterDoc?.position ?? 1;
+    bookTitle = bookTitle || bookDoc?.title || "";
+    chapterTitle = chapterTitle || chapterDoc?.title || "";
+
+    // Parse duration
+    const durationParsed = parseDurationInput(body.durationSeconds ?? body.duration ?? body.duration_mmss);
 
     const videoUrl = (body.videoUrl || "").trim();
     let videoProvider = body.videoProvider;
@@ -152,60 +214,69 @@ export async function POST(request) {
       videoProvider = detectVideoProvider(videoUrl);
     }
 
-    // Determine position within chapter
-    const maxLec = await Lecture.findOne({ courseId: body.courseId, chapterId })
-      .sort({ position: -1 })
-      .select("position")
+    // Automatically determine next sequence number inside the chapter
+    const maxLec = await Lecture.findOne({ courseId: body.courseId, bookNo, chapterNo })
+      .sort({ lectureNo: -1, position: -1 })
       .lean();
-    const nextPos = (maxLec?.position ?? 0) + 1;
+    let nextLectureNo = Math.max(maxLec?.lectureNo ?? 0, maxLec?.position ?? 0) + 1;
 
     const isFree = Boolean(body.isFree ?? body.isFreePreview ?? body.freePreview ?? false);
-    const status = body.status === "published" || body.published === true ? "published" : "draft";
+    const status = vimeoId ? "published" : (body.status === "published" || body.published === true ? "published" : "draft");
 
-    const lecture = await Lecture.create({
-      courseId: body.courseId,
-      bookId,
-      chapterId,
-      book: bookTitle,
-      chapter: chapterTitle,
-      section: chapterTitle,
-      title: body.title.trim(),
-      partNumber: Number(body.partNumber) || 1,
-      description: (body.description || "").trim(),
-      videoProvider: videoProvider || "vimeo",
-      videoUrl,
-      vimeoId,
-      vimeoHash,
-      durationSeconds: Number(body.durationSeconds || body.durationSec || 0),
-      durationSec: Number(body.durationSeconds || body.durationSec || 0),
-      position: typeof body.position === "number" ? body.position : nextPos,
-      order: typeof body.position === "number" ? body.position : nextPos,
-      status,
-      published: status === "published",
-      isFree,
-      freePreview: isFree,
-      isFreePreview: isFree,
-      isPreview: isFree,
-      sourceKey: body.sourceKey || null,
-    });
-
-    await invalidateCoursesCache();
-
-    if (status === "published") {
+    let lecture = null;
+    let attempts = 0;
+    while (!lecture && attempts < 5) {
       try {
-        const { createStudentNotification } = await import("@/server/services/notificationService.js");
-        await createStudentNotification({
-          type: "lecture_added",
-          title: `New Lecture: ${lecture.title}`,
-          message: `${bookTitle ? `${bookTitle} · ` : ""}${chapterTitle || "New lecture available"}`,
+        lecture = await Lecture.create({
           courseId: body.courseId,
-          link: `/student/watch/${lecture._id}`,
-          entityId: lecture._id,
+          bookId,
+          chapterId,
+          bookNo,
+          chapterNo,
+          lectureNo: nextLectureNo,
+          position: nextLectureNo,
+          order: nextLectureNo,
+          partNumber: nextLectureNo,
+          bookTitle,
+          chapterTitle,
+          book: bookTitle,
+          chapter: chapterTitle,
+          section: chapterTitle,
+          title: body.title.trim(),
+          description: (body.description || "").trim(),
+          videoProvider: videoProvider || "vimeo",
+          videoUrl,
+          vimeoId,
+          vimeoHash,
+          durationSeconds: durationParsed.seconds,
+          durationSec: durationParsed.seconds,
+          duration_mmss: durationParsed.mmss,
+          status,
+          published: status === "published",
+          isFree,
+          freePreview: isFree,
+          isFreePreview: isFree,
+          isPreview: isFree,
+          sourceKey: body.sourceKey || null,
         });
-      } catch {
-        // ignore notification errors
+      } catch (err) {
+        if (err.code === 11000) {
+          attempts++;
+          const latestMax = await Lecture.findOne({ courseId: body.courseId, bookNo, chapterNo })
+            .sort({ lectureNo: -1, position: -1 })
+            .lean();
+          nextLectureNo = Math.max(latestMax?.lectureNo ?? nextLectureNo, latestMax?.position ?? nextLectureNo) + 1;
+        } else {
+          throw err;
+        }
       }
     }
+
+    if (!lecture) {
+      return Response.json({ error: "Could not allocate lecture number due to concurrent writes" }, { status: 409 });
+    }
+
+    await invalidateCoursesCache();
 
     return Response.json({ success: true, lecture });
   } catch (err) {

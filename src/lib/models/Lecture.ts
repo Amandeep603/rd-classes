@@ -84,6 +84,11 @@ const lectureSchema = new Schema(
       type: Number,
       default: 0,
     },
+    duration_mmss: {
+      type: String,
+      default: "00:00",
+      trim: true,
+    },
     position: {
       type: Number,
       default: 0,
@@ -200,6 +205,10 @@ lectureSchema.pre("validate", function () {
 
 lectureSchema.index({ courseId: 1, position: 1 });
 lectureSchema.index({ courseId: 1, bookId: 1, chapterId: 1, position: 1 });
+lectureSchema.index(
+  { courseId: 1, bookNo: 1, chapterNo: 1, lectureNo: 1 },
+  { unique: true }
+);
 lectureSchema.index(
   { courseId: 1, sourceKey: 1 },
   { unique: true, partialFilterExpression: { sourceKey: { $type: "string" } } }

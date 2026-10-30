@@ -2,147 +2,118 @@ export default function ContactDecoration() {
   return (
     <div
       aria-hidden="true"
-      className="hidden xl:block absolute -right-28 bottom-2 w-72 h-80 pointer-events-none select-none z-10"
+      className="hidden lg:flex flex-col justify-between items-start h-full min-h-[480px] relative select-none pointer-events-none w-full max-w-[260px] xl:max-w-[280px] transition-transform duration-300 max-xl:scale-[0.82] max-xl:origin-top-left"
     >
-      <svg
-        viewBox="0 0 280 320"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-full h-full drop-shadow-[0_12px_24px_rgba(0,0,0,0.08)]"
-      >
-        {/* Soft Shadow on ground */}
-        <ellipse cx="140" cy="295" rx="110" ry="14" fill="#000000" opacity="0.08" />
+      {/* Large Soft Light-Blue Circular Background */}
+      <div className="w-[300px] h-[300px] xl:w-[340px] xl:h-[340px] rounded-full bg-[#E0F2FE]/75 blur-xs absolute -top-8 -right-8 -z-10" />
 
-        {/* --- BOOK STACK (Right/Foreground) --- */}
-        {/* Bottom Book (Deep Navy) */}
-        <g transform="translate(110, 240)">
-          {/* Base Book Shadow */}
-          <path d="M10 24L110 24L120 42L20 42Z" fill="#0A192F" opacity="0.3" />
-          {/* Front / Spine */}
+      {/* Top: Handwritten Note in Caveat font with yellow stroke */}
+      <div className="pt-2 pl-2 rotate-[-3deg]">
+        <div className="font-[family-name:var(--font-caveat)] text-[28px] xl:text-[32px] font-bold text-[#1E293B] leading-[1.05]">
+          Learn
+          <br />
+          Practice
+          <br />
+          Score Higher
+        </div>
+        {/* Yellow wavy underline SVG */}
+        <svg
+          className="w-28 h-4 text-[#FFB800] -mt-1 ml-1"
+          viewBox="0 0 100 14"
+          fill="none"
+        >
           <path
-            d="M5 20C5 18 7 16 9 16L125 16C127 16 129 18 129 20L129 36C129 38 127 40 125 40L9 40C7 40 5 38 5 36Z"
-            fill="#1E3A8A"
+            d="M2 10C26 3 70 2 98 9"
+            stroke="currentColor"
+            strokeWidth="3.2"
+            strokeLinecap="round"
           />
-          {/* Top cover */}
+        </svg>
+      </div>
+
+      {/* Bottom: Potted Plant & Navy Books Illustration */}
+      <div className="w-full h-64 mt-auto relative">
+        <svg
+          viewBox="0 0 280 290"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full drop-shadow-[0_10px_20px_rgba(0,0,0,0.06)]"
+        >
+          {/* Ground shadow */}
+          <ellipse cx="140" cy="270" rx="100" ry="12" fill="#000000" opacity="0.07" />
+
+          {/* --- STACK OF NAVY HARDCOVER BOOKS (Right) --- */}
+          {/* Bottom Book */}
+          <g transform="translate(115, 215)">
+            <path d="M8 22L105 22L115 38L18 38Z" fill="#0A192F" opacity="0.3" />
+            <path
+              d="M4 18C4 16 6 15 8 15L120 15C122 15 124 16 124 18L124 33C124 35 122 36 120 36L8 36C6 36 4 35 4 33Z"
+              fill="#1E3A8A"
+            />
+            <path d="M4 15L32 2L145 2L120 15Z" fill="#1D4ED8" />
+            <path d="M120 17L145 3L145 18L120 32Z" fill="#FFFBEB" />
+          </g>
+
+          {/* Top Book */}
+          <g transform="translate(110, 185)">
+            <path
+              d="M4 16C4 14 6 13 8 13L115 13C117 13 119 14 119 16L119 30C119 32 117 33 115 33L8 33C6 33 4 32 4 30Z"
+              fill="#1E40AF"
+            />
+            {/* Gold Bookmark Ribbon */}
+            <path d="M55 18L66 18L66 34L60.5 30L55 34Z" fill="#FBBF24" />
+            <path d="M4 13L29 2L138 2L115 13Z" fill="#2563EB" />
+            <path d="M115 15L138 3L138 17L115 29Z" fill="#FAF5FF" />
+          </g>
+
+          {/* --- POTTED PLANT (Left) --- */}
+          {/* Pot Saucer */}
+          <ellipse cx="60" cy="255" rx="34" ry="6" fill="#E2E8F0" />
+
+          {/* Ceramic White Planter */}
           <path
-            d="M5 16L35 0L155 0L125 16Z"
-            fill="#1D4ED8"
+            d="M32 185L39 250C40 253 44 255 49 255H71C76 255 80 253 81 250L88 185Z"
+            fill="#FFFFFF"
+            stroke="#E2E8F0"
+            strokeWidth="1.5"
           />
-          {/* Pages (cream/white side) */}
+          <ellipse cx="60" cy="185" rx="28" ry="5.5" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="1" />
+          <ellipse cx="60" cy="185" rx="25" ry="4" fill="#583101" opacity="0.8" />
+
+          {/* Plant Stems and Lush Foliage */}
+          {/* Center Stem */}
+          <path d="M60 183Q58 130 65 75" stroke="#15803D" strokeWidth="3.5" strokeLinecap="round" />
+          {/* Top Leaf */}
           <path
-            d="M125 18L153 2L153 18L125 36Z"
-            fill="#FFFBEB"
+            d="M65 75C60 48 78 25 88 30C98 35 102 62 80 80C73 85 65 80 65 75Z"
+            fill="#16A34A"
           />
+          <path d="M67 73Q80 52 88 32" stroke="#22C55E" strokeWidth="1.5" />
+
+          {/* Left Arching Stem */}
+          <path d="M60 183Q46 140 24 105" stroke="#166534" strokeWidth="3" strokeLinecap="round" />
           <path
-            d="M127 20L151 4L151 18L127 34Z"
-            fill="#FEF3C7"
+            d="M24 105C10 88 10 65 24 67C38 70 50 88 36 110C30 112 25 110 24 105Z"
+            fill="#15803D"
           />
-        </g>
+          <path d="M26 102Q24 82 24 68" stroke="#4ADE80" strokeWidth="1.2" />
 
-        {/* Top Book (Rich Blue with Gold Accent) */}
-        <g transform="translate(105, 205)">
-          {/* Spine */}
+          {/* Right Arching Stem */}
+          <path d="M60 183Q78 150 105 125" stroke="#15803D" strokeWidth="3" strokeLinecap="round" />
           <path
-            d="M5 18C5 16 7 15 9 15L120 15C122 15 124 16 124 18L124 33C124 35 122 36 120 36L9 36C7 36 5 35 5 33Z"
-            fill="#1E40AF"
+            d="M105 125C122 112 136 120 132 134C128 147 106 155 94 138C92 133 99 127 105 125Z"
+            fill="#22C55E"
           />
-          {/* Gold bookmark ribbon */}
-          <path d="M60 20L72 20L72 37L66 33L60 37Z" fill="#FBBF24" />
-          {/* Top cover */}
+          <path d="M103 129Q118 124 130 132" stroke="#86EFAC" strokeWidth="1.2" />
+
+          {/* Lower Sprout Leaf */}
+          <path d="M60 183Q74 160 84 155" stroke="#15803D" strokeWidth="2.5" />
           <path
-            d="M5 15L32 2L147 2L120 15Z"
-            fill="#2563EB"
+            d="M84 155C93 146 101 150 98 160C92 168 82 166 80 160Z"
+            fill="#4ADE80"
           />
-          {/* Pages */}
-          <path
-            d="M120 17L145 4L145 18L120 32Z"
-            fill="#FAF5FF"
-          />
-        </g>
-
-        {/* --- POTTED PLANT (Left side, standing tall) --- */}
-        {/* Pot Saucer / Base */}
-        <ellipse cx="65" cy="275" rx="36" ry="7" fill="#E2E8F0" />
-        
-        {/* Ceramic White Planter */}
-        <path
-          d="M34 200L42 270C43 273 47 275 52 275H78C83 275 87 273 88 270L96 200Z"
-          fill="#FFFFFF"
-          stroke="#E2E8F0"
-          strokeWidth="1.5"
-        />
-        {/* Pot rim highlight */}
-        <ellipse cx="65" cy="200" rx="31" ry="6" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="1" />
-        {/* Soil inside pot */}
-        <ellipse cx="65" cy="200" rx="27" ry="4.5" fill="#583101" opacity="0.8" />
-
-        {/* Plant Stems and Foliage (Lush Botanical Greens) */}
-        {/* Stem 1 (Center upright) */}
-        <path
-          d="M65 198Q62 140 70 80"
-          stroke="#15803D"
-          strokeWidth="4"
-          strokeLinecap="round"
-        />
-        {/* Leaf 1 (Top Center) */}
-        <path
-          d="M70 80C65 50 85 25 95 30C105 35 110 65 85 85C78 90 70 85 70 80Z"
-          fill="#16A34A"
-        />
-        <path d="M72 78Q85 55 95 32" stroke="#22C55E" strokeWidth="1.5" />
-
-        {/* Stem 2 (Left arching) */}
-        <path
-          d="M65 198Q50 150 25 115"
-          stroke="#166534"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-        />
-        {/* Leaf 2 (Left broad leaf) */}
-        <path
-          d="M25 115C10 95 10 70 25 72C40 75 55 95 40 120C32 122 26 120 25 115Z"
-          fill="#15803D"
-        />
-        <path d="M28 112Q25 90 25 74" stroke="#4ADE80" strokeWidth="1.2" />
-
-        {/* Stem 3 (Right arching toward books) */}
-        <path
-          d="M65 198Q85 160 115 135"
-          stroke="#15803D"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-        />
-        {/* Leaf 3 (Right broad leaf) */}
-        <path
-          d="M115 135C135 120 150 130 145 145C140 160 115 170 102 150C100 144 108 138 115 135Z"
-          fill="#22C55E"
-        />
-        <path d="M112 140Q130 135 143 143" stroke="#86EFAC" strokeWidth="1.2" />
-
-        {/* Lower Left Leaf */}
-        <path
-          d="M65 198Q40 175 18 170"
-          stroke="#166534"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <path
-          d="M18 170C5 158 8 140 22 142C35 145 42 165 30 180C24 182 19 175 18 170Z"
-          fill="#16A34A"
-        />
-
-        {/* Front Foreground Sprout Leaf */}
-        <path
-          d="M65 198Q70 170 82 165"
-          stroke="#15803D"
-          strokeWidth="2.5"
-        />
-        <path
-          d="M82 165C92 155 102 160 98 172C92 182 80 180 78 172Z"
-          fill="#4ADE80"
-        />
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }
-
