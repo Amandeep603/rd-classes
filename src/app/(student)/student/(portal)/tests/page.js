@@ -1,9 +1,10 @@
 import { Suspense } from "react";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { connection } from "next/server";
+import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Test } from "@/server/db/models/Test.js";
 import { TestResult } from "@/server/db/models/TestResult.js";
-import { Enrollment } from "@/server/db/models/Enrollment.js";
+import { getStudentCourseAccess } from "@/server/services/studentAccessService.js";
 import PortalTestsView from "@/components/portal/student/PortalTestsView";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 
@@ -12,13 +13,13 @@ export const metadata = {
 };
 
 async function StudentTestsContent() {
-  const auth = await getCurrentUser();
+  await connection();
+  const auth = await requireStudent();
   if (!auth?.user) return null;
   await connectDB();
   const now = new Date();
 
   // Single source of truth for student course access
-  const { getStudentCourseAccess } = await import("@/server/services/studentAccessService.js");
   const access = await getStudentCourseAccess(auth);
   const courseIds = access.enrolledCourseIds;
 

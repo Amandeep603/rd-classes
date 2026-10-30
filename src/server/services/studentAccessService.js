@@ -178,3 +178,62 @@ export async function getStudentCourseAccess(sessionOrUser) {
     isEnrolledInCourse,
   };
 }
+
+/**
+ * Unified context helper for student portal pages (sidebar, dashboard, lectures, notes, tests).
+ * Returns the student's enrolled courses and the validated selected course.
+ * If preferred course is missing or invalid, falls back to the first enrolled course and never to the empty state.
+ * "hasAnyCourse" is true if and only if enrolled courses count > 0.
+ */
+export async function getStudentCourseContext(sessionOrUser, preferredCourseIdentifier = null) {
+  const access = await getStudentCourseAccess(sessionOrUser);
+  if (!access.authenticated || !access.student) {
+    return {
+      authenticated: false,
+      student: null,
+      studentId: null,
+      activeCourses: [],
+      enrolledCourseIds: [],
+      enrolledSlugs: [],
+      hasAnyCourse: false,
+      selectedCourse: null,
+      isEnrolledInCourse: () => false,
+    };
+  }
+
+  const activeCourses = [...access.activeCourses];
+  const hasAnyCourse = activeCourses.length > 0;
+
+  let selectedCourse = null;
+  if (hasAnyCourse) {
+    selectedCourse = activeCourses[0];
+
+    if (preferredCourseIdentifier) {
+      const target = String(preferredCourseIdentifier).toLowerCase().trim();
+      const idx = activeCourses.findIndex(
+        (c) =>
+          String(c._id).toLowerCase() === target ||
+          (c.slug && c.slug.toLowerCase() === target)
+      );
+      if (idx >= 0) {
+        selectedCourse = activeCourses[idx];
+        if (idx > 0) {
+          const [chosen] = activeCourses.splice(idx, 1);
+          activeCourses.unshift(chosen);
+        }
+      }
+    }
+  }
+
+  return {
+    authenticated: true,
+    student: access.student,
+    studentId: access.studentId,
+    activeCourses,
+    enrolledCourseIds: access.enrolledCourseIds,
+    enrolledSlugs: access.enrolledSlugs,
+    hasAnyCourse,
+    selectedCourse,
+    isEnrolledInCourse: access.isEnrolledInCourse,
+  };
+}

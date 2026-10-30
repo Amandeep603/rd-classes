@@ -38,9 +38,23 @@ const nextConfig = {
         source: "/student/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+      {
+        source: "/student/watch/:path*",
+        headers: [
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'self'; frame-src https://player.vimeo.com https://*.vimeo.com;",
+            value: "frame-src 'self' https://player.vimeo.com https://*.vimeo.com https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com;",
+          },
+        ],
+      },
+      {
+        source: "/courses/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "frame-src 'self' https://player.vimeo.com https://*.vimeo.com https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com;",
           },
         ],
       },
@@ -48,10 +62,6 @@ const nextConfig = {
         source: "/admin/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
-          {
-            key: "Content-Security-Policy",
-            value: "frame-ancestors 'self';",
-          },
         ],
       },
     ];

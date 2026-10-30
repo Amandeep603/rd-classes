@@ -10,7 +10,7 @@ import { Settings } from "../db/models/Settings.js";
 import { logAuditEvent } from "./audit.js";
 import { createAdminNotification } from "./notificationService.js";
 
-export { getStudentCourseAccess } from "./studentAccessService.js";
+export { getStudentCourseAccess, getStudentCourseContext } from "./studentAccessService.js";
 
 export function slugify(text) {
   return text

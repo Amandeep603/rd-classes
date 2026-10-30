@@ -12,6 +12,7 @@ import {
   X,
   Clock,
   Sparkles,
+  Video,
 } from "lucide-react";
 import VimeoPlayer from "@/components/student/VimeoPlayer";
 
@@ -175,6 +176,18 @@ export default function CourseSyllabus({
       )}
 
       {/* 2. Books & Collapsible Chapters */}
+      {booksList.length === 0 && (
+        <div className="rounded-[24px] border border-[#E8ECF2] bg-white p-8 sm:p-10 text-center space-y-3 shadow-xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
+            <Video className="w-7 h-7" />
+          </div>
+          <h3 className="text-[18px] sm:text-[20px] font-bold text-[#0B2A4A]">No lectures uploaded yet</h3>
+          <p className="text-[14px] font-medium text-[#5B6577] max-w-md mx-auto">
+            New lectures will appear here as soon as RD Classes uploads them.
+          </p>
+        </div>
+      )}
+
       {booksList.map((book) => {
         const chaptersList = Object.values(book.chapters).sort(
           (a, b) => a.chapterNo - b.chapterNo

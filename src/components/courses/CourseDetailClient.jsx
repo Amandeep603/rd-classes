@@ -176,7 +176,9 @@ export default function CourseDetailClient({
     let cancelled = false;
     async function fetchCourseAccess() {
       try {
-        const res = await fetch(`/api/me/course-access?slug=${encodeURIComponent(course.slug)}`);
+        const res = await fetch(`/api/me/course-access?slug=${encodeURIComponent(course.slug)}`, {
+          cache: "no-store",
+        });
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) {

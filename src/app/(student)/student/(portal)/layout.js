@@ -11,7 +11,7 @@ import { Announcement } from "@/server/db/models/Announcement.js";
 import { Note } from "@/server/db/models/Note.js";
 import StudentPortalShell from "@/components/portal/student/StudentPortalShell";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
-import { getStudentCourseAccess } from "@/server/services/studentAccessService.js";
+import { getStudentCourseAccess, getStudentCourseContext } from "@/server/services/studentAccessService.js";
 
 export const metadata = {
   title: "Student Portal | RD Classes",
@@ -34,24 +34,12 @@ async function StudentPortalLayoutContent({ children }) {
   const whatsappNumber =
     setting?.whatsappNumber || setting?.whatsapp || "918368545620";
 
-  // 2. Fetch Active Courses from single source of truth
-  const access = await getStudentCourseAccess(auth);
-  const activeCourses = [...access.activeCourses];
-
+  // 2. Fetch Active Courses and validated selected course from unified context helper
   const cookieStore = await cookies();
   const selectedCourseCookie = cookieStore.get("rd_selected_course")?.value || null;
-  if (selectedCourseCookie && activeCourses.length > 1) {
-    const target = String(selectedCourseCookie).toLowerCase();
-    const idx = activeCourses.findIndex(
-      (c) => String(c._id).toLowerCase() === target || (c.slug && c.slug.toLowerCase() === target)
-    );
-    if (idx > 0) {
-      const [chosenCourse] = activeCourses.splice(idx, 1);
-      activeCourses.unshift(chosenCourse);
-    }
-  }
-
-  const mainCourse = activeCourses[0] || null;
+  const context = await getStudentCourseContext(auth, selectedCourseCookie);
+  const activeCourses = [...context.activeCourses];
+  const mainCourse = context.selectedCourse;
   const subtitle = mainCourse
     ? mainCourse.title
     : auth.user.className

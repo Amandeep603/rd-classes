@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import connectDB from "../db/connect.js";
 import { Enrollment } from "../db/models/Enrollment.js";
 import { Course } from "../db/models/Course.js";
+import { Book } from "../db/models/Book.js";
+import { Chapter } from "../db/models/Chapter.js";
 import { Lecture } from "../db/models/Lecture.js";
 import { Progress } from "../db/models/Progress.js";
 import { Announcement } from "../db/models/Announcement.js";
@@ -11,45 +13,32 @@ import { TestResult } from "../db/models/TestResult.js";
 import { Settings as Setting } from "../db/models/Settings.js";
 import { Note } from "../db/models/Note.js";
 import { User } from "../db/models/User.js";
-import { getStudentCourseAccess } from "./studentAccessService.js";
+import { getStudentCourseAccess, getStudentCourseContext } from "./studentAccessService.js";
 
 export async function getStudentDashboardData(userId, selectedCourseId = null) {
-  await connectDB();
-  const now = new Date();
+  try {
+    await connectDB();
+    const now = new Date();
 
-  // 1. Single source of truth for student course access
-  const access = await getStudentCourseAccess(userId);
-  if (!access.authenticated || !access.student) return null;
+    // 1. Single source of truth for student course access & selection
+    const context = await getStudentCourseContext(userId, selectedCourseId);
+    if (!context.authenticated || !context.student) return null;
 
-  const user = access.student;
-  const userObjId = mongoose.isValidObjectId(user._id) ? new mongoose.Types.ObjectId(user._id) : null;
-  const userStrId = String(user._id);
+    const user = context.student;
+    const userObjId = mongoose.isValidObjectId(user._id) ? new mongoose.Types.ObjectId(user._id) : null;
+    const userStrId = String(user._id);
 
-  // Active courses from single source of truth
-  const activeCourses = [...access.activeCourses];
-
-  // If a specific course is selected, prioritize it as activeCourses[0]
-  if (selectedCourseId && activeCourses.length > 1) {
-    const target = String(selectedCourseId).toLowerCase();
-    const idx = activeCourses.findIndex(
-      (c) => String(c._id).toLowerCase() === target || (c.slug && c.slug.toLowerCase() === target)
-    );
-    if (idx > 0) {
-      const [chosenCourse] = activeCourses.splice(idx, 1);
-      activeCourses.unshift(chosenCourse);
-    }
-  }
-
-  // Selected primary course
-  const primaryCourse = activeCourses[0] || null;
-  const primaryCourseId = primaryCourse ? primaryCourse._id : null;
-  const primaryCourseObjId = primaryCourseId && mongoose.isValidObjectId(primaryCourseId)
-    ? new mongoose.Types.ObjectId(primaryCourseId)
-    : null;
+    // Active courses from unified context
+    const activeCourses = [...context.activeCourses];
+    const primaryCourse = context.selectedCourse;
+    const primaryCourseId = primaryCourse ? primaryCourse._id : null;
+    const primaryCourseObjId = primaryCourseId && mongoose.isValidObjectId(primaryCourseId)
+      ? new mongoose.Types.ObjectId(primaryCourseId)
+      : null;
 
   // Earliest expiry date from enrollments
   let earliestExpiry = user.validUntil || null;
-  if (!earliestExpiry && access.enrolledCourseIds.length > 0) {
+  if (!earliestExpiry && context.enrolledCourseIds.length > 0) {
     const enr = await Enrollment.findOne({
       $or: [{ userId: userObjId }, { studentId: userObjId }],
       status: { $ne: "cancelled" },
@@ -410,4 +399,8 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
         }
       : null,
   };
+  } catch (err) {
+    console.error("[STUDENT_DASHBOARD_SERVICE_ERROR]", err);
+    return null;
+  }
 }

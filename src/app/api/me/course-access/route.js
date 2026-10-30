@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { getCurrentUser } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
@@ -62,8 +63,18 @@ export async function GET(request) {
     );
   }
 
+  const trimmedSlug = String(slug).trim();
+  const slugLower = trimmedSlug.toLowerCase();
+  const queryConditions = [
+    { slug: slugLower },
+    { slug: trimmedSlug },
+  ];
+  if (mongoose.isValidObjectId(trimmedSlug)) {
+    queryConditions.push({ _id: new mongoose.Types.ObjectId(trimmedSlug) });
+  }
+
   const course = await Course.findOne({
-    slug: slug.toLowerCase(),
+    $or: queryConditions,
     status: { $ne: "archived" },
   })
     .select("_id slug title")
@@ -87,7 +98,9 @@ export async function GET(request) {
   }
 
   const isEnrolled =
-    access.isEnrolledInCourse(course._id) || access.isEnrolledInCourse(course.slug);
+    access.isEnrolledInCourse(course._id) ||
+    access.isEnrolledInCourse(course.slug) ||
+    access.isEnrolledInCourse(slugLower);
 
   if (!isEnrolled) {
     return NextResponse.json(

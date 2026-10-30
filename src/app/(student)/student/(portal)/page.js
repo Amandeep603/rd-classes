@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { cookies } from "next/headers";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { requireStudent } from "@/server/auth/session.js";
 import { getStudentDashboardData } from "@/server/services/studentDashboardService.js";
 import AnnouncementBanner from "@/components/portal/student/AnnouncementBanner";
 import ResumeRevisionCard from "@/components/portal/student/ResumeRevisionCard";
@@ -19,14 +19,17 @@ export const metadata = {
 
 async function StudentDashboardContent({ searchParams }) {
   await connection();
-  const auth = await getCurrentUser();
+  const auth = await requireStudent();
   if (!auth?.user) return null;
   const resolvedParams = searchParams ? await searchParams : {};
   const cookieStore = await cookies();
   const selectedCourse = resolvedParams.course || cookieStore.get("rd_selected_course")?.value || null;
   const data = await getStudentDashboardData(auth.user._id, selectedCourse);
 
-  if (!data) return null;
+  if (!data) {
+    console.error("[DASHBOARD_CONTENT] getStudentDashboardData returned null for student:", auth.user._id);
+    throw new Error("Unable to load student dashboard data.");
+  }
 
   return (
     <div className="space-y-6">

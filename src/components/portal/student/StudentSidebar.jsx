@@ -29,6 +29,7 @@ export default function StudentSidebar({
 }) {
   const pathname = usePathname();
   const [progressData, setProgressData] = useState(courseProgress || null);
+  const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
     if (courseProgress) {
@@ -110,15 +111,20 @@ export default function StudentSidebar({
             onClick={() => onClose?.()}
             className="flex items-center gap-[12px] group"
           >
-            <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[12px] bg-white border border-[#CBD5E1]/60 p-1 shadow-2xs group-hover:scale-102 transition-transform">
-              <Image
-                src="/images/logo/logo-cropped.png"
-                alt="RD Classes Logo"
-                width={32}
-                height={32}
-                className="h-auto w-auto object-contain"
-                priority
-              />
+            <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[12px] bg-white border border-[#CBD5E1]/60 p-1 shadow-2xs group-hover:scale-102 transition-transform overflow-hidden">
+              {!logoError ? (
+                <Image
+                  src="/images/logo-rd.png"
+                  alt="RD Classes Logo"
+                  width={32}
+                  height={32}
+                  className="h-auto w-auto object-contain"
+                  priority
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <span className="text-[14px] font-black tracking-tight text-[#0B2A4A]">RD</span>
+              )}
             </div>
             <div className="leading-[1.15]">
               <span className="block text-[15px] font-extrabold tracking-tight text-[#1F2A44]">

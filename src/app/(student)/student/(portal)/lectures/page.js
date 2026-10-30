@@ -3,14 +3,14 @@ import { connection } from "next/server";
 import { cookies } from "next/headers";
 import mongoose from "mongoose";
 import { MessageCircle, Video } from "lucide-react";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/lib/models/Lecture";
 import { LectureProgress } from "@/lib/models/LectureProgress";
 import { Settings as Setting } from "@/server/db/models/Settings.js";
 import CourseSyllabus from "@/components/course/CourseSyllabus";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
-import { getStudentCourseAccess } from "@/server/services/studentAccessService.js";
+import { getStudentCourseContext } from "@/server/services/studentAccessService.js";
 
 export const metadata = {
   title: "Lectures | RD Classes Student Portal",
@@ -19,7 +19,7 @@ export const metadata = {
 
 async function StudentLecturesContent({ searchParams }) {
   await connection();
-  const auth = await getCurrentUser();
+  const auth = await requireStudent();
   if (!auth?.user) return null;
 
   await connectDB();
@@ -28,9 +28,13 @@ async function StudentLecturesContent({ searchParams }) {
   const resolvedParams = (await searchParams) || {};
   const queryCourse = resolvedParams.course;
 
-  // Single source of truth for student course access
-  const access = await getStudentCourseAccess(auth);
-  const activeCourses = [...access.activeCourses];
+  const cookieStore = await cookies();
+  const selectedCookie = cookieStore.get("rd_selected_course")?.value || null;
+  const targetCourseIdentifier = queryCourse || selectedCookie || null;
+
+  // Single source of truth for student course access & selection
+  const context = await getStudentCourseContext(auth, targetCourseIdentifier);
+  const activeCourses = [...context.activeCourses];
 
   const setting = await Setting.findOne().lean();
   const whatsappNumber = setting?.whatsappNumber || setting?.whatsapp || "918368545620";
@@ -39,8 +43,8 @@ async function StudentLecturesContent({ searchParams }) {
     "Hello Sir, I have logged into the student portal but do not see my course assigned yet."
   )}`;
 
-  // ZERO COURSES STATE (only when student has zero enrolled courses)
-  if (activeCourses.length === 0) {
+  // ZERO COURSES STATE (strictly only when student has zero enrolled courses)
+  if (!context.hasAnyCourse || activeCourses.length === 0) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center rounded-[24px] border border-dashed border-[#CBD5E1] bg-white p-8 text-center space-y-4">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-xs">
@@ -65,21 +69,7 @@ async function StudentLecturesContent({ searchParams }) {
     );
   }
 
-  // Selected Course selection: query param -> cookie -> activeCourses[0]
-  const cookieStore = await cookies();
-  const selectedCookie = cookieStore.get("rd_selected_course")?.value || null;
-  const targetCourseIdentifier = queryCourse || selectedCookie || null;
-
-  let selectedCourse = activeCourses[0];
-  if (targetCourseIdentifier) {
-    const target = String(targetCourseIdentifier).toLowerCase();
-    const found = activeCourses.find(
-      (c) => String(c._id).toLowerCase() === target || (c.slug && c.slug.toLowerCase() === target)
-    );
-    if (found) {
-      selectedCourse = found;
-    }
-  }
+  const selectedCourse = context.selectedCourse;
 
   const selectedCourseObjId = mongoose.isValidObjectId(selectedCourse._id)
     ? new mongoose.Types.ObjectId(selectedCourse._id)
