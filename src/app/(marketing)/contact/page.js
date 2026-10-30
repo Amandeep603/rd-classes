@@ -1,12 +1,12 @@
-import Link from "next/link";
-import { ChevronLeft, ChevronRight, MapPin, Phone, Mail, MessageCircle, Navigation, Clock, Send } from "lucide-react";
-import { FOOTER_CONTACT } from "@/constants/footer";
-import { SITE_CONFIG } from "@/constants/site";
+import { GraduationCap, FileText, MessageSquare } from "lucide-react";
+import ContactFormClient from "@/components/contact/ContactFormClient";
+import ContactLocationCard from "@/components/contact/ContactLocationCard";
+import ContactDecoration from "@/components/contact/ContactDecoration";
 
 export const metadata = {
-  title: "Contact & Location | RD Classes Sector 9, Faridabad",
+  title: "Contact Us | RD Classes Sector 9, Faridabad",
   description:
-    "Visit RD Classes at SCF 59-60 2nd Floor, Sector 9 Market, Faridabad or contact Ronak Sir directly via WhatsApp or phone for Class 11 & 12 Accountancy batches.",
+    "Have a question about courses, admissions, or fees? Send us a message or visit our centre at Sector 9 Market, Faridabad.",
   alternates: {
     canonical: "/contact",
   },
@@ -14,193 +14,152 @@ export const metadata = {
 
 export default function ContactPage() {
   return (
-    <div className="min-h-screen w-full bg-[#FAF6EE] text-[#0F172A] pb-14 overflow-x-clip">
-      {/* 1. HERO SECTION (Exact 24px desktop / 16px mobile top offset) */}
-      <section className="w-full relative overflow-hidden bg-[#FBF7F0] border-b border-[#E8ECEF] pt-4 sm:pt-6 pb-7">
-        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 relative z-10 space-y-3">
-          {/* Breadcrumb: 13px */}
-          <nav aria-label="Breadcrumb">
-            <ol className="flex items-center gap-1.5 text-[13px] text-[#556987]">
-              <li className="flex items-center gap-1">
-                <ChevronLeft className="w-3.5 h-3.5 text-[#556987]" />
-                <Link
-                  href="/"
-                  className="font-semibold text-[#556987] hover:text-[#0B1B3D] transition-colors"
-                >
-                  Home
-                </Link>
-              </li>
-              <li>
-                <ChevronRight className="w-3 h-3 text-[#CBD5E1]" />
-              </li>
-              <li className="font-semibold text-[#0B1B3D]">Contact</li>
-            </ol>
-          </nav>
+    <div className="min-h-screen w-full bg-[#FAF7F2] text-[#0F172A] relative overflow-x-hidden pt-6 sm:pt-10 pb-16 sm:pb-24">
+      {/* Decorative Background Elements */}
+      {/* Soft yellow glow on far left */}
+      <div
+        aria-hidden="true"
+        className="w-72 h-72 rounded-full bg-[#FEF3C7]/40 blur-3xl absolute top-32 -left-20 pointer-events-none -z-10"
+      />
 
-          {/* Pill */}
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EBF5FF] px-3.5 py-1 text-xs font-bold text-[#0066FF] border border-[#BFDBFE]">
-              <MapPin className="w-3.5 h-3.5 text-[#0066FF]" />
-              <span>VISIT OUR INSTITUTE</span>
-            </span>
-          </div>
+      {/* Soft light-blue glow on right */}
+      <div
+        aria-hidden="true"
+        className="w-96 h-96 rounded-full bg-[#E0F2FE]/50 blur-3xl absolute top-20 right-0 pointer-events-none -z-10"
+      />
 
-          {/* Title */}
-          <h1
-            className="font-extrabold text-[#0B1B3D] tracking-tight line-clamp-2 max-w-2xl"
-            style={{ fontSize: "clamp(28px, 3.4vw, 44px)", lineHeight: 1.1 }}
-          >
-            We&apos;re Here to Help You{" "}
-            <span className="relative inline-block whitespace-nowrap">
-              <span className="relative z-10 text-[#0B1B3D]">Excel.</span>
-              <span
-                className="absolute left-0 right-0 bottom-1 sm:bottom-1.5 h-3.5 sm:h-4 bg-[#FFC93C] -z-0 rounded-xs"
-                aria-hidden="true"
-              />
-            </span>
-          </h1>
-
-          {/* Subtitle */}
-          <p className="text-sm sm:text-base text-[#475569] leading-relaxed max-w-[620px]">
-            Visit our Sector 9 classroom, call Ronak Sir directly, or send an enquiry on WhatsApp for upcoming batch admissions and timings.
-          </p>
-        </div>
-      </section>
-
-      {/* 2. MAIN CONTENT GRID (40px desktop / 28px mobile section gap) */}
-      <main className="max-w-[1240px] mx-auto px-4 sm:px-6 pt-7 sm:pt-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-          {/* Left Column: Contact Cards (7 cols) */}
-          <div className="lg:col-span-7 space-y-5">
-            {/* Address Card */}
-            <div className="p-6 sm:p-7 rounded-3xl bg-white border border-[#E8ECEF] shadow-xs space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#EBF5FF] text-[#0066FF] flex items-center justify-center shrink-0">
-                  <MapPin className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-lg font-bold text-[#0B1B3D]">Classroom Centre</h2>
-                  <p className="text-xs sm:text-sm text-[#475569] leading-relaxed whitespace-pre-line">
-                    {FOOTER_CONTACT.address}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-2 flex flex-wrap gap-3">
-                <a
-                  href={FOOTER_CONTACT.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#0B1B3D] hover:bg-[#152B52] text-white text-xs font-bold transition-colors"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-[#FFB800]" />
-                  <span>Open in Google Maps</span>
-                </a>
-              </div>
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 relative">
+        {/* TOP SECTION: Two-column grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-start relative">
+          {/* LEFT COLUMN: Headings, intro & contact points */}
+          <div className="lg:col-span-5 relative pt-2 sm:pt-4">
+            {/* Subtle Yellow Dot Grid Pattern */}
+            <div
+              aria-hidden="true"
+              className="absolute -top-3 -left-6 grid grid-cols-4 gap-3.5 opacity-40 pointer-events-none select-none -z-10"
+            >
+              {[...Array(20)].map((_, i) => (
+                <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+              ))}
             </div>
 
-            {/* Phone & WhatsApp Card */}
-            <div className="p-6 sm:p-7 rounded-3xl bg-white border border-[#E8ECEF] shadow-xs space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#ECFDF5] text-[#16A34A] flex items-center justify-center shrink-0">
-                  <Phone className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-lg font-bold text-[#0B1B3D]">Direct Helpline &amp; WhatsApp</h2>
-                  <p className="text-xs sm:text-sm text-[#475569]">
-                    Call Ronak Sir or message for instant batch schedules and seat availability.
-                  </p>
-                  <p className="text-base font-extrabold text-[#0B1B3D] pt-1">
-                    {FOOTER_CONTACT.phoneDisplay}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-2 flex flex-wrap gap-3">
-                <a
-                  href={SITE_CONFIG.contact.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#25D366] hover:bg-[#20BA5A] text-[#0A0A0A] text-xs font-bold transition-colors"
-                >
-                  <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                  <span>Chat on WhatsApp</span>
-                </a>
-                <a
-                  href={`tel:${FOOTER_CONTACT.phoneTel}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#0B1B3D] text-xs font-bold transition-colors"
-                >
-                  <Phone className="w-3.5 h-3.5 text-[#64748B]" />
-                  <span>Call Directly</span>
-                </a>
-              </div>
+            {/* Top Label with Yellow Line */}
+            <div className="flex items-center gap-2.5 mb-3 sm:mb-4">
+              <span className="w-8 h-[3px] bg-[#FFB800] rounded-full inline-block" />
+              <span className="text-[11px] sm:text-xs font-bold tracking-widest text-[#64748B] uppercase">
+                Contact Us
+              </span>
             </div>
 
-            {/* Email & Support Card */}
-            <div className="p-6 sm:p-7 rounded-3xl bg-white border border-[#E8ECEF] shadow-xs flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#FAF5FF] text-[#9333EA] flex items-center justify-center shrink-0">
-                <Mail className="w-6 h-6" />
+            {/* Main Heading */}
+            <h1 className="text-4xl sm:text-5xl lg:text-[50px] font-extrabold text-[#0B1B3D] tracking-tight leading-[1.12]">
+              We&apos;re Here{" "}
+              <span className="text-[#FFB800] block sm:inline lg:block">
+                to Help You.
+              </span>
+            </h1>
+
+            {/* Intro Paragraph */}
+            <p className="text-sm sm:text-base text-[#64748B] leading-relaxed mt-4 sm:mt-5 max-w-lg">
+              Have a question about our courses, admissions, results, or anything
+              else? Reach out to us — we&apos;ll be happy to assist you.
+            </p>
+
+            {/* 3 Contact Support Highlights */}
+            <div className="mt-8 sm:mt-10 space-y-5 sm:space-y-6">
+              {/* Highlight 1: Academic Guidance */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#E0F2FE] text-[#0284C7] flex items-center justify-center shrink-0 shadow-xs">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0B1B3D]">
+                    Academic Guidance
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#64748B] mt-0.5 leading-relaxed">
+                    Get help choosing the right course for your goals.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <h2 className="text-lg font-bold text-[#0B1B3D]">Email Address</h2>
-                <p className="text-xs sm:text-sm text-[#475569]">
-                  For admission verification, receipt queries, or institutional partnerships.
-                </p>
-                <a
-                  href={`mailto:${FOOTER_CONTACT.email}`}
-                  className="text-xs sm:text-sm font-bold text-[#0066FF] hover:underline block pt-1"
-                >
-                  {FOOTER_CONTACT.email}
-                </a>
+
+              {/* Highlight 2: Admissions Support */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0 shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0B1B3D]">
+                    Admissions Support
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#64748B] mt-0.5 leading-relaxed">
+                    Information about batches, fees, and enrollment.
+                  </p>
+                </div>
+              </div>
+
+              {/* Highlight 3: General Queries */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#FFE4E6] text-[#E11D48] flex items-center justify-center shrink-0 shadow-xs">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0B1B3D]">
+                    General Queries
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#64748B] mt-0.5 leading-relaxed">
+                    We&apos;re just a message away.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Institute Details & Timings (5 cols) */}
-          <div className="lg:col-span-5 space-y-5">
-            <div className="p-6 sm:p-7 rounded-3xl bg-white border border-[#E8ECEF] shadow-xs space-y-4">
-              <div className="flex items-center gap-2.5">
-                <Clock className="w-5 h-5 text-[#FFB800]" />
-                <h3 className="text-base font-bold text-[#0B1B3D]">Classroom Timings</h3>
-              </div>
+          {/* RIGHT COLUMN: Form card, handwritten note, and plant/books decoration */}
+          <div className="lg:col-span-7 relative">
+            {/* Soft decorative light blue circle behind right card */}
+            <div
+              aria-hidden="true"
+              className="w-72 h-72 sm:w-80 sm:h-80 rounded-full bg-[#E0F2FE]/70 absolute -top-8 -right-6 pointer-events-none -z-10"
+            />
 
-              <div className="divide-y divide-[#F1F5F9] text-xs text-[#334155]">
-                <div className="py-2.5 flex items-center justify-between">
-                  <span className="font-semibold text-[#0B1B3D]">Monday – Saturday</span>
-                  <span className="text-[#64748B]">3:30 PM – 8:00 PM</span>
-                </div>
-                <div className="py-2.5 flex items-center justify-between">
-                  <span className="font-semibold text-[#0B1B3D]">Sunday Mock Series</span>
-                  <span className="text-[#64748B]">9:00 AM – 12:00 PM</span>
-                </div>
-                <div className="py-2.5 flex items-center justify-between">
-                  <span className="font-semibold text-[#0B1B3D]">Doubt Clearances</span>
-                  <span className="text-[#64748B]">Daily after batch</span>
-                </div>
+            {/* Handwritten Sticky Note (Top-Right of card on desktop) */}
+            <div
+              aria-hidden="true"
+              className="hidden md:flex flex-col items-start absolute -top-8 sm:-top-10 right-4 sm:right-6 lg:-right-4 rotate-[-4deg] select-none z-20 pointer-events-none"
+            >
+              <div className="font-[family-name:var(--font-caveat)] text-2xl sm:text-[28px] font-bold text-[#1E293B] leading-[1.05]">
+                Learn
+                <br />
+                Practice
+                <br />
+                Score Higher
               </div>
+              {/* Yellow brush stroke underline */}
+              <svg
+                className="w-24 h-3.5 text-[#FFB800] -mt-1 ml-2"
+                viewBox="0 0 100 14"
+                fill="none"
+              >
+                <path
+                  d="M3 10C28 3 72 2 97 9"
+                  stroke="currentColor"
+                  strokeWidth="3.2"
+                  strokeLinecap="round"
+                />
+              </svg>
             </div>
 
-            <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-[#0B1B3D] to-[#152B52] text-white shadow-xs space-y-3">
-              <h3 className="text-base font-bold text-white">Sunday Mock Test Registration</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Non-enrolled students can attempt our open board-simulation mock tests at the Sector 9 center by booking a slot in advance.
-              </p>
-              <div className="pt-2">
-                <a
-                  href={SITE_CONFIG.contact.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FFB800] hover:bg-[#FFC933] text-[#0A0A0A] text-xs font-bold transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Reserve Mock Seat</span>
-                </a>
-              </div>
-            </div>
+            {/* Plant & Books Illustration (Right corner on wide screens) */}
+            <ContactDecoration />
+
+            {/* The Contact Form */}
+            <ContactFormClient />
           </div>
         </div>
-      </main>
+
+        {/* BOTTOM SECTION: Our Location Card with Map */}
+        <ContactLocationCard />
+      </div>
     </div>
   );
 }
-

@@ -24,6 +24,30 @@ const nextConfig = {
       },
     },
   },
+  async redirects() {
+    return [
+      {
+        source: "/lectures",
+        destination: "/",
+        permanent: true,
+      },
+      {
+        source: "/lectures/:path*",
+        destination: "/",
+        permanent: true,
+      },
+      {
+        source: "/blog",
+        destination: "/",
+        permanent: true,
+      },
+      {
+        source: "/blog/:path*",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

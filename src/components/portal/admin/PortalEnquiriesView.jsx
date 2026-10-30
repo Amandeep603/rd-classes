@@ -6,6 +6,7 @@ import {
   Search,
   UserPlus,
   Phone,
+  Mail,
   Clock,
   BookOpen,
   CheckCircle2,
@@ -32,6 +33,8 @@ const SOURCE_LABELS = {
   "course-page": { label: "Course Page", color: "bg-purple-50 text-purple-700 border-purple-200" },
   "lecture-lock": { label: "Lecture Lock", color: "bg-rose-50 text-rose-700 border-rose-200" },
   "notes-lock": { label: "Notes Lock", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  "Contact page": { label: "Contact page", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  "contact-page": { label: "Contact page", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
 function formatRelativeTime(dateInput) {
@@ -257,14 +260,24 @@ export default function PortalEnquiriesView({
                         item.status === "new" ? "bg-amber-50/25" : ""
                       }`}
                     >
-                      {/* Course */}
+                      {/* Course / Subject */}
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900 line-clamp-1 max-w-[200px]">
-                          {course?.title || "Course"}
+                          {course?.title || item.subject || "General Enquiry"}
                         </div>
+                        {item.subject && course?.title && (
+                          <span className="text-[10px] text-amber-700 font-bold block">
+                            {item.subject}
+                          </span>
+                        )}
                         {course?.classLabel && (
                           <span className="text-[10px] text-slate-400 font-medium">
                             {course.classLabel}
+                          </span>
+                        )}
+                        {!course && !item.subject && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            General
                           </span>
                         )}
                       </td>
@@ -278,6 +291,12 @@ export default function PortalEnquiriesView({
                           <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
                             <Phone className="w-3 h-3 text-slate-400" />
                             <span>{item.phone}</span>
+                          </div>
+                        )}
+                        {item.email && (
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <Mail className="w-3 h-3 text-slate-400" />
+                            <span className="truncate max-w-[140px]">{item.email}</span>
                           </div>
                         )}
                         {item.studentId && (
@@ -353,12 +372,12 @@ export default function PortalEnquiriesView({
                           <div
                             onClick={() => {
                               setEditingNoteId(item._id);
-                              setNoteDraft(item.note || "");
+                              setNoteDraft(item.note || item.message || "");
                             }}
-                            className="text-slate-600 hover:text-slate-900 cursor-pointer truncate max-w-[180px] p-1 rounded hover:bg-slate-100"
-                            title={item.note || "Click to add note"}
+                            className="text-slate-600 hover:text-slate-900 cursor-pointer truncate max-w-[200px] p-1 rounded hover:bg-slate-100"
+                            title={item.note || item.message || "Click to add note"}
                           >
-                            {item.note || (
+                            {item.note || item.message || (
                               <span className="text-slate-400 italic">Click to add note</span>
                             )}
                           </div>

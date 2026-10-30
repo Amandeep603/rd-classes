@@ -53,8 +53,8 @@ export const PORTAL_DATA = {
       href: "/student/login",
     },
     secondary: {
-      label: "Browse Lecture Library",
-      href: "/lectures",
+      label: "Explore Courses",
+      href: "/courses",
     },
   },
   chips: [

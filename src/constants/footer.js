@@ -11,10 +11,10 @@ export const FOOTER_COURSES = [
 
 export const FOOTER_QUICK_LINKS = [
   { label: "About Ronak Sir", href: "/about" },
-  { label: "Results & Toppers", href: "#results" },
-  { label: "Classroom Gallery", href: "#gallery" },
+  { label: "Results & Toppers", href: "/results" },
+  { label: "Classroom Gallery", href: "/gallery" },
   { label: "Chapter Notes & Formulas", href: "/notes" },
-  { label: "Accountancy Blog", href: "/blog" },
+  { label: "Contact Us", href: "/contact" },
   {
     label: "Student Portal Login",
     href: "/student/login",

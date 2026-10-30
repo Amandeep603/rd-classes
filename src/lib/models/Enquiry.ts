@@ -5,7 +5,8 @@ const enquirySchema = new Schema(
     courseId: {
       type: Schema.Types.ObjectId,
       ref: "Course",
-      required: true,
+      default: null,
+      required: false,
       index: true,
     },
     studentId: {
@@ -24,6 +25,21 @@ const enquirySchema = new Schema(
       default: "",
       trim: true,
     },
+    email: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    subject: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    message: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     note: {
       type: String,
       default: "",
@@ -31,8 +47,7 @@ const enquirySchema = new Schema(
     },
     source: {
       type: String,
-      enum: ["course-page", "lecture-lock", "notes-lock"],
-      default: "course-page",
+      default: "Contact page",
       index: true,
     },
     status: {

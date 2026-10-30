@@ -7,28 +7,55 @@ import { Enquiry } from "@/lib/models/Enquiry";
 import { getCurrentStudent } from "@/server/auth/session.js";
 import { createAdminNotification } from "@/server/services/notificationService.js";
 
-const enquiryInputSchema = z.object({
+// Validation schema for general course access dialog
+const courseAccessInputSchema = z.object({
   courseId: z.string().min(1, "Course ID is required"),
   studentId: z.string().nullable().optional(),
   name: z.string().optional().default(""),
   phone: z.string().optional().default(""),
   note: z.string().optional().default(""),
-  source: z.enum(["course-page", "lecture-lock", "notes-lock"]).default("course-page"),
+  source: z.string().default("course-page"),
 });
 
-// In-memory sliding window rate limiter (15 requests per minute per IP)
-const ipMap = new Map();
-function checkEnquiryRateLimit(ip) {
+// Validation schema for Contact page
+const contactPageInputSchema = z.object({
+  name: z.string().min(2, "Please enter your name"),
+  phone: z
+    .string()
+    .transform((val) => val.replace(/\D/g, ""))
+    .refine((val) => val.length === 10, "Please enter a valid 10-digit Indian phone number"),
+  email: z.string().email("Please enter a valid email address"),
+  subject: z.string().min(1, "Please select a subject"),
+  message: z.string().min(10, "Message must be at least 10 characters long"),
+  website: z.string().optional(), // Honeypot field
+  source: z.string().default("Contact page"),
+});
+
+// In-memory rate limiter for general course access (15 requests per minute per IP)
+const accessIpMap = new Map();
+function checkCourseAccessRateLimit(ip) {
   const now = Date.now();
   const windowMs = 60 * 1000;
   const max = 15;
-  const history = ipMap.get(ip) || [];
+  const history = accessIpMap.get(ip) || [];
   const recent = history.filter((t) => now - t < windowMs);
-  if (recent.length >= max) {
-    return false;
-  }
+  if (recent.length >= max) return false;
   recent.push(now);
-  ipMap.set(ip, recent);
+  accessIpMap.set(ip, recent);
+  return true;
+}
+
+// In-memory rate limiter for Contact Page (5 requests per hour per IP)
+const contactIpMap = new Map();
+function checkContactRateLimit(ip) {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000; // 1 hour
+  const max = 5;
+  const history = contactIpMap.get(ip) || [];
+  const recent = history.filter((t) => now - t < windowMs);
+  if (recent.length >= max) return false;
+  recent.push(now);
+  contactIpMap.set(ip, recent);
   return true;
 }
 
@@ -38,15 +65,88 @@ export async function POST(request) {
     const forwarded = headersList.get("x-forwarded-for");
     const ip = forwarded ? forwarded.split(",")[0].trim() : "127.0.0.1";
 
-    if (!checkEnquiryRateLimit(ip)) {
+    const body = await request.json().catch(() => ({}));
+
+    // Distinguish Contact page submission vs course-specific access request
+    const isContactPage =
+      body.source === "Contact page" ||
+      body.source === "contact-page" ||
+      (Boolean(body.subject) && Boolean(body.message) && !body.courseId);
+
+    await connectDB();
+
+    if (isContactPage) {
+      // 1. Contact Page Rate Limiting (5 per hour)
+      if (!checkContactRateLimit(ip)) {
+        return NextResponse.json(
+          { error: "Too many enquiries from your IP. Please try again in an hour." },
+          { status: 429 }
+        );
+      }
+
+      // 2. Honeypot check (if filled, bot detected -> silently return success)
+      if (body.website && body.website.trim() !== "") {
+        return NextResponse.json({
+          success: true,
+          message: "Thank you! We'll get back to you shortly.",
+        });
+      }
+
+      // 3. Validation
+      const parsed = contactPageInputSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: parsed.error.issues[0]?.message || "Invalid input" },
+          { status: 400 }
+        );
+      }
+
+      const { name, phone, email, subject, message } = parsed.data;
+
+      // 4. Save Enquiry
+      const enquiry = await Enquiry.create({
+        courseId: null,
+        studentId: null,
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+        note: message.trim(),
+        source: "Contact page",
+        status: "new",
+        createdAt: new Date(),
+      });
+
+      // 5. Notify admin in real-time
+      try {
+        await createAdminNotification({
+          type: "enquiry",
+          title: "New Contact Enquiry",
+          message: `${name.trim()} sent an enquiry: "${subject.trim()}"`,
+          link: "/admin/enquiries",
+          entityId: enquiry._id.toString(),
+        });
+      } catch (nErr) {
+        console.warn("Failed to create admin notification for enquiry:", nErr);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Thank you! We'll get back to you shortly.",
+        enquiryId: enquiry._id.toString(),
+      });
+    }
+
+    // Otherwise, Course Access Request
+    if (!checkCourseAccessRateLimit(ip)) {
       return NextResponse.json(
         { error: "Too many enquiries. Please try again in a minute." },
         { status: 429 }
       );
     }
 
-    const body = await request.json().catch(() => ({}));
-    const parsed = enquiryInputSchema.safeParse(body);
+    const parsed = courseAccessInputSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message || "Invalid input" },
@@ -57,14 +157,11 @@ export async function POST(request) {
     const { courseId, source, note } = parsed.data;
     let { name, phone, studentId } = parsed.data;
 
-    await connectDB();
-
     const course = await Course.findById(courseId).lean();
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Auto-detect logged-in student if not explicitly provided
     if (!studentId || !name) {
       const auth = await getCurrentStudent();
       if (auth?.user) {
@@ -80,11 +177,11 @@ export async function POST(request) {
       name: (name || "").trim(),
       phone: (phone || "").trim(),
       note: (note || "").trim(),
-      source,
+      source: source || "course-page",
       status: "new",
+      createdAt: new Date(),
     });
 
-    // Notify admin in real-time
     try {
       await createAdminNotification({
         type: "enquiry",
@@ -108,4 +205,3 @@ export async function POST(request) {
     );
   }
 }
-

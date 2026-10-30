@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { SITE_CONFIG } from "@/constants/site";
 import MobileMenu from "./MobileMenu";
 import NavbarAuthPill from "./NavbarAuthPill";
@@ -22,9 +22,7 @@ import NavbarAuthPill from "./NavbarAuthPill";
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [enquireHref, setEnquireHref] = useState(SITE_CONFIG.cta.enquire.href);
-  const dropdownRef = useRef(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -64,17 +62,6 @@ export default function Navbar() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Close mobile drawer on desktop resize
@@ -133,47 +120,6 @@ export default function Navbar() {
             }}
           >
             {SITE_CONFIG.navLinks.map((link) => {
-              if (link.children && link.children.length > 0) {
-                // Dropdown link (e.g., 'More')
-                return (
-                  <div key={link.label} className="relative" ref={dropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setDropdownOpen((prev) => !prev)}
-                      className="flex items-center gap-1 font-medium text-white/90 hover:text-[#FFB800] transition-colors py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] rounded-sm cursor-pointer"
-                      style={{
-                        fontSize: "15px",
-                      }}
-                      aria-expanded={dropdownOpen}
-                      aria-haspopup="true"
-                    >
-                      <span>{link.label}</span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                          dropdownOpen ? "rotate-180 text-[#FFB800]" : ""
-                        }`}
-                      />
-                    </button>
-
-                    {/* Dropdown Menu: Solid dark background with white text */}
-                    {dropdownOpen && (
-                      <div className="absolute top-full left-0 mt-3 w-44 py-2 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-col z-[1010]">
-                        {link.children.map((child) => (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            onClick={() => setDropdownOpen(false)}
-                            className="px-4 py-2.5 text-sm font-medium text-white/90 hover:text-[#FFB800] hover:bg-white/5 transition-colors"
-                          >
-                            {child.label}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
               const isActive =
                 link.href === "/"
                   ? pathname === "/"

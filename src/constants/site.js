@@ -13,20 +13,11 @@ export const SITE_CONFIG = {
   navLinks: [
     { label: "Home", href: "/" },
     { label: "Courses", href: "/courses" },
-    { label: "Lectures", href: "/lectures" },
     { label: "Notes", href: "/notes" },
     { label: "Results", href: "/results" },
     { label: "Gallery", href: "/gallery" },
     { label: "About", href: "/about" },
-
-    {
-      label: "More",
-      href: "#",
-      children: [
-        { label: "Blog", href: "/blog" },
-        { label: "Contact", href: "/contact" },
-      ],
-    },
+    { label: "Contact Us", href: "/contact" },
   ],
 
   contact: {
