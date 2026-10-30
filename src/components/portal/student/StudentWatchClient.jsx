@@ -35,6 +35,7 @@ export default function StudentWatchClient({
   chapterLectures = [],
   notes = [],
   isLocked = false,
+  notEnrolled = false,
   whatsappNumber = "918368545620",
 }) {
   const router = useRouter();
@@ -118,25 +119,36 @@ export default function StudentWatchClient({
           {/* Video Player or Locked Screen */}
           {isLocked ? (
             <div className="relative aspect-video w-full rounded-[22px] bg-gradient-to-br from-[#0B2A4A] to-[#041324] border border-[#1E3A5F] p-8 flex flex-col items-center justify-center text-center shadow-2xl">
-              <div className="w-16 h-16 rounded-full bg-[#FFC93C]/15 border border-[#FFC93C]/30 text-[#FFC93C] flex items-center justify-center mb-4 shadow-lg">
-                <Lock className="w-8 h-8" />
+              <div className="w-14 h-14 rounded-full bg-[#FFC93C]/15 border border-[#FFC93C]/30 text-[#FFC93C] flex items-center justify-center mb-4 shadow-lg">
+                <Lock className="w-7 h-7" />
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                This lecture is locked
+                {notEnrolled ? "This lecture is not part of your enrolled courses" : "This lecture is locked"}
               </h2>
               <p className="mt-2 text-sm text-[#94A3B8] max-w-md">
-                This lecture is part of{" "}
-                <span className="font-bold text-white">{courseTitle}</span>. Contact RD Classes on WhatsApp to enroll and unlock.
+                {notEnrolled
+                  ? `You are not enrolled in ${courseTitle}. Contact RD Classes on WhatsApp to add this course.`
+                  : `This lecture is part of ${courseTitle}. Contact RD Classes on WhatsApp to enroll and unlock.`}
               </p>
               <a
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-6 inline-flex items-center gap-2.5 h-[48px] rounded-full bg-[#16A34A] hover:bg-[#15803D] px-6 text-sm font-bold text-white shadow-[0_4px_14px_rgba(22,163,74,0.4)] transition-all active:scale-98"
+                className="mt-5 inline-flex items-center gap-2 h-[42px] rounded-full bg-[#16A34A] hover:bg-[#15803D] px-5 text-xs font-bold text-white shadow-xs transition-all active:scale-98"
               >
                 <MessageCircle className="h-4 w-4 fill-white" />
-                <span>Contact RD Classes on WhatsApp</span>
+                <span>Contact RD Classes</span>
               </a>
+            </div>
+          ) : !vimeoId ? (
+            <div className="relative aspect-video w-full rounded-[22px] bg-gradient-to-br from-[#0B2A4A] to-[#041324] border border-[#1E3A5F] p-8 flex flex-col items-center justify-center text-center shadow-2xl">
+              <div className="w-14 h-14 rounded-full bg-[#FFB800]/20 text-[#FFB800] flex items-center justify-center mb-3">
+                <Clock className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Coming soon</h3>
+              <p className="mt-1 text-sm text-[#94A3B8]">
+                This lecture video will appear here as soon as RD Classes uploads it.
+              </p>
             </div>
           ) : (
             <VimeoPlayer

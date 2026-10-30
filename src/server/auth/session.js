@@ -26,14 +26,15 @@ async function resolveCurrentPath(defaultFallback) {
 }
 
 /**
- * Returns detailed auth status for admin session.
+ * Returns fresh authenticated admin user from MongoDB.
+ * Reads ONLY rd_admin_session cookie.
  * Memoized per request using React cache.
  */
-export const getAdminAuthStatus = cache(async () => {
+export const getCurrentAdmin = cache(async () => {
   await connection();
   const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
   if (!adminToken) {
-    return { authenticated: false, reason: "no_session", hadCookie: false };
+    return null;
   }
 
   await connectDB();
@@ -43,17 +44,17 @@ export const getAdminAuthStatus = cache(async () => {
 
   if (!session || session.revoked || new Date(session.expiresAt) <= now) {
     if (session) {
-      await Session.deleteOne({ _id: session._id });
+      await Session.deleteOne({ _id: session._id }).catch(() => {});
     }
     await deleteCookie(COOKIE_NAMES.ADMIN_SESSION);
-    return { authenticated: false, reason: "session_expired", hadCookie: true };
+    return null;
   }
 
   const user = await User.findById(session.userId).lean();
   if (!user || user.role !== "admin" || user.status === "blocked") {
-    await Session.deleteOne({ _id: session._id });
+    await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.ADMIN_SESSION);
-    return { authenticated: false, reason: "unauthorized", hadCookie: true };
+    return null;
   }
 
   // Sliding renewal: extend expiresAt at most once per hour on activity
@@ -63,7 +64,7 @@ export const getAdminAuthStatus = cache(async () => {
     await Session.updateOne(
       { _id: session._id },
       { $set: { lastSeenAt: now, expiresAt: newExpiresAt } }
-    );
+    ).catch(() => {});
   }
 
   return {
@@ -73,7 +74,7 @@ export const getAdminAuthStatus = cache(async () => {
       name: user.name,
       loginId: user.loginId,
       email: user.email || "",
-      role: user.role,
+      role: "admin",
       status: user.status,
       phone: user.phone || "",
     },
@@ -85,14 +86,19 @@ export const getAdminAuthStatus = cache(async () => {
 });
 
 /**
- * Returns detailed auth status for student session, including revocation reason.
+ * Returns fresh authenticated student user from MongoDB.
+ * Reads ONLY rd_student_session (falling back to legacy rd_session).
+ * Never trusts name, courses, or permissions stored in the token.
  * Memoized per request using React cache.
  */
-export const getStudentAuthStatus = cache(async () => {
+export const getCurrentStudent = cache(async () => {
   await connection();
-  const studentToken = await getCookie(COOKIE_NAMES.SESSION);
+  const studentToken =
+    (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
+    (await getCookie(COOKIE_NAMES.LEGACY_SESSION));
+
   if (!studentToken) {
-    return { authenticated: false, reason: "no_session", hadCookie: false };
+    return null;
   }
 
   await connectDB();
@@ -102,17 +108,19 @@ export const getStudentAuthStatus = cache(async () => {
 
   if (!session || session.revoked || new Date(session.expiresAt) <= now) {
     if (session) {
-      await Session.deleteOne({ _id: session._id });
+      await Session.deleteOne({ _id: session._id }).catch(() => {});
     }
-    await deleteCookie(COOKIE_NAMES.SESSION);
-    return { authenticated: false, reason: "session_expired", hadCookie: true };
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    return null;
   }
 
   const user = await User.findById(session.userId).lean();
-  if (!user || user.status === "blocked") {
-    await Session.deleteOne({ _id: session._id });
-    await deleteCookie(COOKIE_NAMES.SESSION);
-    return { authenticated: false, reason: "account_blocked", hadCookie: true };
+  if (!user || user.role !== "student" || user.status === "blocked") {
+    await Session.deleteOne({ _id: session._id }).catch(() => {});
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    return null;
   }
 
   const deviceApproved = await Device.exists({
@@ -122,9 +130,10 @@ export const getStudentAuthStatus = cache(async () => {
   });
 
   if (!deviceApproved) {
-    await Session.deleteOne({ _id: session._id });
-    await deleteCookie(COOKIE_NAMES.SESSION);
-    return { authenticated: false, reason: "device_revoked", hadCookie: true };
+    await Session.deleteOne({ _id: session._id }).catch(() => {});
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    return null;
   }
 
   // Update lastSeenAt throttled to once per 5 minutes; extend expiresAt if sliding window elapsed
@@ -134,19 +143,7 @@ export const getStudentAuthStatus = cache(async () => {
     if (now.getTime() - lastSeen > ONE_HOUR_MS) {
       updateFields.expiresAt = new Date(now.getTime() + COOKIE_DURATIONS.SESSION * 1000);
     }
-    await Session.updateOne(
-      { _id: session._id },
-      { $set: updateFields }
-    );
-
-    // Delete expired/revoked session records older than 7 days
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    Session.deleteMany({
-      $or: [
-        { expiresAt: { $lt: sevenDaysAgo } },
-        { revoked: true, updatedAt: { $lt: sevenDaysAgo } },
-      ],
-    }).catch(() => {});
+    await Session.updateOne({ _id: session._id }, { $set: updateFields }).catch(() => {});
   }
 
   return {
@@ -156,13 +153,14 @@ export const getStudentAuthStatus = cache(async () => {
       name: user.name,
       loginId: user.loginId,
       email: user.email || "",
-      role: user.role,
+      role: "student",
       status: user.status,
-      deviceLimit: user.deviceLimit,
-      deviceCount: user.deviceCount,
-      mustChangePassword: user.mustChangePassword,
       phone: user.phone || "",
       className: user.className || "12",
+      validUntil: user.validUntil || null,
+      courses: user.courses || [],
+      enrolledCourses: user.enrolledCourses || [],
+      createdAt: user.createdAt,
     },
     session: {
       _id: session._id.toString(),
@@ -172,18 +170,51 @@ export const getStudentAuthStatus = cache(async () => {
 });
 
 /**
+ * Returns detailed auth status for admin session.
+ * Memoized per request using React cache.
+ */
+export const getAdminAuthStatus = cache(async () => {
+  const admin = await getCurrentAdmin();
+  if (!admin) {
+    const hadCookie = Boolean(await getCookie(COOKIE_NAMES.ADMIN_SESSION));
+    return { authenticated: false, reason: hadCookie ? "session_expired" : "no_session", hadCookie };
+  }
+  return {
+    authenticated: true,
+    user: admin.user,
+    session: admin.session,
+  };
+});
+
+/**
+ * Returns detailed auth status for student session, including revocation reason.
+ * Memoized per request using React cache.
+ */
+export const getStudentAuthStatus = cache(async () => {
+  const student = await getCurrentStudent();
+  if (!student) {
+    const hadCookie = Boolean(
+      (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
+      (await getCookie(COOKIE_NAMES.LEGACY_SESSION))
+    );
+    return { authenticated: false, reason: hadCookie ? "session_expired" : "no_session", hadCookie };
+  }
+  return {
+    authenticated: true,
+    user: student.user,
+    session: student.session,
+  };
+});
+
+/**
  * Returns current authenticated admin or student user without throwing.
- * Checks admin first, then student.
+ * DEPRECATED: Student routes must call getCurrentStudent(); Admin routes must call getCurrentAdmin().
  */
 export const getCurrentUser = cache(async () => {
-  const adminAuth = await getAdminAuthStatus();
-  if (adminAuth.authenticated) {
-    return { user: adminAuth.user, session: adminAuth.session };
-  }
-  const studentAuth = await getStudentAuthStatus();
-  if (studentAuth.authenticated) {
-    return { user: studentAuth.user, session: studentAuth.session };
-  }
+  const student = await getCurrentStudent();
+  if (student) return student;
+  const admin = await getCurrentAdmin();
+  if (admin) return admin;
   return null;
 });
 
@@ -193,57 +224,67 @@ export const getCurrentUser = cache(async () => {
  * NEVER throws an error.
  */
 export async function requireAdmin() {
-  const status = await getAdminAuthStatus();
-  if (!status.authenticated) {
+  const admin = await getCurrentAdmin();
+  if (!admin) {
     const currentPath = await resolveCurrentPath("/admin");
     if (currentPath.startsWith("/api/")) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized", reason: status.reason || "unauthorized" },
+        { success: false, error: "Unauthorized", reason: "unauthorized" },
         { status: 401 }
       );
     }
     const target = `/admin-login?reason=expired&next=${encodeURIComponent(currentPath)}`;
-    if (status.hadCookie) {
+    const hadCookie = Boolean(await getCookie(COOKIE_NAMES.ADMIN_SESSION));
+    if (hadCookie) {
       redirect(`/api/auth/clear?cookie=admin&to=${encodeURIComponent(target)}`);
     } else {
       redirect(target);
     }
   }
 
-  return { user: status.user, session: status.session };
+  return admin;
 }
 
 /**
  * For page components: verifies student session.
- * Redirects to /student-login (or /api/auth/clear) if unauthenticated.
+ * If /student/* is opened with only an admin cookie, redirect to student login with "Please log in as a student".
+ * NEVER renders student UI using admin data.
  * NEVER throws an error.
  */
 export async function requireStudent() {
-  const status = await getStudentAuthStatus();
-  if (!status.authenticated) {
+  const student = await getCurrentStudent();
+  if (!student) {
     const currentPath = await resolveCurrentPath("/student");
     if (currentPath.startsWith("/api/")) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized", reason: status.reason || "unauthorized" },
+        { success: false, error: "Unauthorized", reason: "unauthorized" },
         { status: 401 }
       );
     }
-    let target = `/student-login?reason=expired&next=${encodeURIComponent(currentPath)}`;
 
-    if (status.reason === "device_revoked") {
-      target = "/student-login?error=device_revoked";
-    } else if (status.reason === "account_blocked") {
-      target = "/student-login?error=account_blocked";
+    // Check if user is logged in ONLY as admin in this browser
+    const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
+    if (adminToken) {
+      const target = `/student-login?reason=admin_logged_in&message=${encodeURIComponent(
+        "Please log in as a student"
+      )}&next=${encodeURIComponent(currentPath)}`;
+      redirect(target);
     }
 
-    if (status.hadCookie) {
+    const hadStudentCookie = Boolean(
+      (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
+      (await getCookie(COOKIE_NAMES.LEGACY_SESSION))
+    );
+
+    const target = `/student-login?reason=expired&next=${encodeURIComponent(currentPath)}`;
+    if (hadStudentCookie) {
       redirect(`/api/auth/clear?cookie=student&to=${encodeURIComponent(target)}`);
     } else {
       redirect(target);
     }
   }
 
-  return { user: status.user, session: status.session };
+  return student;
 }
 
 /**
@@ -283,10 +324,13 @@ export async function requireAdminApi() {
  * NEVER throws an error.
  */
 export async function requireStudentApi() {
-  const status = await getStudentAuthStatus();
-  if (!status.authenticated) {
+  const student = await getCurrentStudent();
+  if (!student) {
+    const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
+    const reason = adminToken ? "admin_logged_in" : "unauthorized";
+    const errorMsg = adminToken ? "Please log in as a student" : "Unauthorized";
     const res = NextResponse.json(
-      { success: false, error: "Unauthorized", reason: status.reason || "unauthorized" },
+      { success: false, error: errorMsg, reason },
       { status: 401 }
     );
     res.authenticated = false;
@@ -298,12 +342,5 @@ export async function requireStudentApi() {
     return res;
   }
 
-  return {
-    authenticated: true,
-    authorized: true,
-    ok: true,
-    user: status.user,
-    session: status.session,
-    response: null,
-  };
+  return student;
 }

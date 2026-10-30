@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { Lecture } from "@/server/db/models/Lecture.js";
@@ -9,7 +9,7 @@ import { Test } from "@/server/db/models/Test.js";
 export const instant = false;
 
 export async function GET(request) {
-  const auth = await getCurrentUser();
+  const auth = await getCurrentStudent();
   if (!auth?.user || auth.user.role !== "student") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

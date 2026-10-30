@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentAdmin } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
 import { Device } from "@/lib/models/Device";
 import { getAdminNotifications } from "@/server/services/notificationService.js";
 
 export async function GET(request) {
   try {
-    const auth = await getCurrentUser();
+    const auth = await getCurrentAdmin();
     if (!auth || auth.user?.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

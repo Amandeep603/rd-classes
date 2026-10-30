@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
@@ -23,6 +24,8 @@ import {
 import { getCachedSettings } from "@/server/services/settingService";
 import CourseDetailClient from "@/components/courses/CourseDetailClient";
 import { SITE_CONFIG } from "@/constants/site";
+
+export const instant = false;
 
 export async function generateStaticParams() {
   try {

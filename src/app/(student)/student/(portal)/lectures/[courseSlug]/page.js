@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/lib/models/Lecture";
 
@@ -8,7 +8,7 @@ export default async function CourseLecturesSlugPage({ params }) {
   await connection();
   const resolvedParams = await params;
   const courseSlug = resolvedParams?.courseSlug;
-  const auth = await getCurrentUser();
+  const auth = await requireStudent();
   if (!auth?.user) return null;
 
   await connectDB();

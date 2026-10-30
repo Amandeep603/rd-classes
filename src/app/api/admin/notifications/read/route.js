@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentAdmin } from "@/server/auth/session.js";
 import { markNotificationsAsRead } from "@/server/services/notificationService.js";
 
 export async function POST(req) {
   try {
-    const auth = await getCurrentUser();
+    const auth = await getCurrentAdmin();
     if (!auth || auth.user?.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

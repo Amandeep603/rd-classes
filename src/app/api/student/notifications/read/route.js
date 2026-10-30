@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Enrollment } from "@/server/db/models/Enrollment.js";
 import {
@@ -8,7 +8,7 @@ import {
 } from "@/server/services/notificationService.js";
 
 export async function POST(request) {
-  const auth = await getCurrentUser();
+  const auth = await getCurrentStudent();
   if (!auth?.user || auth.user.role !== "student") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

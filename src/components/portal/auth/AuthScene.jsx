@@ -54,11 +54,16 @@ export default function AuthScene({
   const searchParams = useSearchParams();
   const urlError = searchParams?.get("error");
   const reason = searchParams?.get("reason");
+  const urlMessage = searchParams?.get("message");
   const nextParam = searchParams?.get("next") || searchParams?.get("from") || "";
 
   let urlErrorMessage = null;
   let isExpiredNotice = false;
-  if (reason === "expired" || urlError === "session_expired") {
+  if (urlMessage) {
+    urlErrorMessage = urlMessage;
+  } else if (reason === "admin_logged_in" || urlError === "admin_logged_in") {
+    urlErrorMessage = "Please log in as a student";
+  } else if (reason === "expired" || urlError === "session_expired") {
     urlErrorMessage = "Your session expired. Please log in again.";
     isExpiredNotice = true;
   } else if (urlError === "device_revoked") {

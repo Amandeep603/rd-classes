@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { Progress } from "@/server/db/models/Progress.js";
@@ -12,8 +12,8 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug");
 
-  const auth = await getCurrentUser();
-  if (!auth || auth.user.role !== "student") {
+  const auth = await getCurrentStudent();
+  if (!auth?.user) {
     return NextResponse.json(
       {
         authenticated: false,
@@ -121,10 +121,9 @@ export async function GET(request) {
   }
 
   // Enrolled student: fetch progress and course notes
-  const [totalLecturesWithVideo, progressRecords, courseNotes] = await Promise.all([
+  const [totalLecturesCount, progressRecords, courseNotes] = await Promise.all([
     Lecture.countDocuments({
       courseId: course._id,
-      vimeoId: { $exists: true, $ne: "" },
       status: { $ne: "archived" },
     }),
     Progress.find({
@@ -155,8 +154,8 @@ export async function GET(request) {
   });
 
   const percent =
-    totalLecturesWithVideo > 0
-      ? Math.min(100, Math.round((completedIds.length / totalLecturesWithVideo) * 100))
+    totalLecturesCount > 0
+      ? Math.min(100, Math.round((completedIds.length / totalLecturesCount) * 100))
       : 0;
 
   // Find last watched lecture
@@ -177,7 +176,7 @@ export async function GET(request) {
         phone: access.student.phone || "",
       },
       enrolledCourseIds: access.enrolledCourseIds,
-      totalLectures: totalLecturesWithVideo,
+      totalLectures: totalLecturesCount,
       completedLectures: completedIds.length,
       progressPercent: percent,
       lastWatchedLectureId,

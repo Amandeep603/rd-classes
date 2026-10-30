@@ -4,8 +4,10 @@ import { cookies } from "next/headers";
 const IS_PROD = process.env.NODE_ENV === "production";
 
 export const COOKIE_NAMES = {
-  SESSION: "rd_session",
   ADMIN_SESSION: "rd_admin_session",
+  STUDENT_SESSION: "rd_student_session",
+  SESSION: "rd_student_session",
+  LEGACY_SESSION: "rd_session",
   DEVICE: "rd_device",
 };
 

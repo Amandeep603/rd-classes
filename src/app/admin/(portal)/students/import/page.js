@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import CSVImportWizard from "@/components/portal/admin/CSVImportWizard";
@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 async function ImportContent() {
-  await getCurrentUser();
+  await requireAdmin();
   await connectDB();
 
   const availableCourses = await Course.find({ published: true })

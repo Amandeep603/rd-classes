@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/server/db/models/Lecture.js";
 import { getAuthorizedLecture, isLectureFree } from "@/server/services/lectureService.js";
@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
   }
 
   const isFree = isLectureFree(lecture);
-  const auth = await getCurrentUser();
+  const auth = await getCurrentStudent();
 
   let isEnrolled = false;
   let studentMeta = null;
@@ -37,8 +37,16 @@ export async function GET(request, { params }) {
 
   // ACCESS RULE: Can be watched if isFree === true (anyone) OR enrolled student
   if (!isFree && !isEnrolled) {
+    const errorMessage = auth?.user
+      ? "This lecture is not part of your enrolled courses"
+      : "Forbidden. This lecture is for enrolled students.";
     return NextResponse.json(
-      { error: "Forbidden. This lecture is for enrolled students.", isFree: false, locked: true },
+      {
+        error: errorMessage,
+        notEnrolled: Boolean(auth?.user),
+        isFree: false,
+        locked: true,
+      },
       {
         status: 403,
         headers: { "Cache-Control": "private, no-store, max-age=0" },

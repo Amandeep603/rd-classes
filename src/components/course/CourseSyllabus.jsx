@@ -322,7 +322,7 @@ export default function CourseSyllabus({
                                         className="h-8 px-3.5 rounded-full bg-[#FFC93C] hover:bg-[#FFB800] text-[#0B2A4A] font-bold text-[12px] flex items-center gap-1.5 shadow-2xs transition-transform active:scale-95"
                                       >
                                         <Play className="w-3 h-3 fill-[#0B2A4A]" />
-                                        <span>Watch</span>
+                                        <span>Play</span>
                                       </Link>
                                     ) : (
                                       <button
@@ -353,12 +353,8 @@ export default function CourseSyllabus({
                                     href={`${watchBaseUrl}/${lec._id}`}
                                     className="h-8 px-3.5 rounded-full bg-[#FFC93C] hover:bg-[#FFB800] text-[#0B2A4A] font-bold text-[12px] flex items-center gap-1.5 shadow-2xs transition-transform active:scale-95"
                                   >
-                                    {isCompleted ? (
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                                    ) : (
-                                      <Play className="w-3 h-3 fill-[#0B2A4A]" />
-                                    )}
-                                    <span>{isCompleted ? "Rewatch" : progress?.percent > 0 ? "Resume" : "Play"}</span>
+                                    <Play className="w-3 h-3 fill-[#0B2A4A]" />
+                                    <span>Play</span>
                                   </Link>
                                 )}
 

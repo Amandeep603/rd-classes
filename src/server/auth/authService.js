@@ -193,7 +193,7 @@ export async function studentLogin({ loginId, password }) {
       revoked: false,
     });
 
-    await setCookie(COOKIE_NAMES.SESSION, rawToken, COOKIE_DURATIONS.SESSION);
+    await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawToken, COOKIE_DURATIONS.SESSION);
 
     return {
       success: true,
@@ -257,7 +257,7 @@ export async function studentLogin({ loginId, password }) {
       revoked: false,
     });
 
-    await setCookie(COOKIE_NAMES.SESSION, rawToken, COOKIE_DURATIONS.SESSION);
+    await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawToken, COOKIE_DURATIONS.SESSION);
 
     return {
       success: true,
@@ -431,10 +431,13 @@ export async function logoutUser(role = "student") {
     }
     await deleteCookie(COOKIE_NAMES.ADMIN_SESSION);
   } else {
-    const studentToken = await getCookie(COOKIE_NAMES.SESSION);
+    const studentToken =
+      (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
+      (await getCookie(COOKIE_NAMES.LEGACY_SESSION));
     if (studentToken) {
       await Session.deleteOne({ tokenHash: hashToken(studentToken) });
     }
-    await deleteCookie(COOKIE_NAMES.SESSION);
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
   }
 }

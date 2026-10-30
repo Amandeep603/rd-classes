@@ -404,51 +404,73 @@ export default function CourseDetailClient({
     return (
       <div className="rounded-[20px] border border-[rgba(20,30,60,0.06)] bg-white p-5 shadow-[0_4px_16px_rgba(20,30,60,0.05)] space-y-4">
         {userData?.enrolled ? (
-          // Enrolled Student Progress Card
+          // Enrolled Student "You're enrolled" Card
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-[18px] font-bold text-[#0B2A4A]">Your Progress</h4>
-              <span className="text-[14px] font-bold text-[#0B2A4A]">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[12px] font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                You&apos;re enrolled
+              </span>
+              <span className="text-[13px] font-bold text-[#0B2A4A]">
                 {userData.progressPercent || 0}%
               </span>
             </div>
 
-            <p className="text-[14px] text-[#6B7385]">
-              {userData.completedLectures || 0} of {userData.totalLectures || lectures.length} lectures completed
-            </p>
-
-            {/* Progress Bar with Indicator Dot */}
-            <div className="relative w-full h-2 rounded-full bg-[#E2E8F0]">
-              <div
-                className="h-full bg-[#0B2A4A] rounded-full transition-all duration-300 relative"
-                style={{ width: `${Math.min(100, Math.max(3, userData.progressPercent || 0))}%` }}
-              >
-                <span className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-[#0B2A4A] border-2 border-white rounded-full shadow-xs" />
-              </div>
+            <div>
+              <h4 className="text-[18px] font-extrabold text-[#0B2A4A] leading-snug">
+                {course.title || "Class 12 Accountancy"}
+              </h4>
+              <p className="text-[13px] font-semibold text-[#5B6577] mt-1">
+                {userData.completedLectures || 0} of {userData.totalLectures || lectures.length || 67} lectures completed
+              </p>
             </div>
 
-            <div className="pt-1 space-y-2.5">
+            {/* Progress Bar */}
+            <div className="relative w-full h-2 rounded-full bg-[#E2E8F0] overflow-hidden">
+              <div
+                className="h-full bg-[#FFB800] rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.max(
+                      (userData.completedLectures || 0) > 0 ? 3 : 0,
+                      userData.progressPercent || 0
+                    )
+                  )}%`,
+                }}
+              />
+            </div>
+
+            <div className="pt-2 space-y-2.5">
               <Link
-                href={`/student/courses/${course.slug}${
-                  userData.lastWatchedLectureId ? `/lectures/${userData.lastWatchedLectureId}` : ""
-                }`}
-                className="w-full h-[52px] rounded-[14px] bg-[#0B2A4A] hover:bg-[#152B52] text-white font-semibold text-[15px] flex items-center justify-center gap-2 transition-all shadow-xs"
+                href={`/student/watch/${userData.lastWatchedLectureId || lectures[0]?._id || ""}`}
+                className="w-full h-[50px] rounded-[14px] bg-[#FFB800] hover:bg-[#E5A600] text-[#0B2A4A] font-bold text-[15px] flex items-center justify-center gap-2 transition-all shadow-sm hover:scale-[1.01] active:scale-[0.99]"
               >
-                <span>Continue Learning</span>
-                <ArrowRight className="w-4 h-4 text-white" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+                <span>Continue learning</span>
+                <ArrowRight className="w-4 h-4 text-[#0B2A4A]" strokeWidth={2.5} />
               </Link>
+
+              <div className="text-center pt-1">
+                <Link
+                  href="/student"
+                  className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0B2A4A] hover:text-[#B7791F] hover:underline transition-colors"
+                >
+                  <span>Go to dashboard</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
 
               <button
                 type="button"
                 onClick={handleToggleSave}
-                className={`w-full h-[48px] rounded-[14px] border text-[14px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                className={`w-full h-[44px] rounded-[14px] border text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                   isSavedForLater
                     ? "bg-[#FFFBEB] text-[#0B2A4A] border-[#FFB800]"
                     : "bg-white text-[#0B2A4A] border-[#D9DFEA] hover:bg-[#F8FAFC]"
                 }`}
               >
                 <Bookmark
-                  className={`w-4 h-4 text-[#0B2A4A] ${isSavedForLater ? "fill-[#0B2A4A]" : ""}`}
+                  className={`w-3.5 h-3.5 text-[#0B2A4A] ${isSavedForLater ? "fill-[#0B2A4A]" : ""}`}
                   strokeWidth={1.75}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1015,26 +1037,28 @@ export default function CourseDetailClient({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-5 bg-white border-t border-[#F1F5F9] flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-xs text-[#6B7385] text-center sm:text-left">
-                Enjoying this class? Get full access to all lectures, handwritten notes, and Sunday tests on WhatsApp.
+            {!userData?.enrolled && (
+              <div className="p-5 bg-white border-t border-[#F1F5F9] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-[#6B7385] text-center sm:text-left">
+                  Enjoying this class? Get full access to all lectures, handwritten notes, and Sunday tests on WhatsApp.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const lec = previewLecture;
+                    setPreviewLecture(null);
+                    openAccessModal({
+                      title: lec.title,
+                      book: lec.book || "",
+                      chapter: lec.chapter || "",
+                    });
+                  }}
+                  className="h-[44px] px-6 rounded-full bg-[#0B2A4A] hover:bg-[#152B52] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                >
+                  Get Access on WhatsApp
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const lec = previewLecture;
-                  setPreviewLecture(null);
-                  openAccessModal({
-                    title: lec.title,
-                    book: lec.book || "",
-                    chapter: lec.chapter || "",
-                  });
-                }}
-                className="h-[44px] px-6 rounded-full bg-[#0B2A4A] hover:bg-[#152B52] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
-              >
-                Get Access on WhatsApp
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}

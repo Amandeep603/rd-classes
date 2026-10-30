@@ -39,10 +39,19 @@ export function middleware(request) {
     !pathname.startsWith("/student/login") &&
     !pathname.startsWith("/student/pending")
   ) {
-    const studentSession = request.cookies.get("rd_session")?.value;
+    const studentSession =
+      request.cookies.get("rd_student_session")?.value ||
+      request.cookies.get("rd_session")?.value;
+
     if (!studentSession) {
+      const adminSession = request.cookies.get("rd_admin_session")?.value;
       const loginUrl = new URL("/student-login", request.url);
-      loginUrl.searchParams.set("reason", "expired");
+      if (adminSession) {
+        loginUrl.searchParams.set("reason", "admin_logged_in");
+        loginUrl.searchParams.set("message", "Please log in as a student");
+      } else {
+        loginUrl.searchParams.set("reason", "expired");
+      }
       loginUrl.searchParams.set("next", fullPath);
       return NextResponse.redirect(loginUrl);
     }

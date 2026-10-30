@@ -32,7 +32,8 @@ export async function GET(request) {
     cookieStore.set(COOKIE_NAMES.ADMIN_SESSION, "", clearCookieOpts);
   }
   if (!cookieType || cookieType === "student") {
-    cookieStore.set(COOKIE_NAMES.SESSION, "", clearCookieOpts);
+    cookieStore.set(COOKIE_NAMES.STUDENT_SESSION, "", clearCookieOpts);
+    cookieStore.set(COOKIE_NAMES.LEGACY_SESSION, "", clearCookieOpts);
   }
 
   const redirectUrl = new URL(safeTo, request.url);

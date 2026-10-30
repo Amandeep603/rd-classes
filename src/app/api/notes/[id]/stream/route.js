@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent, getCurrentAdmin } from "@/server/auth/session.js";
 import { checkNoteAccess } from "@/server/services/noteService.js";
 import { cloudinary } from "@/lib/cloudinary";
 
@@ -14,8 +14,9 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: "Missing note ID" }, { status: 400 });
   }
 
-  const auth = await getCurrentUser();
-  const user = auth?.user || null;
+  const studentAuth = await getCurrentStudent();
+  const adminAuth = !studentAuth ? await getCurrentAdmin() : null;
+  const user = studentAuth?.user || adminAuth?.user || null;
 
   const { allowed, reason, note } = await checkNoteAccess(id, user);
   if (!allowed || !note) {

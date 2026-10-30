@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import mongoose from "mongoose";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Lecture } from "@/lib/models/Lecture";
 import { Progress } from "@/server/db/models/Progress.js";
 import { getStudentCourseContext } from "@/server/services/studentAccessService.js";
 
 export async function GET() {
-  const auth = await getCurrentUser();
+  const auth = await getCurrentStudent();
   if (!auth?.user) {
     return NextResponse.json(
       { error: "Unauthorized" },

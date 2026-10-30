@@ -4,7 +4,7 @@ import { z } from "zod";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/lib/models/Course";
 import { Enquiry } from "@/lib/models/Enquiry";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentStudent } from "@/server/auth/session.js";
 import { createAdminNotification } from "@/server/services/notificationService.js";
 
 const enquiryInputSchema = z.object({
@@ -66,7 +66,7 @@ export async function POST(request) {
 
     // Auto-detect logged-in student if not explicitly provided
     if (!studentId || !name) {
-      const auth = await getCurrentUser();
+      const auth = await getCurrentStudent();
       if (auth?.user) {
         if (!studentId) studentId = auth.user._id;
         if (!name) name = auth.user.name || "";

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import mongoose from "mongoose";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { requireStudent } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { Course } from "@/server/db/models/Course.js";
 import { User } from "@/server/db/models/User.js";
@@ -22,18 +22,13 @@ export const metadata = {
 
 async function WatchContent({ params }) {
   await connection();
-  const auth = await getCurrentUser();
+  const auth = await requireStudent();
   if (!auth?.user) return null;
   const { lectureId } = await params;
 
   await connectDB();
   const lectureDoc = await Lecture.findById(lectureId).lean();
   if (!lectureDoc || lectureDoc.status === "archived") {
-    notFound();
-  }
-
-  // Must have a Vimeo link to be visible/playable
-  if (!lectureDoc.vimeoId) {
     notFound();
   }
 
@@ -56,6 +51,7 @@ async function WatchContent({ params }) {
   const access = await getStudentCourseAccess(auth);
   const isEnrolled = access.isEnrolledInCourse(lectureDoc.courseId);
   const isLocked = !isEnrolled && !isFree;
+  const notEnrolled = !isEnrolled && !isFree;
 
   // 2. Fetch student's progress for this lecture
   const progress = await LectureProgress.findOne({
@@ -160,6 +156,7 @@ async function WatchContent({ params }) {
       chapterLectures={JSON.parse(JSON.stringify(chapterLectures))}
       notes={formattedNotes}
       isLocked={isLocked}
+      notEnrolled={notEnrolled}
       whatsappNumber={whatsappNumber}
     />
   );

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/server/auth/session.js";
+import { getCurrentAdmin } from "@/server/auth/session.js";
 import AdminLoginForm from "@/components/portal/auth/AdminLoginForm";
 
 export const instant = false;
@@ -13,7 +13,7 @@ export const metadata = {
 };
 
 export default async function AdminLoginPage() {
-  const auth = await getCurrentUser();
+  const auth = await getCurrentAdmin();
   if (auth && auth.user.role === "admin") {
     redirect("/admin");
   }
