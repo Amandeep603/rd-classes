@@ -89,6 +89,14 @@ export default function RootLayout({ children }) {
       suppressHydrationWarning
       className={`${plusJakartaSans.variable} ${caveat.variable} antialiased dark overflow-x-clip`}
     >
+      <head>
+        <link rel="preconnect" href="https://player.vimeo.com" />
+        <link rel="dns-prefetch" href="https://player.vimeo.com" />
+        <link rel="preconnect" href="https://i.vimeocdn.com" />
+        <link rel="dns-prefetch" href="https://i.vimeocdn.com" />
+        <link rel="preconnect" href="https://f.vimeocdn.com" />
+        <link rel="dns-prefetch" href="https://f.vimeocdn.com" />
+      </head>
       <body
         id="top"
         className="min-h-screen flex flex-col bg-[#0A0A0B] text-white selection:bg-[#FFB800] selection:text-[#0A0A0B] overflow-x-clip"

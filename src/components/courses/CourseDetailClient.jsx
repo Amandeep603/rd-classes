@@ -1013,15 +1013,16 @@ export default function CourseDetailClient({
 
             {/* Video Player Area */}
             <div className="relative aspect-video w-full bg-black">
-              {previewLecture.playerUrl || previewLecture.vimeoId ? (
+              {previewLecture ? (
                 <VimeoPlayer
-                  playerUrl={previewLecture.playerUrl}
-                  vimeoId={previewLecture.vimeoId}
-                  vimeoHash={previewLecture.vimeoHash}
+                  lectureId={previewLecture._id?.toString()}
+                  isFreePreview={true}
+                  durationSeconds={previewLecture.durationSeconds}
                   watermarkText="RD Classes Preview"
                   enableProgress={false}
+                  autoPlay={true}
                 />
-              ) : previewLecture.videoUrl ? (
+              ) : previewLecture?.videoUrl ? (
                 <video
                   src={previewLecture.videoUrl}
                   controls

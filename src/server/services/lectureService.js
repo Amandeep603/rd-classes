@@ -434,7 +434,7 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
   const hashParam = lecture.vimeoHash ? `h=${encodeURIComponent(lecture.vimeoHash)}&` : "";
   const playerUrl = `https://player.vimeo.com/video/${encodeURIComponent(
     lecture.vimeoId
-  )}?${hashParam}dnt=1&title=0&byline=0&portrait=0&playsinline=1`;
+  )}?${hashParam}like=0&share=0&watchlater=0&title=0&byline=0&portrait=0&vimeo_logo=0&pip=0&dnt=1&playsinline=1`;
 
   return {
     lecture: {
@@ -451,7 +451,6 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
       courseSlug: course.slug,
     },
     playerUrl,
-    vimeoId: lecture.vimeoId,
     savedPositionSec: progress?.positionSec || 0,
     completed: !!progress?.completed,
     prevLecture: prevLec ? { _id: prevLec._id.toString(), title: prevLec.title } : null,

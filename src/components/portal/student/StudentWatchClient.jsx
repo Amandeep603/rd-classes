@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -23,9 +23,7 @@ import { markLectureCompleteAction } from "@/server/actions/student.progress.act
 
 export default function StudentWatchClient({
   lecture,
-  playerUrl,
-  vimeoId,
-  vimeoHash,
+  hasVideo = true,
   savedPositionSec = 0,
   initialCompleted = false,
   studentName,
@@ -50,6 +48,16 @@ export default function StudentWatchClient({
       return true;
     }
   });
+
+  // Prefetch next lecture's player URL after 5 seconds of watching
+  useEffect(() => {
+    if (nextLecture?._id) {
+      const timer = setTimeout(() => {
+        fetch(`/api/student/watch/${nextLecture._id}`, { priority: "low" }).catch(() => {});
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [nextLecture?._id]);
 
   const handleToggleAutoplay = () => {
     const nextVal = !autoplayNext;
@@ -140,7 +148,7 @@ export default function StudentWatchClient({
                 <span>Contact RD Classes</span>
               </a>
             </div>
-          ) : !vimeoId ? (
+          ) : !hasVideo && !lecture.hasVideo ? (
             <div className="relative aspect-video w-full rounded-[22px] bg-gradient-to-br from-[#0B2A4A] to-[#041324] border border-[#1E3A5F] p-8 flex flex-col items-center justify-center text-center shadow-2xl">
               <div className="w-14 h-14 rounded-full bg-[#FFB800]/20 text-[#FFB800] flex items-center justify-center mb-3">
                 <Clock className="w-7 h-7" />
@@ -152,9 +160,6 @@ export default function StudentWatchClient({
             </div>
           ) : (
             <VimeoPlayer
-              playerUrl={playerUrl}
-              vimeoId={vimeoId}
-              vimeoHash={vimeoHash}
               lectureId={lecture._id}
               savedPositionSec={savedPositionSec}
               durationSeconds={lecture.durationSeconds || lecture.durationSec || 0}

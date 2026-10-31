@@ -1,41 +1,48 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function StudentLiveRefresh() {
   const router = useRouter();
+  const pathname = usePathname();
+  const lastRefreshRef = useRef(Date.now());
 
   useEffect(() => {
-    // 1. Refresh every 30 seconds if tab is visible
+    // 1. Strictly disable auto-refresh on watch pages or pages with a mounted player
+    if (pathname && (pathname.startsWith("/student/watch") || pathname.includes("/watch/"))) {
+      return;
+    }
+
+    // 2. Elsewhere, refresh capped to >= 60 seconds and only when tab is visible
     const timer = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        router.refresh();
+        const now = Date.now();
+        if (now - lastRefreshRef.current >= 60000) {
+          lastRefreshRef.current = now;
+          router.refresh();
+        }
       }
-    }, 30000);
+    }, 60000);
 
-    // 2. Refresh immediately when tab regains visibility
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        router.refresh();
+        const now = Date.now();
+        // Throttle visibility refreshes to at least 60 seconds apart
+        if (now - lastRefreshRef.current >= 60000) {
+          lastRefreshRef.current = now;
+          router.refresh();
+        }
       }
-    };
-
-    // 3. Refresh immediately on window focus
-    const handleFocus = () => {
-      router.refresh();
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
 
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
     };
-  }, [router]);
+  }, [router, pathname]);
 
   return null;
 }
-

@@ -1,0 +1,46 @@
+{
+  "home": {
+    "performance": 53,
+    "accessibility": 95,
+    "bestPractices": 100,
+    "seo": 100,
+    "fcp": "1.5 s",
+    "lcp": "8.8 s",
+    "cls": "0",
+    "tbt": "990 ms",
+    "speedIndex": "2.4 s"
+  },
+  "course": {
+    "performance": 78,
+    "accessibility": 95,
+    "bestPractices": 100,
+    "seo": 100,
+    "fcp": "2.2 s",
+    "lcp": "2.2 s",
+    "cls": "0",
+    "tbt": "600 ms",
+    "speedIndex": "5.0 s"
+  },
+  "contact": {
+    "performance": 97,
+    "accessibility": 93,
+    "bestPractices": 100,
+    "seo": 100,
+    "fcp": "1.2 s",
+    "lcp": "1.2 s",
+    "cls": "0",
+    "tbt": "170 ms",
+    "speedIndex": "2.8 s"
+  },
+  "student": {
+    "performance": 51,
+    "accessibility": 100,
+    "bestPractices": 100,
+    "seo": 69,
+    "fcp": "1.0 s",
+    "lcp": "4.5 s",
+    "cls": "0.311",
+    "tbt": "390 ms",
+    "speedIndex": "9.7 s"
+  }
+}

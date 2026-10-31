@@ -93,6 +93,7 @@ export default function Navbar() {
           {/* Left: Original Logo Tile */}
           <Link
             href="/"
+            prefetch={true}
             className={`inline-flex items-center justify-center bg-white px-[6px] py-[3px] rounded-[12px] shadow-md hover:opacity-95 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] shrink-0 ${
               isScrolled ? "h-[46px] lg:h-[50px]" : "h-[50px] lg:h-[56px]"
             }`}
@@ -128,6 +129,7 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  prefetch={true}
                   className={`relative py-1 font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFB800] rounded-sm whitespace-nowrap ${
                     isActive
                       ? "text-white"

@@ -11,7 +11,6 @@ import { Enrollment } from "@/server/db/models/Enrollment.js";
 import { Note } from "@/server/db/models/Note.js";
 import { LectureProgress } from "@/lib/models/LectureProgress";
 import { Settings as Setting } from "@/server/db/models/Settings.js";
-import { buildVimeoEmbedUrl } from "@/lib/utils/vimeoParser";
 import StudentWatchClient from "@/components/portal/student/StudentWatchClient";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 
@@ -127,11 +126,7 @@ async function WatchContent({ params }) {
   const setting = await Setting.findOne().lean();
   const whatsappNumber = setting?.whatsappNumber || setting?.whatsapp || "918368545620";
 
-  // CRITICAL SECURITY RULE:
-  // If locked, NEVER send vimeoId, vimeoHash, or playerUrl to client!
-  const safeVimeoId = isLocked ? null : lectureDoc.vimeoId;
-  const safeVimeoHash = isLocked ? null : lectureDoc.vimeoHash;
-  const safePlayerUrl = isLocked ? null : buildVimeoEmbedUrl(lectureDoc.vimeoId, lectureDoc.vimeoHash);
+  const hasVideo = Boolean(lectureDoc.vimeoId && lectureDoc.vimeoId.trim() !== "");
 
   return (
     <StudentWatchClient
@@ -143,10 +138,9 @@ async function WatchContent({ params }) {
         durationSeconds: lectureDoc.durationSeconds || lectureDoc.durationSec || 0,
         isFree,
         lectureNo: lectureDoc.lectureNo || lectureDoc.partNumber || 1,
+        hasVideo,
       }}
-      playerUrl={safePlayerUrl}
-      vimeoId={safeVimeoId}
-      vimeoHash={safeVimeoHash}
+      hasVideo={hasVideo}
       savedPositionSec={progress?.watchedSeconds || progress?.positionSec || 0}
       initialCompleted={Boolean(progress?.completed)}
       studentName={auth.user.name}

@@ -1,16 +1,19 @@
+import dynamic from "next/dynamic";
 import Hero from "@/components/sections/Hero/Hero";
 import ProgramsSection from "@/components/sections/Programs/ProgramsSection";
 import FeaturedCoursesSection from "@/components/sections/FeaturedCourses/FeaturedCoursesSection";
 import StatsSection from "@/components/sections/Stats/StatsSection";
 import LightFlow from "@/components/ui/LightFlow";
-import HowItWorksSection from "@/components/sections/HowItWorks/HowItWorksSection";
-import SyllabusSection from "@/components/sections/Syllabus/SyllabusSection";
-import PortalSection from "@/components/sections/Portal/PortalSection";
-import BoardToppersSection from "@/components/sections/Toppers/BoardToppersSection";
-import TestimonialsSection from "@/components/sections/Testimonials/TestimonialsSection";
-import GallerySection from "@/components/sections/Gallery/GallerySection";
-import FaqSection from "@/components/sections/FAQ/FaqSection";
-import CtaBannerSection from "@/components/sections/CtaBanner/CtaBannerSection";
+
+// Dynamically load below-the-fold sections for minimal bundle size & maximum initial paint speed
+const HowItWorksSection = dynamic(() => import("@/components/sections/HowItWorks/HowItWorksSection"));
+const SyllabusSection = dynamic(() => import("@/components/sections/Syllabus/SyllabusSection"));
+const PortalSection = dynamic(() => import("@/components/sections/Portal/PortalSection"));
+const BoardToppersSection = dynamic(() => import("@/components/sections/Toppers/BoardToppersSection"));
+const TestimonialsSection = dynamic(() => import("@/components/sections/Testimonials/TestimonialsSection"));
+const GallerySection = dynamic(() => import("@/components/sections/Gallery/GallerySection"));
+const FaqSection = dynamic(() => import("@/components/sections/FAQ/FaqSection"));
+const CtaBannerSection = dynamic(() => import("@/components/sections/CtaBanner/CtaBannerSection"));
 
 /**
  * RD Classes Home page.

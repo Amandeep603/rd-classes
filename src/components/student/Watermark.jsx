@@ -1,22 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, memo } from "react";
 
-export default function Watermark({
+function Watermark({
   studentName,
   loginId,
   phone,
   text,
   isFreePreview = false,
 }) {
-  const [position, setPosition] = useState({ top: "25%", left: "25%" });
+  const elRef = useRef(null);
 
   useEffect(() => {
     const moveWatermark = () => {
+      if (!elRef.current) return;
       // Keep within 12% to 75% to ensure watermark stays well within video viewable area
       const top = Math.floor(12 + Math.random() * 60);
       const left = Math.floor(10 + Math.random() * 60);
-      setPosition({ top: `${top}%`, left: `${left}%` });
+      elRef.current.style.top = `${top}%`;
+      elRef.current.style.left = `${left}%`;
     };
 
     const interval = setInterval(moveWatermark, 8000);
@@ -35,10 +37,11 @@ export default function Watermark({
 
   return (
     <div
+      ref={elRef}
       aria-hidden="true"
       style={{
-        top: position.top,
-        left: position.left,
+        top: "25%",
+        left: "25%",
         opacity: 0.16,
         transition: "top 1.2s ease-in-out, left 1.2s ease-in-out",
       }}
@@ -48,3 +51,5 @@ export default function Watermark({
     </div>
   );
 }
+
+export default memo(Watermark);

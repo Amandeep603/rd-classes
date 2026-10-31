@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   Play,
@@ -50,6 +50,29 @@ export default function CourseSyllabus({
   const [lockedLecture, setLockedLecture] = useState(null);
   // Free preview video modal for public visitors
   const [freePreviewLecture, setFreePreviewLecture] = useState(null);
+  const [isWarmed, setIsWarmed] = useState(false);
+  const containerRef = useRef(null);
+
+  const defaultFreeLecture = useMemo(() => {
+    return lectures?.find((l) => Boolean(l.isFree || l.freePreview || l.isPreview)) || null;
+  }, [lectures]);
+
+  const activeModalLecture = freePreviewLecture || (isWarmed ? defaultFreeLecture : null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsWarmed(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const cleanPhone = (whatsappNumber || "918368545620").replace(/\D/g, "");
 
@@ -140,7 +163,7 @@ export default function CourseSyllabus({
   const booksList = Object.values(booksMap);
 
   return (
-    <div className={`w-full space-y-6 ${className}`}>
+    <div ref={containerRef} className={`w-full space-y-6 ${className}`}>
       {/* 1. Header (Course Name + Stats line) */}
       {showCourseHeader && (
         <div className="rounded-[24px] border border-[#E8ECF2] bg-white p-6 sm:p-7 shadow-xs">
@@ -327,6 +350,9 @@ export default function CourseSyllabus({
                                     ) : (
                                       <button
                                         type="button"
+                                        onMouseEnter={() => setIsWarmed(true)}
+                                        onFocus={() => setIsWarmed(true)}
+                                        onTouchStart={() => setIsWarmed(true)}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setFreePreviewLecture(lec);
@@ -449,13 +475,25 @@ export default function CourseSyllabus({
       )}
 
       {/* 4. MODAL FOR FREE PREVIEW VIDEO */}
-      {freePreviewLecture && (
+      {/* Free Preview Video Modal - Warmed offscreen, revealed when clicked */}
+      {(freePreviewLecture || isWarmed) && activeModalLecture && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
+            freePreviewLecture
+              ? "bg-black/80 backdrop-blur-sm opacity-100 pointer-events-auto"
+              : "opacity-0 pointer-events-none"
+          }`}
+          style={{
+            visibility: freePreviewLecture ? "visible" : "hidden",
+          }}
           onClick={() => setFreePreviewLecture(null)}
         >
           <div
-            className="w-full max-w-3xl rounded-[24px] bg-[#0B2A4A] overflow-hidden shadow-2xl border border-white/10 space-y-0"
+            className={`w-full max-w-3xl rounded-[24px] bg-[#0B2A4A] overflow-hidden shadow-2xl border border-white/10 space-y-0 transition-transform duration-300 ${
+              freePreviewLecture ? "scale-100" : "scale-95"
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-white/10 text-white">
@@ -464,13 +502,14 @@ export default function CourseSyllabus({
                   FREE PREVIEW
                 </span>
                 <h3 className="text-[16px] font-bold text-white truncate">
-                  {freePreviewLecture.title}
+                  {activeModalLecture.title}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setFreePreviewLecture(null)}
                 className="rounded-full p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                aria-label="Close free preview modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -478,11 +517,11 @@ export default function CourseSyllabus({
 
             <div className="aspect-video w-full bg-black relative">
               <VimeoPlayer
-                lectureId={freePreviewLecture._id?.toString()}
+                lectureId={activeModalLecture._id?.toString()}
                 isFreePreview={true}
-                durationSeconds={freePreviewLecture.durationSeconds}
+                durationSeconds={activeModalLecture.durationSeconds}
                 enableProgress={false}
-                autoPlay={true}
+                autoPlay={Boolean(freePreviewLecture)}
               />
             </div>
 
@@ -492,7 +531,7 @@ export default function CourseSyllabus({
               </span>
               <a
                 href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-                  `Hello Sir, I watched the free lecture "${freePreviewLecture.title}" and want to enrol in Class 12 Accountancy.`
+                  `Hello Sir, I watched the free lecture "${activeModalLecture.title}" and want to enrol in Class 12 Accountancy.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
