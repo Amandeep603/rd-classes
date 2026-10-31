@@ -36,23 +36,7 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
       ? new mongoose.Types.ObjectId(primaryCourseId)
       : null;
 
-  // Earliest expiry date from enrollments
-  let earliestExpiry = user.validUntil || null;
-  if (!earliestExpiry && context.enrolledCourseIds.length > 0) {
-    const enr = await Enrollment.findOne({
-      $or: [{ userId: userObjId }, { studentId: userObjId }],
-      status: { $ne: "cancelled" },
-      expiresAt: { $ne: null },
-    })
-      .sort({ expiresAt: 1 })
-      .lean();
-    if (enr?.expiresAt) earliestExpiry = enr.expiresAt;
-  }
-
-  // 2. Settings (strictly do not invent fake reward text)
-  const settings = await Setting.findOne().lean();
-
-  // 3. Announcement (active for all or primary course)
+  // Prepare announcement query
   const announcementQuery = {
     _id: { $nin: user.dismissedAnnouncementIds || [] },
     active: { $ne: false },
@@ -91,59 +75,70 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
     });
   }
 
-  const announcement = await Announcement.findOne(announcementQuery)
-    .sort({ pinned: -1, createdAt: -1, startsAt: -1 })
-    .lean();
+  // Parallelize all independent database queries for maximum performance
+  const [
+    earliestExpiryDoc,
+    settings,
+    announcement,
+    totalCurriculumLectures,
+    firstPlayable,
+    progressDocs,
+    totalWithVideo,
+    completedProgressDocs,
+    totalNotesCount,
+    rawRecentNotes,
+    testResults,
+    upcomingTest,
+    upcomingTestsCount,
+  ] = await Promise.all([
+    // 1. Earliest expiry
+    (!user.validUntil && context.enrolledCourseIds.length > 0)
+      ? Enrollment.findOne({
+          $or: [{ userId: userObjId }, { studentId: userObjId }],
+          status: { $ne: "cancelled" },
+          expiresAt: { $ne: null },
+        })
+          .sort({ expiresAt: 1 })
+          .lean()
+      : Promise.resolve(null),
 
-  // 4. Resume Revision (computed per selected primary course)
-  let resume = null;
-  let firstLectureId = null;
-  let totalCurriculumLectures = 0;
+    // 2. Settings
+    Setting.findOne().lean(),
 
-  if (primaryCourseId) {
-    totalCurriculumLectures = await Lecture.countDocuments({
-      courseId: primaryCourseObjId || primaryCourseId,
-      status: { $ne: "archived" },
-    });
+    // 3. Announcement
+    Announcement.findOne(announcementQuery)
+      .sort({ pinned: -1, createdAt: -1, startsAt: -1 })
+      .lean(),
 
-    // First playable lecture in course (must have video link)
-    const firstPlayable = await Lecture.findOne({
-      courseId: primaryCourseObjId || primaryCourseId,
-      vimeoId: { $exists: true, $ne: "" },
-      status: { $ne: "archived" },
-    })
-      .sort({ position: 1, order: 1, createdAt: 1 })
-      .populate("bookId", "title position")
-      .populate("chapterId", "title position")
-      .lean();
+    // 4. Lectures count
+    primaryCourseId
+      ? Lecture.countDocuments({
+          courseId: primaryCourseObjId || primaryCourseId,
+          status: { $ne: "archived" },
+        })
+      : Promise.resolve(0),
 
-    if (firstPlayable) {
-      firstLectureId = firstPlayable._id.toString();
-    }
+    // 5. First playable lecture
+    primaryCourseId
+      ? Lecture.findOne({
+          courseId: primaryCourseObjId || primaryCourseId,
+          vimeoId: { $exists: true, $ne: "" },
+          status: { $ne: "archived" },
+        })
+          .sort({ position: 1, order: 1, createdAt: 1 })
+          .populate("bookId", "title position")
+          .populate("chapterId", "title position")
+          .lean()
+      : Promise.resolve(null),
 
-    // Latest unfinished progress for selected course
-    const latestProgress = await Progress.findOne({
-      $or: [{ userId: userObjId }, { studentId: userObjId }],
-      courseId: primaryCourseObjId || primaryCourseId,
-      completed: false,
-    })
-      .sort({ updatedAt: -1 })
-      .populate({
-        path: "lectureId",
-        select: "title section chapter order durationSec durationSeconds position status published bookId chapterId vimeoId",
-        populate: [
-          { path: "bookId", select: "title position" },
-          { path: "chapterId", select: "title position" },
-        ],
-      })
-      .lean();
-
-    const fallbackProgress = !latestProgress
-      ? await Progress.findOne({
+    // 6. Recent progress
+    primaryCourseId
+      ? Progress.find({
           $or: [{ userId: userObjId }, { studentId: userObjId }],
           courseId: primaryCourseObjId || primaryCourseId,
         })
           .sort({ updatedAt: -1 })
+          .limit(10)
           .populate({
             path: "lectureId",
             select: "title section chapter order durationSec durationSeconds position status published bookId chapterId vimeoId",
@@ -153,9 +148,102 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
             ],
           })
           .lean()
-      : null;
+      : Promise.resolve([]),
 
-    const chosen = latestProgress || fallbackProgress;
+    // 7. Video lectures count
+    primaryCourseId
+      ? Lecture.countDocuments({
+          courseId: primaryCourseObjId || primaryCourseId,
+          vimeoId: { $exists: true, $ne: "" },
+          status: { $ne: "archived" },
+        })
+      : Promise.resolve(0),
+
+    // 8. Completed progress
+    primaryCourseId
+      ? Progress.find({
+          $or: [{ userId: userObjId }, { studentId: userObjId }],
+          courseId: primaryCourseObjId || primaryCourseId,
+          completed: true,
+        })
+          .select("lectureId")
+          .lean()
+      : Promise.resolve([]),
+
+    // 9. Notes count
+    primaryCourseId
+      ? Note.countDocuments({
+          $or: [
+            { courseId: primaryCourseObjId || primaryCourseId },
+            { courseIds: primaryCourseObjId || primaryCourseId },
+          ],
+          published: true,
+          status: { $ne: "archived" },
+        })
+      : Promise.resolve(0),
+
+    // 10. Recent notes
+    primaryCourseId
+      ? Note.find({
+          $or: [
+            { courseId: primaryCourseObjId || primaryCourseId },
+            { courseIds: primaryCourseObjId || primaryCourseId },
+          ],
+          published: true,
+          status: { $ne: "archived" },
+        })
+          .sort({ createdAt: -1 })
+          .limit(3)
+          .lean()
+      : Promise.resolve([]),
+
+    // 11. Test results
+    primaryCourseId
+      ? TestResult.find({
+          $or: [{ userId: userObjId }, { studentId: userObjId }],
+          courseId: primaryCourseObjId || primaryCourseId,
+        })
+          .select("score percentage status")
+          .lean()
+      : Promise.resolve([]),
+
+    // 12. Upcoming test
+    primaryCourseId
+      ? Test.findOne({
+          $or: [
+            { courseId: primaryCourseObjId || primaryCourseId },
+            { courseIds: primaryCourseObjId || primaryCourseId },
+            { audience: "all" },
+          ],
+          startsAt: { $gte: now },
+          published: true,
+        })
+          .sort({ startsAt: 1 })
+          .lean()
+      : Promise.resolve(null),
+
+    // 13. Upcoming tests count
+    primaryCourseId
+      ? Test.countDocuments({
+          $or: [
+            { courseId: primaryCourseObjId || primaryCourseId },
+            { courseIds: primaryCourseObjId || primaryCourseId },
+            { audience: "all" },
+          ],
+          startsAt: { $gte: now },
+          published: true,
+        })
+      : Promise.resolve(0),
+  ]);
+
+  let earliestExpiry = user.validUntil || (earliestExpiryDoc?.expiresAt || null);
+
+  // Resume Revision (computed per selected primary course)
+  let resume = null;
+  let firstLectureId = firstPlayable ? firstPlayable._id.toString() : null;
+
+  if (primaryCourseId) {
+    const chosen = (progressDocs && progressDocs.find((p) => !p.completed)) || (progressDocs && progressDocs[0]) || null;
     const isLecPublished = (lec) => Boolean(lec && lec.status !== "archived");
 
     if (chosen?.lectureId && isLecPublished(chosen.lectureId)) {
@@ -215,27 +303,7 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
     }
   }
 
-  // 5. Syllabus Coverage computed PER SELECTED COURSE
-  let totalWithVideo = 0;
-  let completedLectures = 0;
-
-  if (primaryCourseId) {
-    totalWithVideo = await Lecture.countDocuments({
-      courseId: primaryCourseObjId || primaryCourseId,
-      vimeoId: { $exists: true, $ne: "" },
-      status: { $ne: "archived" },
-    });
-
-    const completedProgressDocs = await Progress.find({
-      $or: [{ userId: userObjId }, { studentId: userObjId }],
-      courseId: primaryCourseObjId || primaryCourseId,
-      completed: true,
-    })
-      .select("lectureId")
-      .lean();
-
-    completedLectures = completedProgressDocs.length;
-  }
+  const completedLectures = completedProgressDocs.length;
 
   // Exclude "Coming soon" (lectures without video) from coverage denominator
   const coveragePercent =
@@ -244,31 +312,8 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
       : 0;
 
   // 6. Notes / Handouts count for selected course
-  let totalNotesCount = 0;
   let recentNotes = [];
-
-  if (primaryCourseId) {
-    totalNotesCount = await Note.countDocuments({
-      $or: [
-        { courseId: primaryCourseObjId || primaryCourseId },
-        { courseIds: primaryCourseObjId || primaryCourseId },
-      ],
-      published: true,
-      status: { $ne: "archived" },
-    });
-
-    const rawRecentNotes = await Note.find({
-      $or: [
-        { courseId: primaryCourseObjId || primaryCourseId },
-        { courseIds: primaryCourseObjId || primaryCourseId },
-      ],
-      published: true,
-      status: { $ne: "archived" },
-    })
-      .sort({ createdAt: -1 })
-      .limit(3)
-      .lean();
-
+  if (primaryCourseId && rawRecentNotes && rawRecentNotes.length > 0) {
     recentNotes = rawRecentNotes.map((n) => ({
       _id: n._id.toString(),
       title: n.title,
@@ -282,44 +327,13 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
   // 7. Tests & Test Results for selected course
   let testsCount = 0;
   let avgTestScore = null;
-  let upcomingTest = null;
-  let upcomingTestsCount = 0;
 
-  if (primaryCourseId) {
-    const testResults = await TestResult.find({
-      $or: [{ userId: userObjId }, { studentId: userObjId }],
-      courseId: primaryCourseObjId || primaryCourseId,
-    })
-      .select("score percentage status")
-      .lean();
-
+  if (primaryCourseId && testResults) {
     testsCount = testResults.length;
     if (testsCount > 0) {
       const sum = testResults.reduce((acc, t) => acc + (t.percentage || t.score || 0), 0);
       avgTestScore = (sum / testsCount).toFixed(1);
     }
-
-    upcomingTest = await Test.findOne({
-      $or: [
-        { courseId: primaryCourseObjId || primaryCourseId },
-        { courseIds: primaryCourseObjId || primaryCourseId },
-        { audience: "all" },
-      ],
-      startsAt: { $gte: now },
-      published: true,
-    })
-      .sort({ startsAt: 1 })
-      .lean();
-
-    upcomingTestsCount = await Test.countDocuments({
-      $or: [
-        { courseId: primaryCourseObjId || primaryCourseId },
-        { courseIds: primaryCourseObjId || primaryCourseId },
-        { audience: "all" },
-      ],
-      startsAt: { $gte: now },
-      published: true,
-    });
   }
 
   const courseReward = (primaryCourse?.rewardTargetText && primaryCourse.rewardTargetText.trim()) || null;

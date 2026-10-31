@@ -4,11 +4,25 @@ import { Trophy, FileText, Download, Award, Star, ArrowRight } from "lucide-reac
 import { getCachedResultsData } from "@/server/services/resultService";
 
 export const metadata = {
-  title: "Board Results & Merit Scorers | RD Classes",
+  title: "CBSE Board Accountancy Toppers & Results | R.D. Classes",
   description:
-    "Celebrating 100/100 and 95+ score holders in CBSE Class 11 and 12 Accountancy board examinations from RD Classes Faridabad.",
+    "CBSE Class 11 & 12 Accountancy 100/100 scorers and 95+ toppers from R.D. Classes, Sector 9, Faridabad, Haryana. Verified annual board results.",
   alternates: {
-    canonical: "/results",
+    canonical: "https://www.rd-classes.in/results",
+  },
+  openGraph: {
+    title: "CBSE Board Accountancy Toppers & Results | R.D. Classes",
+    description:
+      "CBSE Class 11 & 12 Accountancy 100/100 scorers and 95+ toppers from R.D. Classes, Sector 9, Faridabad, Haryana. Verified annual board results.",
+    url: "https://www.rd-classes.in/results",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "R.D. Classes for Accountancy - Sector 9, Faridabad",
+      },
+    ],
   },
 };
 
@@ -26,8 +40,31 @@ export default async function ResultsPage() {
   const hasToppers = toppers && toppers.length > 0;
   const hasPdfs = resultPdfs && resultPdfs.length > 0;
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://www.rd-classes.in",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Results",
+        item: "https://www.rd-classes.in/results",
+      },
+    ],
+  };
+
   return (
     <main className="min-h-screen bg-[#FBF8F1] text-[#0B1B3B] pt-4 sm:pt-6 pb-12 sm:pb-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
         {/* Hero Header */}
         <div className="text-center max-w-3xl mx-auto mb-8 sm:mb-10">

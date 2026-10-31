@@ -4,22 +4,49 @@ import CoursesHeroCluster from "@/components/courses/CoursesHeroCluster";
 import CoursesCatalogClient from "@/components/courses/CoursesCatalogClient";
 
 export const metadata = {
-  title: "Structured Courses for Class 11 & 12 Accountancy | RD Classes",
+  title: "Accountancy Courses & Batches | R.D. Classes Faridabad",
   description:
-    "Explore comprehensive CBSE Accountancy courses for Class 11 & 12 by Ronak Dugar in Sector 9, Faridabad. Full year batches, recorded lectures, test series and crash courses.",
+    "CBSE Class 11 & 12 Accountancy courses in Sector 9, Faridabad by Ronak Dugar. Full year batches, recorded lectures, mock test series and crash courses.",
   alternates: {
-    canonical: "/courses",
+    canonical: "https://www.rd-classes.in/courses",
   },
   openGraph: {
-    title: "Structured Courses for Class 11 & 12 Accountancy | RD Classes",
+    title: "Accountancy Courses & Batches | R.D. Classes Faridabad",
     description:
-      "Learn Accountancy with concept clarity, practice, and personalised guidance from Ronak Sir.",
-    url: "/courses",
+      "CBSE Class 11 & 12 Accountancy courses in Sector 9, Faridabad by Ronak Dugar. Full year batches, recorded lectures, mock test series and crash courses.",
+    url: "https://www.rd-classes.in/courses",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "R.D. Classes for Accountancy - Sector 9, Faridabad",
+      },
+    ],
   },
 };
 
 export default async function CoursesPage() {
   const courses = await getCachedPublicCourses();
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://www.rd-classes.in",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Courses",
+        item: "https://www.rd-classes.in/courses",
+      },
+    ],
+  };
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -33,7 +60,8 @@ export default async function CoursesPage() {
         description: course.description,
         provider: {
           "@type": "EducationalOrganization",
-          name: "RD Classes",
+          name: "R.D. Classes for Accountancy",
+          url: "https://www.rd-classes.in",
         },
       },
     })),
@@ -46,10 +74,14 @@ export default async function CoursesPage() {
         "--su-c": "min(100vw / 1536, 1px)",
       }}
     >
-      {/* JSON-LD Catalog Schema */}
+      {/* JSON-LD Catalog & Breadcrumbs Schema */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* HERO SECTION (min-height 340px, max-height 400px on desktop, padding 32px 0, content vertically centered) */}

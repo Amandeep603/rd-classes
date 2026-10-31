@@ -35,17 +35,25 @@ const noteHeroChips = [
 ];
 
 export const metadata = {
-  title: "Premium Notes for Class 11 & 12 Accountancy | RD Classes",
+  title: "Free Accountancy Notes & Revision Sheets | R.D. Classes",
   description:
-    "Chapter-wise notes, formula sheets and practice questions prepared by Ronak Sir for CBSE Class 11 & 12 Accountancy students.",
+    "CBSE Class 11 & 12 Accountancy chapter notes, formulas and question banks from Ronak Dugar in Sector 9, Faridabad, Haryana. Download PDF study material.",
   alternates: {
-    canonical: "/notes",
+    canonical: "https://www.rd-classes.in/notes",
   },
   openGraph: {
-    title: "Premium Notes for Class 11 & 12 Accountancy | RD Classes",
+    title: "Free Accountancy Notes & Revision Sheets | R.D. Classes",
     description:
-      "Chapter-wise notes, formula sheets and practice questions prepared by Ronak Sir.",
-    url: "/notes",
+      "CBSE Class 11 & 12 Accountancy chapter notes, formulas and question banks from Ronak Dugar in Sector 9, Faridabad, Haryana. Download PDF study material.",
+    url: "https://www.rd-classes.in/notes",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "R.D. Classes for Accountancy - Sector 9, Faridabad",
+      },
+    ],
   },
 };
 
@@ -76,15 +84,35 @@ export default async function PublicNotesPage() {
     SITE_CONFIG?.contact?.phone ||
     "918368545620";
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://www.rd-classes.in",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Notes",
+        item: "https://www.rd-classes.in/notes",
+      },
+    ],
+  };
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Premium Notes for Class 11 & 12 Accountancy",
+    name: "Free Accountancy Notes & Revision Sheets",
     description:
-      "Chapter-wise notes, formula sheets and practice questions prepared by Ronak Sir.",
+      "CBSE Class 11 & 12 Accountancy chapter notes, formulas and question banks prepared by Ronak Sir.",
     provider: {
       "@type": "EducationalOrganization",
-      name: "RD Classes",
+      name: "R.D. Classes for Accountancy",
+      url: "https://www.rd-classes.in",
     },
   };
 
@@ -94,6 +122,10 @@ export default async function PublicNotesPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* HEADER (display flex, align-items center, min-height 400px, padding 40px 0, warm gradient + 3 blobs) */}

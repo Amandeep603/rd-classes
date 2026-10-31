@@ -1,37 +1,62 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer/Footer.jsx";
 import ScrollProgressBar from "@/components/ui/ScrollProgressBar";
-import { FOOTER_CONTACT } from "@/constants/footer";
+import { FOOTER_CONTACT, FOOTER_SOCIALS } from "@/constants/footer";
+import { SITE_CONFIG } from "@/constants/site";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+const siteUrl = "https://www.rd-classes.in";
 
 const orgJsonLd = {
   "@context": "https://schema.org",
-  "@type": "EducationalOrganization",
-  name: "R.D. Classes For Accountancy",
-  description:
-    "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad.",
-  url: siteUrl,
-  logo: `${siteUrl}/images/logo-rd.png`,
-  telephone: FOOTER_CONTACT.phoneTel,
-  email: FOOTER_CONTACT.email,
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: "SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9",
-    addressLocality: "Faridabad",
-    addressRegion: "Haryana",
-    postalCode: "121006",
-    addressCountry: "IN",
-  },
-  areaServed: {
-    "@type": "City",
-    name: "Faridabad",
-  },
-  founder: {
-    "@type": "Person",
-    name: "Ronak Dugar",
-    jobTitle: "Lead Accountancy Faculty",
-  },
+  "@graph": [
+    {
+      "@type": ["EducationalOrganization", "LocalBusiness"],
+      "@id": `${siteUrl}/#organization`,
+      name: "R.D. Classes for Accountancy",
+      alternateName: "RD Classes",
+      description:
+        "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad, Haryana. Concept-first teaching by Ronak Dugar with consistent 100/100 board results.",
+      url: siteUrl,
+      logo: `${siteUrl}/images/logo-rd.png`,
+      image: `${siteUrl}/images/og-image.png`,
+      telephone: FOOTER_CONTACT.phoneTel,
+      email: FOOTER_CONTACT.email,
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9",
+        addressLocality: "Faridabad",
+        addressRegion: "Haryana",
+        postalCode: "121006",
+        addressCountry: "IN",
+      },
+      hasMap: FOOTER_CONTACT.mapsUrl,
+      sameAs: [
+        SITE_CONFIG.socialLinks.youtube,
+        SITE_CONFIG.socialLinks.instagram,
+        SITE_CONFIG.socialLinks.facebook,
+        FOOTER_CONTACT.mapsUrl,
+      ],
+      areaServed: {
+        "@type": "City",
+        name: "Faridabad",
+      },
+      founder: {
+        "@type": "Person",
+        name: "Ronak Dugar",
+        jobTitle: "Lead Accountancy Faculty",
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      url: siteUrl,
+      name: "R.D. Classes for Accountancy",
+      publisher: {
+        "@id": `${siteUrl}/#organization`,
+      },
+      inLanguage: "en-IN",
+    },
+  ],
 };
 
 export default function MarketingLayout({ children }) {

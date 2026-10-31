@@ -5,12 +5,45 @@ import ContactDecoration from "@/components/contact/ContactDecoration";
 import { getCachedSettings } from "@/server/services/settingService.js";
 
 export const metadata = {
-  title: "Contact Us | R.D. Classes For Accountancy Sector 9, Faridabad",
+  title: "Contact R.D. Classes | Sector 9 Faridabad Haryana",
   description:
-    "Have a question about courses, admissions, or fees? Send us a message or visit our centre at Sector 9 Market, Faridabad.",
+    "Have an enquiry about Accountancy courses, batches or fees? Visit R.D. Classes in Sector 9, Faridabad, Haryana or call +91 83685 45620 for admissions.",
   alternates: {
-    canonical: "/contact",
+    canonical: "https://www.rd-classes.in/contact",
   },
+  openGraph: {
+    title: "Contact R.D. Classes | Sector 9 Faridabad Haryana",
+    description:
+      "Have an enquiry about Accountancy courses, batches or fees? Visit R.D. Classes in Sector 9, Faridabad, Haryana or call +91 83685 45620 for admissions.",
+    url: "https://www.rd-classes.in/contact",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "R.D. Classes for Accountancy - Sector 9, Faridabad",
+      },
+    ],
+  },
+};
+
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Home",
+      item: "https://www.rd-classes.in",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Contact Us",
+      item: "https://www.rd-classes.in/contact",
+    },
+  ],
 };
 
 export default async function ContactPage() {
@@ -18,6 +51,10 @@ export default async function ContactPage() {
 
   return (
     <div className="min-h-screen w-full bg-[#FAF7F2] text-[#0F172A] relative overflow-x-hidden pt-6 sm:pt-10 pb-16 sm:pb-24">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       {/* Decorative Background Glows */}
       {/* Soft yellow glow on far left */}
       <div

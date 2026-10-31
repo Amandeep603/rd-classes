@@ -9,7 +9,7 @@ export const SITE_CONFIG = {
   tagline: "Accountancy Classes for Class 11 & 12, Faridabad",
   description:
     "Build confidence in Accountancy with R.D. Classes For Accountancy. Clear concepts, regular practice, and better preparation for Class 11 & 12 CBSE board exams in Faridabad.",
-  website: "https://rd-classes.in/",
+  website: "https://www.rd-classes.in/",
   address:
     "R.D. Classes for Accountancy, SCF 59-60, 2nd Floor, Above Canara Bank, Near Dhingra Bakery, Sector 9, Faridabad, Haryana",
   googleMapsUrl: "https://maps.app.goo.gl/pugUPd8WhwRYYLGE8",
@@ -45,7 +45,7 @@ export const SITE_CONFIG = {
     instagram: "https://www.instagram.com/rd___classes?igshid=OGQ5ZDc2ODk2ZA==",
     facebook: "https://www.facebook.com/profile.php?id=61584294945140",
     googleMaps: "https://maps.app.goo.gl/pugUPd8WhwRYYLGE8",
-    website: "https://rd-classes.in/",
+    website: "https://www.rd-classes.in/",
   },
 
   cta: {

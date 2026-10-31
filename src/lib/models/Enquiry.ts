@@ -67,6 +67,8 @@ const enquirySchema = new Schema(
   }
 );
 
+enquirySchema.index({ createdAt: -1 });
+
 export const Enquiry =
   mongoose.models.Enquiry || mongoose.model("Enquiry", enquirySchema);
 export default Enquiry;

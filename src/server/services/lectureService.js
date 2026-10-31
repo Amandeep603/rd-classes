@@ -363,11 +363,7 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
   }
 
   // Check enrollment or free preview using isLectureFree
-  const allCourseLectures = await Lecture.find({
-    courseId: lecture.courseId,
-    $or: [{ status: "published" }, { published: true }],
-  }).lean();
-  const isFree = isLectureFree(lecture, allCourseLectures);
+  const isFree = isLectureFree(lecture);
 
   let enrollment = null;
   if (studentId) {

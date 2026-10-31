@@ -1,6 +1,5 @@
 import HeroContent from "./HeroContent";
 import HeroImageGrid from "./HeroImageGrid";
-import InViewSection from "@/components/ui/InViewSection";
 
 /**
  * Hero Section for RD Classes home page (Hero v3.3).
@@ -14,7 +13,7 @@ import InViewSection from "@/components/ui/InViewSection";
  */
 export default function Hero() {
   return (
-    <InViewSection
+    <section
       id="hero"
       aria-labelledby="hero-heading"
       style={{
@@ -49,29 +48,18 @@ export default function Hero() {
         />
       </div>
 
-      {/* ================= DESKTOP & LAPTOP LAYOUT (>= 1024px) ================= */}
-      <div className="hidden lg:flex w-full min-h-[calc(100svh-var(--nav-h,84px))] items-center justify-between px-[6.25vw] pt-6 pb-10 relative z-20">
+      {/* ================= UNIFIED RESPONSIVE HERO LAYOUT ================= */}
+      <div className="w-full min-h-[calc(100svh-var(--nav-h,84px))] flex flex-col lg:flex-row items-center justify-between px-4 sm:px-6 lg:px-[6.25vw] pt-4 lg:pt-6 pb-8 lg:pb-10 relative z-20">
         {/* Left Content */}
-        <div className="w-[48%] max-w-[620px] shrink-0">
+        <div className="w-full max-w-[420px] md:max-w-none md:w-[90%] lg:w-[48%] lg:max-w-[620px] shrink-0">
           <HeroContent />
         </div>
 
-        {/* Right Capsule Collage: aligned right, max-w 640px */}
-        <div className="w-[48%] max-w-[640px] flex justify-end shrink-0 pointer-events-auto">
+        {/* Right Capsule Collage */}
+        <div className="w-full max-w-[420px] md:max-w-none md:w-[90%] lg:w-[48%] lg:max-w-[640px] flex justify-center lg:justify-end shrink-0 pointer-events-auto mt-8 lg:mt-0">
           <HeroImageGrid className="w-full" />
         </div>
       </div>
-
-      {/* ================= MOBILE & TABLET LAYOUT (< 1024px) ================= */}
-      <div className="flex lg:hidden flex-col items-center justify-start w-full pt-4 pb-8 px-4 z-20 relative">
-        {/* Centered Content */}
-        <HeroContent />
-
-        {/* Scaled Capsule Cluster: 3 cols, tablet 90% width, mobile max-w-[420px] */}
-        <div className="w-full max-w-[420px] md:max-w-none md:w-[90%] mx-auto mt-8 shrink-0">
-          <HeroImageGrid className="w-full" />
-        </div>
-      </div>
-    </InViewSection>
+    </section>
   );
 }

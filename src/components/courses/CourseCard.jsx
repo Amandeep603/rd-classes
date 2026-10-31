@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Video,
   FileText,
@@ -410,9 +411,11 @@ export default function CourseCard({
             }}
           >
             {illustrationSrc ? (
-              <img
+              <Image
                 src={illustrationSrc}
                 alt=""
+                width={170}
+                height={120}
                 className="w-full h-full object-contain object-bottom-right"
                 style={{
                   mixBlendMode: course.illustrationUrl ? "normal" : "multiply",
@@ -527,9 +530,11 @@ export default function CourseCard({
               }}
             >
               {illustrationSrc ? (
-                <img
+                <Image
                   src={illustrationSrc}
                   alt=""
+                  width={170}
+                  height={120}
                   className="w-full h-full object-contain"
                   style={{
                     mixBlendMode: course.illustrationUrl ? "normal" : "multiply",
@@ -684,9 +689,11 @@ export default function CourseCard({
           }}
         >
           {illustrationSrc ? (
-            <img
+            <Image
               src={illustrationSrc}
               alt=""
+              width={195}
+              height={140}
               className="w-full h-full object-contain object-bottom-right"
               style={{
                 mixBlendMode: course.illustrationUrl ? "normal" : "multiply",

@@ -1,10 +1,26 @@
 import { chromium, devices } from "playwright";
-import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+import { MongoClient } from "mongodb";
 import fs from "fs";
 import path from "path";
 
+// Load environment variables
+for (const envFile of [".env.local", ".env"]) {
+  const p = path.resolve(process.cwd(), envFile);
+  if (fs.existsSync(p)) {
+    const lines = fs.readFileSync(p, "utf-8").split("\n");
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        let val = (match[2] || "").trim().replace(/^["']|["']$/g, "");
+        if (!process.env[match[1]]) process.env[match[1]] = val;
+      }
+    }
+  }
+}
+
 const ARTIFACT_DIR = "C:/Users/amand/.gemini/antigravity/brain/cebeea2f-3a75-4711-aa0a-93701b2ffe66";
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/rd-classes";
+const BASE_URL = "http://localhost:3000";
 
 async function runVerification() {
   console.log("=== STARTING COMPREHENSIVE VERIFICATION ===");
@@ -14,59 +30,83 @@ async function runVerification() {
     errors: [],
   };
 
-  // 1. Connect to Mongo to find an enrolled test student and a lecture with video
-  await mongoose.connect(MONGODB_URI);
-  const db = mongoose.connection.db;
+  const client = new MongoClient(process.env.MONGODB_URI);
+  await client.connect();
+  const db = client.db();
+
+  const course = await db.collection("courses").findOne({ slug: "class-12-accountancy" });
+  const courseId = course._id;
 
   const lectureWithVideo = await db.collection("lectures").findOne({
-    vimeoUrl: { $exists: true, $ne: "" },
+    courseId,
+    $or: [{ vimeoId: { $exists: true, $ne: "" } }, { vimeoUrl: { $exists: true, $ne: "" } }],
     isFree: true,
   });
 
-  const allLecturesWithVideo = await db.collection("lectures").find({
-    vimeoUrl: { $exists: true, $ne: "" },
-  }).toArray();
-
   console.log(`Found lecture with video: ${lectureWithVideo?._id} - ${lectureWithVideo?.title}`);
-  console.log(`Total lectures with video: ${allLecturesWithVideo.length}`);
 
-  const course = await db.collection("courses").findOne({ slug: "class-12-accountancy" });
+  // Test student setup in users collection
+  const TEST_USER = "RD-PLAYWRIGHT-VERIFY-2";
+  const TEST_PASS = "Password@123";
+  const passHash = await bcrypt.hash(TEST_PASS, 10);
 
-  // Use test student
-  const testLoginId = "RD-PLAYWRIGHT-VERIFY-2";
-  let testStudent = await db.collection("students").findOne({ loginId: testLoginId });
-  if (!testStudent) {
-    const studentRes = await db.collection("students").insertOne({
-      loginId: testLoginId,
-      name: "Playwright Verify Student",
-      phone: "9876543210",
-      status: "active",
-      enrolledCourses: [course._id],
+  let student = await db.collection("users").findOne({ loginId: TEST_USER });
+  let studentId;
+  if (!student) {
+    const res = await db.collection("users").insertOne({
       role: "student",
+      name: "Playwright Verify Student",
+      loginId: TEST_USER,
+      email: "verify2.student@rdclasses.com",
+      phone: "9876543210",
+      passwordHash: passHash,
+      status: "active",
+      maxDevices: 2,
+      courses: [courseId],
+      enrolledCourses: [courseId],
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    testStudent = { _id: studentRes.insertedId, loginId: testLoginId };
+    studentId = res.insertedId;
+  } else {
+    studentId = student._id;
+    await db.collection("users").updateOne(
+      { _id: studentId },
+      { $set: { passwordHash: passHash, status: "active", courses: [courseId], enrolledCourses: [courseId] } }
+    );
   }
 
-  // Create or get JWT session token for this student
-  // We can use the login API or directly set the cookie rd_student_session
-  const jwt = await import("jsonwebtoken");
-  const JWT_SECRET = process.env.JWT_SECRET || "rd-classes-secret-key-production-2026";
-  const studentToken = jwt.default.sign(
-    {
-      userId: testStudent._id.toString(),
-      loginId: testLoginId,
-      role: "student",
-      name: "Playwright Verify Student",
-    },
-    JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-
-  console.log("Student token prepared.");
+  await db.collection("enrollments").deleteMany({ userId: studentId });
+  await db.collection("enrollments").insertOne({
+    userId: studentId,
+    studentId,
+    courseId,
+    status: "active",
+    enrolledAt: new Date(),
+    expiresAt: null,
+  });
 
   const browser = await chromium.launch({ headless: true });
+
+  // 1. Perform login in a context to acquire auth cookies & approve device
+  console.log("\nLogging in test student via UI...");
+  const authCtx = await browser.newContext();
+  const authPage = await authCtx.newPage();
+  await authPage.goto(`${BASE_URL}/student-login`, { waitUntil: "networkidle" });
+  await authPage.fill("#auth-loginId", TEST_USER);
+  await authPage.fill("#auth-password", TEST_PASS);
+  await authPage.click('button[type="submit"]');
+  await authPage.waitForTimeout(3000);
+
+  // Approve all devices
+  await db.collection("devices").updateMany(
+    { $or: [{ studentId }, { userId: studentId }] },
+    { $set: { status: "approved" } }
+  );
+
+  const authCookies = await authCtx.cookies();
+  console.log(`Obtained ${authCookies.length} session cookies:`, authCookies.map(c => c.name));
+  await authCtx.close();
 
   try {
     // ------------------------------------------------------------------------
@@ -79,16 +119,9 @@ async function runVerification() {
       const context = await browser.newContext({
         viewport: { width, height: 800 },
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
       const page = await context.newPage();
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
         waitUntil: "domcontentloaded",
       });
       await page.waitForTimeout(2000);
@@ -123,19 +156,12 @@ async function runVerification() {
       const context = await browser.newContext({
         viewport: { width: w, height: 850 },
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
       const page = await context.newPage();
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
-        waitUntil: "networkidle",
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
+        waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(2500);
 
       // Info card screenshot
       const infoCard = page.locator("div.rounded-\\[22px\\]").first();
@@ -151,9 +177,8 @@ async function runVerification() {
         const controlRow = page.locator("div.aspect-video").first();
         const controlRowShot = path.join(ARTIFACT_DIR, `watch_control_row_320px.png`);
         if (await controlRow.count() > 0) {
-          // move mouse to show controls
           await page.mouse.move(160, 200);
-          await page.waitForTimeout(500);
+          await page.waitForTimeout(600);
           await controlRow.screenshot({ path: controlRowShot });
           console.log(`Saved screenshot: ${controlRowShot}`);
           results.screenshots.push(controlRowShot);
@@ -167,24 +192,26 @@ async function runVerification() {
     // TEST 3: Quality Menu UI & Screenshots (Desktop & Mobile)
     // ------------------------------------------------------------------------
     console.log("\n--- TEST 3: Quality Menu Mobile Drawer & Desktop Popover ---");
-    // Mobile 390px
+    // Mobile 390px (Pixel 7)
     {
       const context = await browser.newContext({
         ...devices["Pixel 7"],
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
       const page = await context.newPage();
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
+      await page.addInitScript(() => {
+        window.__rd_mock_qualities = [
+          { id: "1080p", label: "1080p" },
+          { id: "720p", label: "720p" },
+          { id: "540p", label: "540p" },
+          { id: "360p", label: "360p" },
+        ];
+      });
+
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(3000);
 
       // Tap on player to show controls
       await page.click("div.aspect-video");
@@ -193,43 +220,52 @@ async function runVerification() {
       const qualityBtn = page.locator("button[aria-label='Video Quality']");
       if (await qualityBtn.count() > 0) {
         await qualityBtn.click();
-        await page.waitForTimeout(600);
+        await page.waitForTimeout(800);
         const mobileMenuShot = path.join(ARTIFACT_DIR, "quality_menu_mobile_390px.png");
         await page.screenshot({ path: mobileMenuShot });
         console.log(`Saved screenshot: ${mobileMenuShot}`);
         results.screenshots.push(mobileMenuShot);
-      } else {
-        console.log("Quality button not visible or no qualities exposed");
+
+        // Verify bottom sheet layout
+        const hasAuto = await page.locator("button:has-text('Auto (recommended)')").count() > 0;
+        const hasHint = await page.locator("text='Choose a lower quality if your internet is slow.'").count() > 0;
+        console.log(`Mobile Quality Menu items: Auto=${hasAuto}, Hint=${hasHint}`);
+        results.checks.push({
+          test: "Quality bottom sheet shows Auto and Slow Internet hint on mobile",
+          passed: hasAuto && hasHint,
+        });
       }
       await context.close();
     }
 
-    // Desktop
+    // Desktop 1280px
     {
       const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
       const page = await context.newPage();
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
+      await page.addInitScript(() => {
+        window.__rd_mock_qualities = [
+          { id: "1080p", label: "1080p" },
+          { id: "720p", label: "720p" },
+          { id: "540p", label: "540p" },
+          { id: "360p", label: "360p" },
+        ];
+      });
+
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(3000);
 
-      await page.mouse.move(400, 300);
+      await page.mouse.move(500, 300);
       await page.waitForTimeout(500);
 
       const qualityBtn = page.locator("button[aria-label='Video Quality']");
       if (await qualityBtn.count() > 0) {
         await qualityBtn.click();
-        await page.waitForTimeout(600);
+        await page.waitForTimeout(800);
         const desktopMenuShot = path.join(ARTIFACT_DIR, "quality_menu_desktop.png");
         await page.screenshot({ path: desktopMenuShot });
         console.log(`Saved screenshot: ${desktopMenuShot}`);
@@ -247,13 +283,13 @@ async function runVerification() {
         viewport: { width: 390, height: 844 },
       });
       const page = await context.newPage();
-      await page.goto("http://localhost:3000/courses/class-12-accountancy", {
+      await page.goto(`${BASE_URL}/courses/class-12-accountancy`, {
         waitUntil: "domcontentloaded",
       });
       await page.waitForTimeout(2500);
 
-      // Click on Free Preview button
-      const previewBtn = page.locator("button:has-text('Free Preview')").first();
+      // Open Free Preview modal via "Watch Free" button
+      const previewBtn = page.locator("button:has-text('Watch Free')").first();
       if (await previewBtn.count() > 0) {
         await previewBtn.click();
         await page.waitForTimeout(1500);
@@ -263,15 +299,13 @@ async function runVerification() {
         console.log(`Saved screenshot: ${previewShot}`);
         results.screenshots.push(previewShot);
 
-        // Check modal layout
+        // Verify modal bounds
         const modalCheck = await page.evaluate(() => {
           const dialog = document.querySelector("div[role='dialog']");
           if (!dialog) return { found: false };
-          const rect = dialog.getBoundingClientRect();
           const docW = document.documentElement.scrollWidth;
           return {
             found: true,
-            dialogWidth: rect.width,
             windowWidth: window.innerWidth,
             docWidth: docW,
             hasOverflow: docW > window.innerWidth,
@@ -279,12 +313,12 @@ async function runVerification() {
         });
         console.log("Modal layout check:", modalCheck);
         results.checks.push({
-          test: "Free preview modal fits 390px with no overflow",
+          test: "Free preview modal fits 390px with no horizontal overflow",
           passed: modalCheck.found && !modalCheck.hasOverflow,
           details: modalCheck,
         });
       } else {
-        console.log("No Free Preview button found on /courses/class-12-accountancy");
+        console.log("No Watch Free button found on /courses/class-12-accountancy");
       }
       await context.close();
     }
@@ -297,15 +331,17 @@ async function runVerification() {
       const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
       const page = await context.newPage();
+      page.addInitScript(() => {
+        window.__rd_mock_qualities = [
+          { id: "1080p", label: "1080p" },
+          { id: "720p", label: "720p" },
+          { id: "540p", label: "540p" },
+          { id: "360p", label: "360p" },
+        ];
+      });
+
       let errorScreenAppeared = false;
 
       page.on("console", (msg) => {
@@ -314,12 +350,11 @@ async function runVerification() {
         }
       });
 
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
         waitUntil: "domcontentloaded",
       });
       await page.waitForTimeout(3000);
 
-      // Check if fatal error screen exists
       const checkFatal = async () => {
         const fatal = await page.locator("text='Playback Interrupted'").count();
         if (fatal > 0) {
@@ -336,11 +371,11 @@ async function runVerification() {
         if (await playBtn.count() > 0) {
           await playBtn.click().catch(() => {});
         }
-        await page.waitForTimeout(100);
+        await page.waitForTimeout(80);
       }
       await checkFatal();
 
-      // Tap -10s and +10s 20 times
+      // Tap Seek ±10s 20 times
       console.log("Tapping Seek ±10s 20 times...");
       const rewBtn = page.locator("button[aria-label='Rewind 10 seconds']");
       const ffBtn = page.locator("button[aria-label='Fast forward 10 seconds']");
@@ -348,7 +383,7 @@ async function runVerification() {
         await page.mouse.move(600, 300);
         if (await rewBtn.count() > 0) await rewBtn.click().catch(() => {});
         if (await ffBtn.count() > 0) await ffBtn.click().catch(() => {});
-        await page.waitForTimeout(100);
+        await page.waitForTimeout(80);
       }
       await checkFatal();
 
@@ -359,10 +394,9 @@ async function runVerification() {
         await page.mouse.move(600, 300);
         if (await qualBtn.count() > 0) {
           await qualBtn.click().catch(() => {});
-          await page.waitForTimeout(60);
-          // click outside to close
+          await page.waitForTimeout(50);
           await page.mouse.click(200, 200);
-          await page.waitForTimeout(60);
+          await page.waitForTimeout(50);
         }
       }
       await checkFatal();
@@ -376,39 +410,51 @@ async function runVerification() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 6: Mocked SDK Failure & Error Boundary Safety
+    // TEST 6: Quality Switching & LocalStorage Persistence
     // ------------------------------------------------------------------------
-    console.log("\n--- TEST 6: Mocked SDK Failure & Menu Error Boundary Safety ---");
+    console.log("\n--- TEST 6: Quality Switching & LocalStorage Persistence ---");
     {
       const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
       const page = await context.newPage();
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
+      page.addInitScript(() => {
+        window.__rd_mock_qualities = [
+          { id: "1080p", label: "1080p" },
+          { id: "720p", label: "720p" },
+          { id: "540p", label: "540p" },
+          { id: "360p", label: "360p" },
+        ];
+      });
+
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(3000);
 
-      // Verify MenuErrorBoundary: Even if setQuality throws, toast appears and player stays alive
-      console.log("Verifying safe SDK rejection handling...");
-      const toastFound = await page.evaluate(async () => {
-        // Trigger safeSdkCall toast test via window helper or quality handler
-        // If we click an invalid quality or mock rejection
-        return true;
-      });
+      // Verify localStorage persistence
+      await page.mouse.move(500, 300);
+      const qualBtn = page.locator("button[aria-label='Video Quality']");
+      if (await qualBtn.count() > 0) {
+        await qualBtn.click();
+        await page.waitForTimeout(400);
 
-      results.checks.push({
-        test: "Safe SDK calls never bubble to PlayerErrorBoundary",
-        passed: true,
-      });
+        // Click 360p
+        const option360 = page.locator("button:has-text('360p')");
+        if (await option360.count() > 0) {
+          await option360.first().click();
+          await page.waitForTimeout(500);
+
+          const stored = await page.evaluate(() => localStorage.getItem("rd_player_quality"));
+          console.log(`Stored quality in localStorage: ${stored}`);
+          results.checks.push({
+            test: "User quality preference remembered in localStorage under 'rd_player_quality'",
+            passed: stored === "360p",
+            storedQuality: stored,
+          });
+        }
+      }
 
       await context.close();
     }
@@ -421,23 +467,18 @@ async function runVerification() {
       const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
       });
-      await context.addCookies([
-        {
-          name: "rd_student_session",
-          value: studentToken,
-          domain: "localhost",
-          path: "/",
-        },
-      ]);
+      await context.addCookies(authCookies);
 
       // Route-block player.vimeo.com
       await context.route("**/player.vimeo.com/**", (route) => route.abort());
 
       const page = await context.newPage();
-      await page.goto(`http://localhost:3000/student/watch/${lectureWithVideo._id}`, {
+      await page.goto(`${BASE_URL}/student/watch/${lectureWithVideo._id}`, {
         waitUntil: "domcontentloaded",
       });
-      await page.waitForTimeout(3000);
+
+      // Wait 7 seconds for the 6s load timeout to fire
+      await page.waitForTimeout(7000);
 
       const fatalScreenVisible = await page.locator("text='Playback Interrupted'").isVisible();
       const codeVisible = await page.locator("text=/Code: E:(network|load)/").isVisible();
@@ -451,6 +492,12 @@ async function runVerification() {
         details: { fatalScreenVisible, codeVisible, retryVisible },
       });
 
+      if (retryVisible) {
+        console.log("Clicking Retry Video button...");
+        await retryBtn.click();
+        await page.waitForTimeout(1000);
+      }
+
       await context.close();
     }
   } catch (err) {
@@ -460,10 +507,10 @@ async function runVerification() {
     await browser.close();
 
     // Clean up test student
-    await db.collection("students").deleteOne({ loginId: testLoginId });
-    console.log(`Cleaned up test student: ${testLoginId}`);
+    await db.collection("users").deleteOne({ loginId: TEST_USER });
+    console.log(`Cleaned up test student: ${TEST_USER}`);
 
-    await mongoose.disconnect();
+    await client.close();
   }
 
   console.log("\n=== VERIFICATION SUMMARY ===");
@@ -471,4 +518,3 @@ async function runVerification() {
 }
 
 runVerification().catch(console.error);
-

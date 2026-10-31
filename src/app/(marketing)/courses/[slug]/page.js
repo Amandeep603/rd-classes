@@ -45,21 +45,32 @@ export async function generateMetadata({ params }) {
   const course = await getCachedCourseBySlug(slug);
   if (!course || !course.published) {
     return {
-      title: "Course Not Found | RD Classes",
+      title: "Course Not Found | R.D. Classes",
     };
   }
 
-  const title = `${course.title} ${course.subtitle || ""} | RD Classes`;
+  const title = `${course.title} (CBSE) | R.D. Classes`.slice(0, 59);
+  const description =
+    `CBSE ${course.title} in Sector 9, Faridabad by Ronak Dugar. Complete syllabus lectures, chapter notes, mock tests and board exam prep.`.slice(0, 154);
+
   return {
     title,
-    description: course.description,
+    description,
     alternates: {
-      canonical: `/courses/${course.slug}`,
+      canonical: `https://www.rd-classes.in/courses/${course.slug}`,
     },
     openGraph: {
       title,
-      description: course.description,
-      url: `/courses/${course.slug}`,
+      description,
+      url: `https://www.rd-classes.in/courses/${course.slug}`,
+      images: [
+        {
+          url: "/images/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: `${course.title} - R.D. Classes`,
+        },
+      ],
     },
   };
 }
@@ -203,16 +214,51 @@ export default async function CourseDetailPage({ params }) {
     titleHighlighted = highlightCandidate;
   }
 
-  const jsonLd = {
+  const courseJsonLd = {
     "@context": "https://schema.org",
     "@type": "Course",
     name: course.title,
     description: course.description,
     provider: {
       "@type": "EducationalOrganization",
-      name: "RD Classes",
-      sameAs: "https://rd-classes.in",
+      name: "R.D. Classes for Accountancy",
+      url: "https://www.rd-classes.in",
     },
+    ...(course.price && typeof course.price === "number" && course.price > 0
+      ? {
+          offers: {
+            "@type": "Offer",
+            price: course.price,
+            priceCurrency: "INR",
+            availability: "https://schema.org/InStock",
+          },
+        }
+      : {}),
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://www.rd-classes.in",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Courses",
+        item: "https://www.rd-classes.in/courses",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: course.title,
+        item: `https://www.rd-classes.in/courses/${course.slug}`,
+      },
+    ],
   };
 
   // Ensure Course Includes uses real counts from the database
@@ -239,7 +285,11 @@ export default async function CourseDetailPage({ params }) {
     <div className="min-h-screen w-full bg-[#FCFBF8] text-[#0F172A] pb-20 overflow-x-clip">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(courseJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* HERO WRAPPER WITH WARM GRADIENT BACKGROUND & COMPACT HEIGHT (min 320px, max 360px) */}

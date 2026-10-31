@@ -17,13 +17,13 @@ const caveat = Caveat({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rd-classes.in";
+const siteUrl = "https://www.rd-classes.in";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
-  title: "RD Classes | Accountancy Classes for Class 11 & 12 in Sector 9, Faridabad",
+  title: "Class 11 & 12 Accountancy in Faridabad | R.D. Classes",
   description:
-    "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad. Concept-first teaching by Ronak Dugar, consistent 95+ and 100/100 board results, and 24/7 student learning portal.",
+    "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad, Haryana. Concept-first teaching by Ronak Dugar with 100/100 board results.",
   keywords: [
     "RD Classes",
     "Accountancy Classes",
@@ -38,17 +38,17 @@ export const metadata = {
     canonical: siteUrl,
   },
   openGraph: {
-    title: "RD Classes | Accountancy Classes for Class 11 & 12 in Sector 9, Faridabad",
+    title: "Class 11 & 12 Accountancy in Faridabad | R.D. Classes",
     description:
-      "Faridabad's premier Accountancy coaching institute for CBSE Class 11 & 12, taught by Ronak Dugar in Sector 9.",
+      "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad, Haryana. Concept-first teaching by Ronak Dugar with 100/100 board results.",
     url: siteUrl,
-    siteName: "RD Classes",
+    siteName: "R.D. Classes for Accountancy",
     images: [
       {
-        url: "/images/logo-rd.png",
-        width: 670,
-        height: 425,
-        alt: "RD Classes for Accountancy",
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "R.D. Classes for Accountancy - Sector 9, Faridabad",
       },
     ],
     locale: "en_IN",
@@ -56,15 +56,16 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "RD Classes | Accountancy Classes for Class 11 & 12 in Sector 9, Faridabad",
+    title: "Class 11 & 12 Accountancy in Faridabad | R.D. Classes",
     description:
-      "Faridabad's premier Accountancy coaching institute for CBSE Class 11 & 12, taught by Ronak Dugar.",
-    images: ["/images/logo-rd.png"],
+      "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad, Haryana. Concept-first teaching by Ronak Dugar with 100/100 board results.",
+    images: ["/images/og-image.png"],
   },
   icons: {
     icon: "/favicon.ico",
     apple: "/images/logo-rd.png",
   },
+  manifest: "/manifest.webmanifest",
 };
 
 const motionInitScript = `
@@ -85,18 +86,10 @@ const motionInitScript = `
 export default function RootLayout({ children }) {
   return (
     <html
-      lang="en"
+      lang="en-IN"
       suppressHydrationWarning
       className={`${plusJakartaSans.variable} ${caveat.variable} antialiased dark overflow-x-clip`}
     >
-      <head>
-        <link rel="preconnect" href="https://player.vimeo.com" />
-        <link rel="dns-prefetch" href="https://player.vimeo.com" />
-        <link rel="preconnect" href="https://i.vimeocdn.com" />
-        <link rel="dns-prefetch" href="https://i.vimeocdn.com" />
-        <link rel="preconnect" href="https://f.vimeocdn.com" />
-        <link rel="dns-prefetch" href="https://f.vimeocdn.com" />
-      </head>
       <body
         id="top"
         className="min-h-screen flex flex-col bg-[#0A0A0B] text-white selection:bg-[#FFB800] selection:text-[#0A0A0B] overflow-x-clip"

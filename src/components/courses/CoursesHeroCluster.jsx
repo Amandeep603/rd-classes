@@ -1,11 +1,3 @@
-import { Caveat } from "next/font/google";
-
-const caveatFont = Caveat({
-  subsets: ["latin"],
-  weight: ["700"],
-  display: "swap",
-});
-
 /**
  * Hero Illustration Cluster for /courses page.
  * - Big restored size (viewBox 0 0 760 400)
@@ -234,8 +226,8 @@ export default function CoursesHeroCluster({ className = "" }) {
             x="0"
             y="36"
             fill="#1B2B4B"
-            className={`${caveatFont.className} font-bold`}
-            style={{ fontFamily: caveatFont.style.fontFamily }}
+            className="font-bold"
+            style={{ fontFamily: "var(--font-caveat), cursive" }}
             fontSize="36"
             letterSpacing="-0.5"
           >

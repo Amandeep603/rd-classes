@@ -1,4 +1,4 @@
-"use client";
+import Image from "next/image";
 
 /**
  * HeroImageGrid - 5-Capsule Staggered Student Collage for RD Classes Hero.
@@ -29,7 +29,7 @@ export default function HeroImageGrid({ className = "" }) {
       {/* ================= COLUMN 1 ================= */}
       {/* Starts 55px lower than column 2 (28px on mobile) */}
       <div className="flex flex-col gap-[10px] md:gap-[20px] w-full mt-[28px] md:mt-[55px]">
-        {/* Card 1: Tall Sky-Blue Capsule */}
+        {/* Card 1: Tall Sky-Blue Capsule (Single LCP Image) */}
         <div
           className="hero-capsule-card relative w-full overflow-hidden shadow-[0_14px_34px_rgba(0,0,0,0.38)] [animation-delay:0ms]"
           style={{
@@ -38,13 +38,13 @@ export default function HeroImageGrid({ className = "" }) {
             borderRadius: "999px",
           }}
         >
-          <img
+          <Image
             src="/images/hero/cutouts/student-1-cutout.webp"
             alt="RD Classes Accountancy student smiling with notebook"
-            width={896}
-            height={1200}
-            loading="eager"
-            decoding="async"
+            width={420}
+            height={560}
+            priority
+            sizes="(max-width: 768px) 30vw, 200px"
             className="absolute bottom-0 left-1/2 -translate-x-1/2 w-auto max-w-none pointer-events-none select-none block"
             style={{ height: "84%" }}
           />
@@ -59,13 +59,13 @@ export default function HeroImageGrid({ className = "" }) {
             borderRadius: "999px",
           }}
         >
-          <img
+          <Image
             src="/images/hero/cutouts/student-2-cutout.webp"
             alt="Accountancy student in blue hoodie holding economics notebook"
-            width={896}
-            height={1200}
+            width={420}
+            height={560}
             loading="lazy"
-            decoding="async"
+            sizes="(max-width: 768px) 30vw, 200px"
             className="absolute bottom-0 left-1/2 -translate-x-1/2 w-auto max-w-none pointer-events-none select-none block"
             style={{ height: "78%" }}
           />
@@ -84,13 +84,13 @@ export default function HeroImageGrid({ className = "" }) {
             borderRadius: "999px",
           }}
         >
-          <img
+          <Image
             src="/images/hero/cutouts/student-3-cutout.webp"
             alt="Confident CBSE Accountancy student holding yellow book"
-            width={896}
-            height={1200}
-            loading="eager"
-            decoding="async"
+            width={420}
+            height={560}
+            loading="lazy"
+            sizes="(max-width: 768px) 30vw, 200px"
             className="absolute bottom-0 left-1/2 -translate-x-1/2 w-auto max-w-none pointer-events-none select-none block"
             style={{ height: "82%" }}
           />
@@ -105,13 +105,13 @@ export default function HeroImageGrid({ className = "" }) {
             borderRadius: "999px",
           }}
         >
-          <img
+          <Image
             src="/images/hero/cutouts/student-4-cutout.webp"
             alt="Commerce student with glasses holding notes"
-            width={896}
-            height={1200}
+            width={420}
+            height={560}
             loading="lazy"
-            decoding="async"
+            sizes="(max-width: 768px) 30vw, 200px"
             className="absolute bottom-0 left-1/2 -translate-x-1/2 w-auto max-w-none pointer-events-none select-none block"
             style={{ height: "84%" }}
           />
@@ -130,13 +130,13 @@ export default function HeroImageGrid({ className = "" }) {
             borderRadius: "999px",
           }}
         >
-          <img
+          <Image
             src="/images/hero/cutouts/student-5-cutout.webp"
             alt="Successful Class 12 Accountancy student in denim jacket"
-            width={896}
-            height={1200}
+            width={420}
+            height={560}
             loading="lazy"
-            decoding="async"
+            sizes="(max-width: 768px) 30vw, 200px"
             className="absolute bottom-0 left-1/2 -translate-x-1/2 w-auto max-w-none pointer-events-none select-none block"
             style={{ height: "84%" }}
           />

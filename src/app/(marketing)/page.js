@@ -5,6 +5,29 @@ import FeaturedCoursesSection from "@/components/sections/FeaturedCourses/Featur
 import StatsSection from "@/components/sections/Stats/StatsSection";
 import LightFlow from "@/components/ui/LightFlow";
 
+export const metadata = {
+  title: "Class 11 & 12 Accountancy in Faridabad | R.D. Classes",
+  description:
+    "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad, Haryana. Concept-first teaching by Ronak Dugar with 100/100 board results.",
+  alternates: {
+    canonical: "https://www.rd-classes.in",
+  },
+  openGraph: {
+    title: "Class 11 & 12 Accountancy in Faridabad | R.D. Classes",
+    description:
+      "Premier Accountancy coaching for CBSE Class 11 & 12 in Sector 9, Faridabad, Haryana. Concept-first teaching by Ronak Dugar with 100/100 board results.",
+    url: "https://www.rd-classes.in",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "R.D. Classes for Accountancy - Sector 9, Faridabad",
+      },
+    ],
+  },
+};
+
 // Dynamically load below-the-fold sections for minimal bundle size & maximum initial paint speed
 const HowItWorksSection = dynamic(() => import("@/components/sections/HowItWorks/HowItWorksSection"));
 const SyllabusSection = dynamic(() => import("@/components/sections/Syllabus/SyllabusSection"));
