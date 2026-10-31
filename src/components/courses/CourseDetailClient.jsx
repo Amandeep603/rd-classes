@@ -27,6 +27,7 @@ import AccessDialog from "./AccessDialog";
 import NoteCard from "@/components/notes/NoteCard";
 import PdfViewerModal from "@/components/notes/PdfViewerModal";
 import VimeoPlayer from "@/components/student/VimeoPlayer";
+import PlayerErrorBoundary from "@/components/student/PlayerErrorBoundary";
 import CourseSyllabus from "@/components/course/CourseSyllabus";
 
 const SECTION_TONE_CYCLE = [
@@ -1014,14 +1015,20 @@ export default function CourseDetailClient({
             {/* Video Player Area */}
             <div className="relative aspect-video w-full bg-black">
               {previewLecture ? (
-                <VimeoPlayer
+                <PlayerErrorBoundary
                   lectureId={previewLecture._id?.toString()}
-                  isFreePreview={true}
-                  durationSeconds={previewLecture.durationSeconds}
-                  watermarkText="RD Classes Preview"
-                  enableProgress={false}
-                  autoPlay={true}
-                />
+                  lectureTitle={previewLecture.title}
+                >
+                  <VimeoPlayer
+                    lectureId={previewLecture._id?.toString()}
+                    isFreePreview={true}
+                    durationSeconds={previewLecture.durationSeconds}
+                    watermarkText="RD Classes Preview"
+                    enableProgress={false}
+                    autoPlay={true}
+                    onClose={() => setPreviewLecture(null)}
+                  />
+                </PlayerErrorBoundary>
               ) : previewLecture?.videoUrl ? (
                 <video
                   src={previewLecture.videoUrl}

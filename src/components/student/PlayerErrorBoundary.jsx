@@ -14,15 +14,16 @@ export default class PlayerErrorBoundary extends Component {
     this.state = {
       hasError: false,
       error: null,
-      errorCode: "E:playback",
+      errorCode: "E:load",
     };
   }
 
   static getDerivedStateFromError(error) {
-    const msg = error?.message || "";
-    let errorCode = "E:playback";
-    if (msg.includes("network") || msg.includes("fetch")) errorCode = "E:network";
-    else if (msg.includes("403") || msg.includes("privacy")) errorCode = "E:privacy";
+    const msg = (error?.message || "").toLowerCase();
+    const name = error?.name || "";
+    let errorCode = "E:load";
+    if (msg.includes("network") || msg.includes("fetch") || name === "TypeError") errorCode = "E:network";
+    else if (msg.includes("403") || msg.includes("privacy") || msg.includes("domain")) errorCode = "E:privacy";
     else if (msg.includes("404") || msg.includes("not found")) errorCode = "E:notfound";
 
     return {
@@ -53,7 +54,7 @@ export default class PlayerErrorBoundary extends Component {
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null, errorCode: "E:playback" });
+    this.setState({ hasError: false, error: null, errorCode: "E:load" });
     if (this.props.onRetry) {
       this.props.onRetry();
     }

@@ -102,20 +102,20 @@ export default function StudentWatchClient({
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 max-w-full">
         <Link
           href={`/student/lectures`}
           className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6B7280] hover:text-[#111827] transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 shrink-0" />
           <span>Back to All Lectures</span>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-[#FFFBEB] border border-[#FDE68A] px-3 py-1 text-xs font-bold text-[#B7791F]">
+        <div className="flex flex-wrap items-center gap-1.5 max-w-full">
+          <span className="rounded-full bg-[#FFFBEB] border border-[#FDE68A] px-2.5 py-0.5 text-xs font-bold text-[#B7791F] truncate max-w-[180px] sm:max-w-none">
             {courseTitle}
           </span>
-          <span className="rounded-full bg-[#F1F5F9] px-3 py-1 text-xs font-semibold text-[#475467]">
+          <span className="rounded-full bg-[#F1F5F9] px-2.5 py-0.5 text-xs font-semibold text-[#475467] truncate max-w-[180px] sm:max-w-none">
             {chapterLabel}
           </span>
         </div>
@@ -183,28 +183,84 @@ export default function StudentWatchClient({
           )}
 
           {/* Action Row & Autoplay Toggle */}
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] bg-white p-5 border border-[#E8ECF2] shadow-sm">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#B7791F] uppercase tracking-wider">
+          <div className="rounded-[22px] bg-white p-4 sm:p-5 border border-[#E8ECF2] shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0 w-full sm:flex-1">
+              {/* Row 1: Chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-[#B7791F] uppercase tracking-wider whitespace-nowrap">
                   Part {lecture.lectureNo || lecture.partNumber || 1}
                 </span>
                 {lecture.isFree && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 whitespace-nowrap">
                     FREE PREVIEW
                   </span>
                 )}
               </div>
-              <h1 className="mt-1 text-xl sm:text-2xl font-extrabold text-[#1F2A44] leading-snug">
+
+              {/* Row 2: Title (Full width, normal wrapping, text-balance, fits 320px, max 3 lines) */}
+              <h1 className="mt-1.5 text-base sm:text-2xl font-extrabold text-[#1F2A44] leading-snug break-words text-balance line-clamp-3">
                 {lecture.title}
               </h1>
-              <p className="mt-0.5 text-xs text-[#5B6577]">
+
+              {/* Row 3: Course • Chapter line at full width */}
+              <p className="mt-1 text-xs text-[#5B6577] block truncate w-full">
                 {courseTitle} • {chapterLabel}
               </p>
+
+              {/* Row 4 (mobile < sm): Two-column grid with Autoplay Next and Mark Complete (44px high, full width, no overlap) */}
+              {!isLocked && (
+                <div className="grid grid-cols-2 gap-2.5 w-full mt-3.5 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={handleToggleAutoplay}
+                    aria-pressed={autoplayNext}
+                    className={`h-[44px] w-full inline-flex items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold transition-all border ${
+                      autoplayNext
+                        ? "bg-amber-50 text-amber-900 border-amber-200"
+                        : "bg-neutral-50 text-[#6B7280] border-gray-200 hover:text-[#111827]"
+                    }`}
+                  >
+                    {autoplayNext ? (
+                      <ToggleRight className="h-4 w-4 text-amber-600 shrink-0" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4 text-[#9CA3AF] shrink-0" />
+                    )}
+                    <span className="truncate">Autoplay Next</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleMarkComplete}
+                    disabled={isMarking}
+                    className={`h-[44px] w-full inline-flex items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold transition-all shadow-xs active:scale-98 ${
+                      completed
+                        ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                        : "bg-[#FFC93C] text-[#1F2A44] hover:bg-[#FDB813]"
+                    }`}
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{completed ? "Completed" : "Mark Complete"}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Row 5 (mobile < sm): Full-width Next: <title> button with title truncated */}
+              {nextLecture && (
+                <div className="mt-2.5 w-full sm:hidden">
+                  <Link
+                    href={`/student/watch/${nextLecture._id}`}
+                    className="h-[44px] w-full flex items-center justify-between px-4 rounded-xl bg-[#FFC93C] hover:bg-[#FDB813] text-xs font-bold text-[#1F2A44] shadow-xs transition-all"
+                  >
+                    <span className="truncate">Next: {nextLecture.title}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 ml-2" />
+                  </Link>
+                </div>
+              )}
             </div>
 
+            {/* Desktop Action Buttons (sm: and above) */}
             {!isLocked && (
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="hidden sm:flex items-center gap-3 shrink-0">
                 {/* Autoplay-Next Toggle */}
                 <button
                   type="button"
@@ -247,9 +303,9 @@ export default function StudentWatchClient({
             {prevLecture ? (
               <Link
                 href={`/student/watch/${prevLecture._id}`}
-                className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-[#374151] border border-[#CBD5E1] hover:bg-neutral-50 shadow-xs transition-all"
+                className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-[#374151] border border-[#CBD5E1] hover:bg-neutral-50 shadow-xs transition-all max-w-[200px] sm:max-w-none"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 shrink-0" />
                 <span className="truncate max-w-[140px] sm:max-w-xs">
                   {prevLecture.title}
                 </span>
@@ -258,15 +314,16 @@ export default function StudentWatchClient({
               <div />
             )}
 
+            {/* Next button on desktop (on mobile, Row 5 in info card handles it) */}
             {nextLecture ? (
               <Link
                 href={`/student/watch/${nextLecture._id}`}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#FFC93C] hover:bg-[#FDB813] px-4 py-2.5 text-xs font-bold text-[#1F2A44] shadow-xs transition-all"
+                className="hidden sm:inline-flex items-center gap-2 rounded-2xl bg-[#FFC93C] hover:bg-[#FDB813] px-4 py-2.5 text-xs font-bold text-[#1F2A44] shadow-xs transition-all"
               >
                 <span className="truncate max-w-[140px] sm:max-w-xs">
                   {nextLecture.title}
                 </span>
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 shrink-0" />
               </Link>
             ) : (
               <div />

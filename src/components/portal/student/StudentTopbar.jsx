@@ -136,7 +136,7 @@ export default function StudentTopbar({
     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between min-h-[72px] mb-4">
       {/* Left: Greeting + Class Pill + Subtitle */}
       <div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {onOpenSidebar && (
             <button
               type="button"
