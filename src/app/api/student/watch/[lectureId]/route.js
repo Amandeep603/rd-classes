@@ -50,7 +50,7 @@ export async function GET(request, { params }) {
   const rateKey = auth?.user?._id ? `user:${auth.user._id}` : `ip:${clientIp}`;
   if (!checkRateLimit(rateKey)) {
     return NextResponse.json(
-      { error: "Too many requests. Please slow down." },
+      { error: "Too many requests. Please slow down.", code: "E:ratelimit" },
       {
         status: 429,
         headers: {
@@ -65,7 +65,7 @@ export async function GET(request, { params }) {
   const lecture = await Lecture.findById(lectureId).lean();
   if (!lecture || lecture.status === "archived") {
     return NextResponse.json(
-      { error: "Lecture not found" },
+      { error: "Lecture not found", code: "E:notfound" },
       {
         status: 404,
         headers: { "Cache-Control": "private, no-store, max-age=0" },
@@ -97,6 +97,7 @@ export async function GET(request, { params }) {
     return NextResponse.json(
       {
         error: errorMessage,
+        code: "E:privacy",
         notEnrolled: Boolean(auth?.user),
         isFree: false,
         locked: true,
@@ -112,6 +113,7 @@ export async function GET(request, { params }) {
     return NextResponse.json(
       {
         error: "Video coming soon. No video uploaded yet.",
+        code: "E:comingsoon",
         isFree,
         locked: false,
         hasVideo: false,
@@ -136,18 +138,19 @@ export async function GET(request, { params }) {
   }
 
   // Build secure Vimeo player URL with embed parameters
-  // like=0, share=0, watchlater=0, title=0, byline=0, portrait=0, vimeo_logo=0, pip=0, dnt=1, playsinline=1
+  // controls=0, like=0, share=0, watchlater=0, title=0, byline=0, portrait=0, vimeo_logo=0, pip=0, dnt=1, playsinline=1
   const hashParam = lecture.vimeoHash ? `h=${encodeURIComponent(lecture.vimeoHash)}&` : "";
   const playerUrl = `https://player.vimeo.com/video/${encodeURIComponent(
     lecture.vimeoId
-  )}?${hashParam}like=0&share=0&watchlater=0&title=0&byline=0&portrait=0&vimeo_logo=0&pip=0&dnt=1&playsinline=1`;
+  )}?${hashParam}controls=0&like=0&share=0&watchlater=0&title=0&byline=0&portrait=0&vimeo_logo=0&pip=0&dnt=1&playsinline=1`;
 
-  // Note: NEVER return raw vimeoId or vimeoHash to the client!
   return NextResponse.json(
     {
       success: true,
       data: {
         playerUrl,
+        vimeoId: lecture.vimeoId || "",
+        vimeoHash: lecture.vimeoHash || "",
         durationSec: lecture.durationSeconds || lecture.durationSec || 0,
         savedPositionSec,
         completed,

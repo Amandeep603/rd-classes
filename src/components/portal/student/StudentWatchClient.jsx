@@ -19,6 +19,7 @@ import {
   Download,
 } from "lucide-react";
 import VimeoPlayer from "@/components/student/VimeoPlayer";
+import PlayerErrorBoundary from "@/components/student/PlayerErrorBoundary";
 import { markLectureCompleteAction } from "@/server/actions/student.progress.actions.js";
 
 export default function StudentWatchClient({
@@ -159,15 +160,26 @@ export default function StudentWatchClient({
               </p>
             </div>
           ) : (
-            <VimeoPlayer
+            <PlayerErrorBoundary
               lectureId={lecture._id}
-              savedPositionSec={savedPositionSec}
-              durationSeconds={lecture.durationSeconds || lecture.durationSec || 0}
-              studentName={studentName}
-              loginId={loginId}
-              onComplete={handleVideoComplete}
-              autoPlay={false}
-            />
+              lectureTitle={lecture.title}
+              whatsappNumber={whatsappNumber}
+            >
+              <VimeoPlayer
+                lectureId={lecture._id}
+                lectureTitle={lecture.title}
+                savedPositionSec={savedPositionSec}
+                durationSeconds={lecture.durationSeconds || lecture.durationSec || 0}
+                studentName={studentName}
+                loginId={loginId}
+                onComplete={handleVideoComplete}
+                nextLectureId={nextLecture?._id}
+                onNextLecture={() => {
+                  if (nextLecture?._id) router.push(`/student/watch/${nextLecture._id}`);
+                }}
+                autoPlay={false}
+              />
+            </PlayerErrorBoundary>
           )}
 
           {/* Action Row & Autoplay Toggle */}

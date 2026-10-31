@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Play,
@@ -15,6 +15,7 @@ import {
   Video,
 } from "lucide-react";
 import VimeoPlayer from "@/components/student/VimeoPlayer";
+import PlayerErrorBoundary from "@/components/student/PlayerErrorBoundary";
 
 function formatDuration(sec) {
   if (!sec || isNaN(sec)) return "00:00";
@@ -50,28 +51,24 @@ export default function CourseSyllabus({
   const [lockedLecture, setLockedLecture] = useState(null);
   // Free preview video modal for public visitors
   const [freePreviewLecture, setFreePreviewLecture] = useState(null);
-  const [isWarmed, setIsWarmed] = useState(false);
-  const containerRef = useRef(null);
 
-  const defaultFreeLecture = useMemo(() => {
-    return lectures?.find((l) => Boolean(l.isFree || l.freePreview || l.isPreview)) || null;
-  }, [lectures]);
-
-  const activeModalLecture = freePreviewLecture || (isWarmed ? defaultFreeLecture : null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setIsWarmed(true);
-          observer.disconnect();
+  // Safe warm-up: on hover/focus/touchstart of "Watch Free", prefetch API & add preconnect hints only
+  const warmUpFreePreview = useCallback((lec) => {
+    if (!lec?._id) return;
+    try {
+      if (typeof document !== "undefined") {
+        for (const origin of ["https://player.vimeo.com", "https://i.vimeocdn.com", "https://f.vimeocdn.com"]) {
+          if (!document.querySelector(`link[rel='preconnect'][href='${origin}']`)) {
+            const link = document.createElement("link");
+            link.rel = "preconnect";
+            link.href = origin;
+            link.crossOrigin = "anonymous";
+            document.head.appendChild(link);
+          }
         }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
+      }
+      fetch(`/api/student/watch/${lec._id}`, { cache: "no-store" }).catch(() => {});
+    } catch {}
   }, []);
 
   const cleanPhone = (whatsappNumber || "918368545620").replace(/\D/g, "");
@@ -163,7 +160,7 @@ export default function CourseSyllabus({
   const booksList = Object.values(booksMap);
 
   return (
-    <div ref={containerRef} className={`w-full space-y-6 ${className}`}>
+    <div className={`w-full space-y-6 ${className}`}>
       {/* 1. Header (Course Name + Stats line) */}
       {showCourseHeader && (
         <div className="rounded-[24px] border border-[#E8ECF2] bg-white p-6 sm:p-7 shadow-xs">
@@ -287,10 +284,10 @@ export default function CourseSyllabus({
                               key={lec._id?.toString() || idx}
                               onClick={() => handleRowClick(lec)}
                               className={`group relative rounded-[14px] p-3 sm:px-4 sm:py-3 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 border ${!canAccess
-                                  ? "bg-white hover:bg-[#FFFDF9] border-[#EDF2F7] cursor-pointer"
-                                  : hasVideo
-                                    ? "bg-white hover:border-[#FFC93C] border-[#E8ECF2] shadow-2xs"
-                                    : "bg-white/80 border-[#E8ECF2] opacity-85"
+                                ? "bg-white hover:bg-[#FFFDF9] border-[#EDF2F7] cursor-pointer"
+                                : hasVideo
+                                  ? "bg-white hover:border-[#FFC93C] border-[#E8ECF2] shadow-2xs"
+                                  : "bg-white/80 border-[#E8ECF2] opacity-85"
                                 }`}
                             >
                               {/* Left: Number + Title */}
@@ -350,9 +347,9 @@ export default function CourseSyllabus({
                                     ) : (
                                       <button
                                         type="button"
-                                        onMouseEnter={() => setIsWarmed(true)}
-                                        onFocus={() => setIsWarmed(true)}
-                                        onTouchStart={() => setIsWarmed(true)}
+                                        onMouseEnter={() => warmUpFreePreview(lec)}
+                                        onFocus={() => warmUpFreePreview(lec)}
+                                        onTouchStart={() => warmUpFreePreview(lec)}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setFreePreviewLecture(lec);
@@ -475,67 +472,66 @@ export default function CourseSyllabus({
       )}
 
       {/* 4. MODAL FOR FREE PREVIEW VIDEO */}
-      {/* Free Preview Video Modal - Warmed offscreen, revealed when clicked */}
-      {(freePreviewLecture || isWarmed) && activeModalLecture && (
+      {/* Free Preview Video Modal - Rendered ONLY when opened, visible with real size */}
+      {freePreviewLecture && (
         <div
           role="dialog"
           aria-modal="true"
-          className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
-            freePreviewLecture
-              ? "bg-black/80 backdrop-blur-sm opacity-100 pointer-events-auto"
-              : "opacity-0 pointer-events-none"
-          }`}
-          style={{
-            visibility: freePreviewLecture ? "visible" : "hidden",
-          }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm pointer-events-auto transition-opacity duration-200"
           onClick={() => setFreePreviewLecture(null)}
         >
           <div
-            className={`w-full max-w-3xl rounded-[24px] bg-[#0B2A4A] overflow-hidden shadow-2xl border border-white/10 space-y-0 transition-transform duration-300 ${
-              freePreviewLecture ? "scale-100" : "scale-95"
-            }`}
+            className="w-full max-w-4xl rounded-[24px] bg-[#0B2A4A] overflow-hidden shadow-2xl border border-white/10 space-y-0"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-white/10 text-white">
+            <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 text-white">
               <div className="min-w-0 pr-3">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#FFC93C] block">
                   FREE PREVIEW
                 </span>
-                <h3 className="text-[16px] font-bold text-white truncate">
-                  {activeModalLecture.title}
+                <h3 className="text-[15px] sm:text-[16px] font-bold text-white truncate">
+                  {freePreviewLecture.title}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setFreePreviewLecture(null)}
-                className="rounded-full p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                className="rounded-full p-2 text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
                 aria-label="Close free preview modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="aspect-video w-full bg-black relative">
-              <VimeoPlayer
-                lectureId={activeModalLecture._id?.toString()}
-                isFreePreview={true}
-                durationSeconds={activeModalLecture.durationSeconds}
-                enableProgress={false}
-                autoPlay={Boolean(freePreviewLecture)}
-              />
+            <div className="w-full bg-black relative">
+              <PlayerErrorBoundary
+                lectureId={freePreviewLecture._id?.toString()}
+                lectureTitle={freePreviewLecture.title}
+                whatsappNumber={cleanPhone}
+              >
+                <VimeoPlayer
+                  lectureId={freePreviewLecture._id?.toString()}
+                  lectureTitle={freePreviewLecture.title}
+                  isFreePreview={true}
+                  durationSeconds={freePreviewLecture.durationSeconds}
+                  enableProgress={false}
+                  autoPlay={true}
+                  onClose={() => setFreePreviewLecture(null)}
+                />
+              </PlayerErrorBoundary>
             </div>
 
-            <div className="p-4 bg-[#081F38] flex items-center justify-between gap-4">
+            <div className="p-3.5 sm:p-4 bg-[#081F38] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="text-[13px] text-white/80">
                 Enjoyed this preview? Enrol today to unlock all {totalLecturesCount || 136} video lectures!
               </span>
               <a
                 href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-                  `Hello Sir, I watched the free lecture "${activeModalLecture.title}" and want to enrol in Class 12 Accountancy.`
+                  `Hello Sir, I watched the free lecture "${freePreviewLecture.title}" and want to enrol in Class 12 Accountancy.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 px-4 rounded-full bg-[#25D366] hover:bg-[#20BD5A] text-white font-bold text-[12px] flex items-center gap-1.5 shrink-0 shadow-xs"
+                className="h-9 px-4 rounded-full bg-[#25D366] hover:bg-[#20BD5A] text-white font-bold text-[12px] flex items-center gap-1.5 shrink-0 shadow-xs justify-center"
               >
                 <MessageCircle className="w-3.5 h-3.5 fill-white" />
                 <span>Enrol via WhatsApp</span>
