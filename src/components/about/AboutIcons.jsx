@@ -1,7 +1,8 @@
 /**
- * Clean inline SVGs for the About page:
- * - 2px outline stroke geometry matching the reference design exactly
- * - High-DPI crisp rendering, zero layout shift, zero external font dependencies
+ * Custom inline vector graphics for About page:
+ * - SparkCluster: 3 short angled yellow strokes
+ * - CtaBooksIllustration: Two stacked isometric books (yellow on top, deep blue below)
+ * - DecorativeArcLeft & DecorativeArcRight: Thin yellow curved SVG lines
  */
 
 // 3 angled yellow spark strokes
@@ -36,128 +37,6 @@ export function SparkCluster({ className = "w-6 h-6 text-[#FFC629]" }) {
   );
 }
 
-// Trophy Icon for Founder Century Board Scores
-export function TrophyIcon({ className = "w-7 h-7 text-[#FFC629]" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-      <path d="M4 22h16" />
-      <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34" />
-      <path d="M6 4h12v6a6 6 0 0 1-12 0V4Z" />
-    </svg>
-  );
-}
-
-// Award Ribbon Badge Icon for Founder Teaching Excellence
-export function AwardBadgeIcon({ className = "w-7 h-7 text-[#FFC629]" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="8" r="6" />
-      <path d="m9 12-2 9 5-3 5 3-2-9" />
-      <path d="m10 8 1.5 1.5L14 6" />
-    </svg>
-  );
-}
-
-// Pillar 1: Stacked Books Icon
-export function PillarStackedBooksIcon({ className = "w-8 h-8 text-[#0D2240]" }) {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      {/* Top Book */}
-      <path d="M6 7.5L16 3L26 7.5L16 12L6 7.5Z" />
-      <path d="M6 7.5V11.5L16 16L26 11.5V7.5" />
-      {/* Middle Book */}
-      <path d="M6 14.5L16 19L26 14.5" />
-      <path d="M6 18.5L16 23L26 18.5" />
-      {/* Bottom Book */}
-      <path d="M6 22.5L16 27L26 22.5" />
-    </svg>
-  );
-}
-
-// Pillar 2: Notes with Pencil Icon
-export function PillarNotesIcon({ className = "w-8 h-8 text-[#0D2240]" }) {
-  return (
-    <div className="relative inline-flex items-center justify-center">
-      {/* Soft yellow circle behind icon */}
-      <div
-        className="absolute w-10 h-10 -left-1 -top-1 rounded-full bg-[#FFE58F]/60 -z-0 pointer-events-none"
-        aria-hidden="true"
-      />
-      <svg
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={`relative z-10 ${className}`}
-        aria-hidden="true"
-      >
-        {/* Document Sheet */}
-        <path d="M7 5H21L25 9V27H7V5Z" />
-        <path d="M21 5V9H25" />
-        <path d="M11 13H19" />
-        <path d="M11 17H17" />
-        <path d="M11 21H15" />
-        {/* Tilted Pencil Writing */}
-        <path d="M26 14L20 20L18 25L23 23L29 17L26 14Z" fill="#FFF0C4" />
-      </svg>
-    </div>
-  );
-}
-
-// Pillar 3: Target with Arrow Icon
-export function PillarTargetIcon({ className = "w-8 h-8 text-[#0D2240]" }) {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="16" cy="16" r="11" />
-      <circle cx="16" cy="16" r="6.5" />
-      <circle cx="16" cy="16" r="2" fill="currentColor" />
-      {/* Arrow */}
-      <path d="M27 5L17.5 14.5" />
-      <path d="M22 5H27V10" />
-    </svg>
-  );
-}
-
 // CTA 3D Stacked Books Illustration
 export function CtaBooksIllustration({ className = "w-36 h-28" }) {
   return (
@@ -168,7 +47,7 @@ export function CtaBooksIllustration({ className = "w-36 h-28" }) {
       className={className}
       aria-hidden="true"
     >
-      {/* Drop Shadow */}
+      {/* Soft Drop Shadow */}
       <ellipse
         cx="78"
         cy="104"
@@ -282,4 +161,3 @@ export function DecorativeArcRight({ className = "w-20 h-40 text-[#FFC629]" }) {
     </svg>
   );
 }
-

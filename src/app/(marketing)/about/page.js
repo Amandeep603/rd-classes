@@ -1,15 +1,17 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Playfair_Display } from "next/font/google";
+import {
+  BookCopy,
+  NotebookPen,
+  Target,
+  Trophy,
+  Award,
+  ArrowUpRight,
+} from "lucide-react";
 import { SITE_CONFIG } from "@/constants/site";
-import AboutScrollReveal from "@/components/about/AboutScrollReveal";
 import {
   SparkCluster,
-  TrophyIcon,
-  AwardBadgeIcon,
-  PillarStackedBooksIcon,
-  PillarNotesIcon,
-  PillarTargetIcon,
   CtaBooksIllustration,
   DecorativeArcLeft,
   DecorativeArcRight,
@@ -70,12 +72,10 @@ export const ABOUT_CONTENT = {
       {
         value: "100/100",
         label: "Century Board Scores",
-        iconType: "trophy",
       },
       {
         value: "10+ Yrs",
         label: "Teaching Excellence",
-        iconType: "award",
       },
     ],
   },
@@ -197,7 +197,6 @@ export default function AboutPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutJsonLd) }}
       />
-      <AboutScrollReveal />
 
       {/* Main Page Container: ~940px wide at 1024px with 40px padding, centered and scaled cleanly up to 1200px */}
       <main
@@ -212,10 +211,7 @@ export default function AboutPage() {
           aria-label="About RD Classes Introduction"
         >
           {/* Left Column: Inset Text Content (~24px more inset than cards below) */}
-          <div
-            className="w-full lg:max-w-[490px] xl:max-w-[530px] lg:pl-6 text-left shrink-0 z-10"
-            data-reveal
-          >
+          <div className="w-full lg:max-w-[490px] xl:max-w-[530px] lg:pl-6 text-left shrink-0 z-10">
             {/* Pale Yellow Chip */}
             <div className="inline-flex items-center rounded-full bg-[#FDEFB8] px-3.5 py-1 text-[11px] font-bold tracking-[0.08em] text-[#0D2240] uppercase mb-5 select-none">
               <span>{hero.chip}</span>
@@ -257,10 +253,7 @@ export default function AboutPage() {
           </div>
 
           {/* Right Column: Large Photo Card with Yellow Backplate & Sparks */}
-          <div
-            className="w-full lg:w-auto flex justify-center lg:justify-end lg:pr-4 mt-4 lg:mt-0 relative"
-            data-reveal
-          >
+          <div className="w-full lg:w-auto flex justify-center lg:justify-end lg:pr-4 mt-4 lg:mt-0 relative">
             <div className="relative w-[300px] sm:w-[350px] lg:w-[360px] xl:w-[390px] aspect-[3/4]">
               {/* Bigger Yellow Rounded Rectangle Behind (-8deg rotation, peeking top-right/bottom-right/left) */}
               <div
@@ -297,7 +290,6 @@ export default function AboutPage() {
         <section
           className="mt-10 sm:mt-12 rounded-[24px] bg-white border border-[#E8ECEF] shadow-[0_8px_30px_rgba(13,34,64,0.06)] px-6 sm:px-8 py-5 sm:py-6"
           aria-label="Founder and Mentor Profile"
-          data-reveal
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-4">
             {/* Left group: Navy Avatar circle with yellow ring + Name/Credentials */}
@@ -336,7 +328,7 @@ export default function AboutPage() {
             <div className="grid grid-cols-2 gap-4 sm:gap-6 md:gap-8 lg:gap-10 items-center shrink-0">
               {/* Stat 1: 100/100 */}
               <div className="flex items-center gap-3">
-                <TrophyIcon className="w-8 h-8 text-[#FFC629] shrink-0" />
+                <Trophy className="w-8 h-8 text-[#FFC629] shrink-0" strokeWidth={2} />
                 <div>
                   <p className="text-[24px] sm:text-[27px] font-extrabold text-[#0D2240] leading-none">
                     {founder.stats[0].value}
@@ -355,7 +347,7 @@ export default function AboutPage() {
 
               {/* Stat 2: 10+ Yrs */}
               <div className="flex items-center gap-3">
-                <AwardBadgeIcon className="w-8 h-8 text-[#FFC629] shrink-0" />
+                <Award className="w-8 h-8 text-[#FFC629] shrink-0" strokeWidth={2} />
                 <div>
                   <p className="text-[24px] sm:text-[27px] font-extrabold text-[#0D2240] leading-none">
                     {founder.stats[1].value}
@@ -394,7 +386,7 @@ export default function AboutPage() {
 
           <div className="relative z-10 flex flex-col lg:flex-row items-start justify-between gap-10 lg:gap-8">
             {/* Left Column: Heading & Explanation */}
-            <div className="w-full lg:max-w-[260px] xl:max-w-[280px] shrink-0" data-reveal>
+            <div className="w-full lg:max-w-[260px] xl:max-w-[280px] shrink-0">
               {/* Short yellow bar above heading */}
               <div
                 className="w-8 h-1 bg-[#FFC629] rounded-full mb-3.5"
@@ -419,8 +411,7 @@ export default function AboutPage() {
             <div className="w-full lg:flex-1 relative flex flex-col md:flex-row items-stretch justify-end gap-5 md:gap-0">
               {/* Card 01 (Light Blue) */}
               <article
-                className={`w-full md:w-[35%] lg:w-[220px] xl:w-[240px] rounded-[28px] p-6 sm:p-7 shadow-[0_12px_30px_rgba(13,34,64,0.06)] border border-[#0D2240]/[0.04] transition-all duration-300 md:hover:rotate-0 md:hover:-translate-y-2 md:hover:z-40 ${pillars.cards[0].bgColor} ${pillars.cards[0].rotationDesktop} md:${pillars.cards[0].rotationTablet} ${pillars.cards[0].desktopOffset} relative z-10`}
-                data-reveal
+                className={`w-full md:w-[35%] lg:w-[220px] xl:w-[240px] rounded-[28px] p-6 sm:p-7 shadow-[0_12px_30px_rgba(13,34,64,0.06)] border border-[#0D2240]/[0.04] transition-all duration-300 md:hover:rotate-0 md:hover:-translate-y-2 md:hover:z-40 md:hover:shadow-xl cursor-pointer ${pillars.cards[0].bgColor} ${pillars.cards[0].rotationDesktop} md:${pillars.cards[0].rotationTablet} ${pillars.cards[0].desktopOffset} relative z-10`}
               >
                 {/* Number Badge */}
                 <div
@@ -429,9 +420,9 @@ export default function AboutPage() {
                   {pillars.cards[0].id}
                 </div>
 
-                {/* Icon */}
+                {/* Stacked Books Icon */}
                 <div className="mb-4 text-[#0D2240]">
-                  <PillarStackedBooksIcon className="w-8 h-8 text-[#0D2240]" />
+                  <BookCopy className="w-8 h-8 text-[#0D2240]" strokeWidth={2} />
                 </div>
 
                 {/* Title */}
@@ -447,8 +438,7 @@ export default function AboutPage() {
 
               {/* Card 02 (Light Yellow) */}
               <article
-                className={`w-full md:w-[35%] lg:w-[220px] xl:w-[240px] rounded-[28px] p-6 sm:p-7 shadow-[0_12px_30px_rgba(13,34,64,0.06)] border border-[#0D2240]/[0.04] transition-all duration-300 md:hover:rotate-0 md:hover:-translate-y-2 md:hover:z-40 ${pillars.cards[1].bgColor} ${pillars.cards[1].rotationDesktop} md:${pillars.cards[1].rotationTablet} ${pillars.cards[1].desktopOffset} md:-ml-3.5 relative z-20`}
-                data-reveal
+                className={`w-full md:w-[35%] lg:w-[220px] xl:w-[240px] rounded-[28px] p-6 sm:p-7 shadow-[0_12px_30px_rgba(13,34,64,0.06)] border border-[#0D2240]/[0.04] transition-all duration-300 md:hover:rotate-0 md:hover:-translate-y-2 md:hover:z-40 md:hover:shadow-xl cursor-pointer ${pillars.cards[1].bgColor} ${pillars.cards[1].rotationDesktop} md:${pillars.cards[1].rotationTablet} ${pillars.cards[1].desktopOffset} md:-ml-3.5 relative z-20`}
               >
                 {/* Number Badge */}
                 <div
@@ -457,9 +447,15 @@ export default function AboutPage() {
                   {pillars.cards[1].id}
                 </div>
 
-                {/* Icon */}
+                {/* Notes with Pencil Icon on yellow circle */}
                 <div className="mb-4 text-[#0D2240]">
-                  <PillarNotesIcon className="w-8 h-8 text-[#0D2240]" />
+                  <div className="relative inline-flex items-center justify-center">
+                    <div
+                      className="absolute w-10 h-10 -left-1 -top-1 rounded-full bg-[#FFE58F]/60 -z-0 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <NotebookPen className="w-8 h-8 text-[#0D2240] relative z-10" strokeWidth={2} />
+                  </div>
                 </div>
 
                 {/* Title */}
@@ -475,8 +471,7 @@ export default function AboutPage() {
 
               {/* Card 03 (Light Green) */}
               <article
-                className={`w-full md:w-[35%] lg:w-[220px] xl:w-[240px] rounded-[28px] p-6 sm:p-7 shadow-[0_12px_30px_rgba(13,34,64,0.06)] border border-[#0D2240]/[0.04] transition-all duration-300 md:hover:rotate-0 md:hover:-translate-y-2 md:hover:z-40 ${pillars.cards[2].bgColor} ${pillars.cards[2].rotationDesktop} md:${pillars.cards[2].rotationTablet} ${pillars.cards[2].desktopOffset} md:-ml-3.5 relative z-30`}
-                data-reveal
+                className={`w-full md:w-[35%] lg:w-[220px] xl:w-[240px] rounded-[28px] p-6 sm:p-7 shadow-[0_12px_30px_rgba(13,34,64,0.06)] border border-[#0D2240]/[0.04] transition-all duration-300 md:hover:rotate-0 md:hover:-translate-y-2 md:hover:z-40 md:hover:shadow-xl cursor-pointer ${pillars.cards[2].bgColor} ${pillars.cards[2].rotationDesktop} md:${pillars.cards[2].rotationTablet} ${pillars.cards[2].desktopOffset} md:-ml-3.5 relative z-30`}
               >
                 {/* Number Badge */}
                 <div
@@ -485,9 +480,9 @@ export default function AboutPage() {
                   {pillars.cards[2].id}
                 </div>
 
-                {/* Icon */}
+                {/* Target with Arrow Icon */}
                 <div className="mb-4 text-[#0D2240]">
-                  <PillarTargetIcon className="w-8 h-8 text-[#0D2240]" />
+                  <Target className="w-8 h-8 text-[#0D2240]" strokeWidth={2} />
                 </div>
 
                 {/* Title */}
@@ -510,7 +505,6 @@ export default function AboutPage() {
         <section
           className="mt-16 sm:mt-20 lg:mt-24 rounded-[28px] bg-[#0D2240] text-white shadow-[0_20px_50px_rgba(13,34,64,0.18)] relative overflow-hidden p-6 sm:p-8 lg:p-10"
           aria-label="Accountancy Preparation Call to Action"
-          data-reveal
         >
           {/* Light diagonal wedge that cuts the banner's bottom-left corner */}
           <div
@@ -563,9 +557,10 @@ export default function AboutPage() {
                 className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[#FFC629] hover:bg-[#F5B810] active:scale-[0.98] text-[#0D2240] font-bold text-[14px] shadow-[0_4px_14px_rgba(255,198,41,0.35)] transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D2240] min-h-[44px]"
               >
                 <span>{cta.buttonLabel}</span>
-                <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 text-base">
-                  ↗
-                </span>
+                <ArrowUpRight
+                  className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                  strokeWidth={2.5}
+                />
               </Link>
             </div>
           </div>
