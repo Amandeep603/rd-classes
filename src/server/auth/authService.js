@@ -55,8 +55,8 @@ export async function studentLogin({ loginId, password }) {
   // 1. Check rate limits (5 failed attempts per 15 minutes)
   const rateCheck = await checkRateLimit(rateLimitKey);
   if (rateCheck.locked) {
-    console.warn(`[AUTH_LOGIN_FAILED] reason=rate_limited loginId=${upperId} ip=${ip}`);
     const mins = Math.max(1, Math.ceil(rateCheck.remainingSec / 60));
+    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=rate_limited ip=${ip} remainingMin=${mins}`);
     return {
       success: false,
       error: `Too many attempts, try again in ${mins} minutes`,
@@ -78,7 +78,7 @@ export async function studentLogin({ loginId, password }) {
       ],
     });
   } catch (dbErr) {
-    console.error("[AUTH_LOGIN_ERROR] reason=db_error", dbErr.message);
+    console.error(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=db_error ip=${ip} error=${dbErr.message}`);
     return {
       success: false,
       error: "Server error (code DB_ERR), contact RD Classes",
@@ -89,7 +89,7 @@ export async function studentLogin({ loginId, password }) {
   if (!user) {
     await comparePasswordDummy(cleanPassword);
     await recordFailedAttempt(rateLimitKey, 5);
-    console.warn(`[AUTH_LOGIN_FAILED] reason=user_not_found loginId=${upperId} ip=${ip}`);
+    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=user_not_found ip=${ip}`);
     return {
       success: false,
       error: "Invalid login ID or password",
@@ -102,7 +102,7 @@ export async function studentLogin({ loginId, password }) {
   try {
     isPasswordValid = await comparePassword(cleanPassword, user.passwordHash);
   } catch (err) {
-    console.error("[AUTH_LOGIN_ERROR] reason=config_error", err.message);
+    console.error(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=config_error ip=${ip} error=${err.message}`);
     return {
       success: false,
       error: "Server error (code AUTH_CFG), contact RD Classes",
@@ -112,7 +112,7 @@ export async function studentLogin({ loginId, password }) {
 
   if (!isPasswordValid) {
     await recordFailedAttempt(rateLimitKey, 5);
-    console.warn(`[AUTH_LOGIN_FAILED] reason=wrong_password loginId=${upperId} ip=${ip}`);
+    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=wrong_password ip=${ip}`);
     return {
       success: false,
       error: "Invalid login ID or password",
@@ -122,7 +122,7 @@ export async function studentLogin({ loginId, password }) {
 
   // 4. Blocked check (only after password verification)
   if (user.status === "blocked") {
-    console.warn(`[AUTH_LOGIN_BLOCKED] reason=blocked loginId=${upperId} ip=${ip}`);
+    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=blocked ip=${ip}`);
     return {
       success: false,
       error: "Your account has been deactivated. Please contact RD Classes administration.",
@@ -195,6 +195,10 @@ export async function studentLogin({ loginId, password }) {
 
     await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawToken, COOKIE_DURATIONS.SESSION);
 
+    console.log(
+      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=success status=device_approved deviceId=${activeDeviceId} ip=${ip} ua="${(userAgent || "").slice(0, 60)}"`
+    );
+
     return {
       success: true,
       redirectTo: "/student",
@@ -202,18 +206,19 @@ export async function studentLogin({ loginId, password }) {
   }
 
   // CASE 2: Device is NOT approved, but student has available slots (e.g. first login or < maxAllowed)
+  // Fix: Scope query strictly to THIS student so other students' devices are never stolen!
   if (approvedDevices.length < maxAllowed) {
     await Device.findOneAndUpdate(
       {
-        $or: [{ studentId: user._id }, { userId: user._id }],
-        $or: [{ deviceKey }, { deviceId: deviceKey }],
+        studentId: user._id,
+        $or: [{ deviceId: deviceKey }, { deviceKey: deviceKey }],
       },
       {
         $set: {
           studentId: user._id,
           userId: user._id,
           deviceId: deviceKey,
-          deviceKey,
+          deviceKey: deviceKey,
           deviceType,
           os: osName,
           browser: browserName,
@@ -230,6 +235,8 @@ export async function studentLogin({ loginId, password }) {
           lastUsedAt: now,
           approvedAt: now,
           decidedAt: now,
+        },
+        $setOnInsert: {
           requestedAt: now,
         },
       },
@@ -238,6 +245,7 @@ export async function studentLogin({ loginId, password }) {
 
     user.lastLoginAt = now;
     user.lastLoginIp = ip;
+    user.deviceCount = approvedDevices.length + 1;
     await user.save();
 
     // One active session per device
@@ -259,6 +267,10 @@ export async function studentLogin({ loginId, password }) {
 
     await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawToken, COOKIE_DURATIONS.SESSION);
 
+    console.log(
+      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=success status=device_auto_approved slot=${approvedDevices.length + 1}/${maxAllowed} deviceId=${deviceKey} ip=${ip} ua="${(userAgent || "").slice(0, 60)}"`
+    );
+
     return {
       success: true,
       redirectTo: "/student",
@@ -267,11 +279,11 @@ export async function studentLogin({ loginId, password }) {
 
   // CASE 3: Device is NOT approved and student has reached their allowed device limit
   console.warn(
-    `[AUTH_LOGIN_PENDING] reason=device_pending loginId=${upperId} ip=${ip} deviceKey=${deviceKey}`
+    `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_pending limit=${maxAllowed} ip=${ip} deviceKey=${deviceKey}`
   );
 
   let pendingDoc = await Device.findOne({
-    $or: [{ studentId: user._id }, { userId: user._id }],
+    studentId: user._id,
     $or: [{ deviceKey }, { deviceId: deviceKey }],
   });
 

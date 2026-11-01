@@ -102,6 +102,12 @@ export async function approveDeviceRequest(
   device.lastUsedAt = now;
   await device.save();
 
+  user.deviceCount = await Device.countDocuments({
+    $or: [{ studentId: user._id }, { userId: user._id }],
+    status: "approved",
+  });
+  await user.save();
+
   // Log in ActivityLog
   try {
     await ActivityLog.create({
@@ -208,6 +214,18 @@ export async function removeDevice(userId, deviceId, adminId) {
   );
   await Session.deleteMany({ userId, deviceId });
 
+  await User.updateOne(
+    { _id: userId },
+    {
+      $set: {
+        deviceCount: await Device.countDocuments({
+          $or: [{ studentId: userId }, { userId }],
+          status: "approved",
+        }),
+      },
+    }
+  ).catch(() => {});
+
   try {
     await ActivityLog.create({
       actorId: adminId || userId,
@@ -241,6 +259,8 @@ export async function resetAllDevices(userId, adminId) {
   await Session.updateMany({ userId }, { $set: { revoked: true } });
   await Session.deleteMany({ userId });
 
+  await User.updateOne({ _id: userId }, { $set: { deviceCount: 0 } }).catch(() => {});
+
   try {
     await ActivityLog.create({
       actorId: adminId || userId,
@@ -266,6 +286,8 @@ export async function logoutAllSessions(userId, adminId) {
 
   await Session.updateMany({ userId }, { $set: { revoked: true } });
   await Session.deleteMany({ userId });
+
+  await User.updateOne({ _id: userId }, { $set: { deviceCount: 0 } }).catch(() => {});
 
   try {
     await ActivityLog.create({

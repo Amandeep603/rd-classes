@@ -36,11 +36,46 @@ import {
 } from "../email/mailer.js";
 
 /**
- * Normalizes batch strings (e.g. ",4--5", "4 - 5" -> "4-5").
+ * Normalizes batch strings (e.g. ",4--5", "4 - 5" -> "4-5", Excel date serial 46117 -> "4-5", 46148 -> "5-6").
  */
 export function normalizeBatch(val) {
-  if (!val) return "";
-  let s = String(val).trim();
+  if (val === undefined || val === null || val === "") return "";
+
+  // If val is a Date object (e.g. from XLSX parser with cellDates: true)
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return `${val.getMonth() + 1}-${val.getDate()}`;
+  }
+
+  const rawStr = String(val).trim();
+  if (!rawStr) return "";
+
+  // Handle Excel date serials (e.g. 46117 -> 4-5, 46148 -> 5-6)
+  if (/^\d{4,6}$/.test(rawStr)) {
+    const num = Number(rawStr);
+    if (num >= 30000 && num <= 70000) {
+      try {
+        const ssf = XLSX.SSF || XLSX.default?.SSF;
+        if (ssf?.parse_date_code) {
+          const parsed = ssf.parse_date_code(num);
+          if (parsed && parsed.m && parsed.d) {
+            return `${parsed.m}-${parsed.d}`;
+          }
+        }
+      } catch {
+        // Fall back to date math
+      }
+      try {
+        const utcDate = new Date(Math.round((num - 25569) * 86400 * 1000));
+        if (!isNaN(utcDate.getTime())) {
+          return `${utcDate.getUTCMonth() + 1}-${utcDate.getUTCDate()}`;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+  }
+
+  let s = rawStr;
   // Strip leading/trailing punctuation (like commas, extra dashes)
   s = s.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "").trim();
   // Standardize multiple dashes, en-dashes, or spaces between numbers
@@ -213,7 +248,7 @@ export async function parseAndValidateImport(fileBuffer) {
   }
 
   const worksheet = workbook.Sheets[sheetName];
-  const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+  const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
   if (!rawRows || rawRows.length === 0) {
     throw new Error("The uploaded file is empty.");

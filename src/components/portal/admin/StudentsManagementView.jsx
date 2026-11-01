@@ -133,6 +133,89 @@ export default function StudentsManagementView({
   const [wipeResult, setWipeResult] = useState(null);
   const [wipeError, setWipeError] = useState("");
 
+  // System Maintenance & Data Repair state
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [batchDryRunLoading, setBatchDryRunLoading] = useState(false);
+  const [batchApplyLoading, setBatchApplyLoading] = useState(false);
+  const [batchDryRunResult, setBatchDryRunResult] = useState(null);
+  const [batchFeedback, setBatchFeedback] = useState(null);
+
+  const [deviceDryRunLoading, setDeviceDryRunLoading] = useState(false);
+  const [deviceApplyLoading, setDeviceApplyLoading] = useState(false);
+  const [deviceDryRunResult, setDeviceDryRunResult] = useState(null);
+  const [deviceFeedback, setDeviceFeedback] = useState(null);
+
+  const handleBatchDryRun = async () => {
+    try {
+      setBatchDryRunLoading(true);
+      setBatchFeedback(null);
+      const res = await fetch("/api/admin/maintenance/fix-batches");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Dry run failed");
+      setBatchDryRunResult(data);
+    } catch (err) {
+      setBatchFeedback({ type: "error", message: err.message });
+    } finally {
+      setBatchDryRunLoading(false);
+    }
+  };
+
+  const handleBatchApply = async (action = "apply") => {
+    try {
+      setBatchApplyLoading(true);
+      setBatchFeedback(null);
+      const res = await fetch("/api/admin/maintenance/fix-batches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Fix failed");
+      setBatchFeedback({ type: "success", message: data.message });
+      setBatchDryRunResult(null);
+      fetchStudents();
+    } catch (err) {
+      setBatchFeedback({ type: "error", message: err.message });
+    } finally {
+      setBatchApplyLoading(false);
+    }
+  };
+
+  const handleDeviceDryRun = async () => {
+    try {
+      setDeviceDryRunLoading(true);
+      setDeviceFeedback(null);
+      const res = await fetch("/api/admin/maintenance/repair-devices");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Device check failed");
+      setDeviceDryRunResult(data);
+    } catch (err) {
+      setDeviceFeedback({ type: "error", message: err.message });
+    } finally {
+      setDeviceDryRunLoading(false);
+    }
+  };
+
+  const handleDeviceApply = async () => {
+    try {
+      setDeviceApplyLoading(true);
+      setDeviceFeedback(null);
+      const res = await fetch("/api/admin/maintenance/repair-devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Device repair failed");
+      setDeviceFeedback({ type: "success", message: data.message });
+      setDeviceDryRunResult(null);
+      fetchStudents();
+    } catch (err) {
+      setDeviceFeedback({ type: "error", message: err.message });
+    } finally {
+      setDeviceApplyLoading(false);
+    }
+  };
+
   // Copied state indicator
   const [copiedKey, setCopiedKey] = useState(null);
 
@@ -1235,6 +1318,239 @@ export default function StudentsManagementView({
           onPageChange: (p) => setPage(p),
         }}
       />
+
+      {/* ================= SYSTEM MAINTENANCE & FIX TOOLS (COLLAPSIBLE) ================= */}
+      <div className="rounded-2xl border border-sky-200 bg-sky-50/40 p-5 sm:p-6 shadow-xs">
+        <div
+          onClick={() => setMaintenanceOpen(!maintenanceOpen)}
+          className="flex items-center justify-between cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-700 border border-sky-200 shrink-0">
+              <RefreshCw className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-sky-950 flex items-center gap-2">
+                System Maintenance & Data Repairs
+                <span className="px-2 py-0.5 text-[10px] font-semibold bg-sky-100 text-sky-800 rounded-full border border-sky-300">
+                  Owner Tools
+                </span>
+              </h3>
+              <p className="text-xs text-sky-700">
+                Safe dry-run diagnostic and repair actions for student devices and batch numbers.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="p-1.5 text-sky-700 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
+          >
+            {maintenanceOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {maintenanceOpen && (
+          <div className="mt-6 pt-5 border-t border-sky-200/80 space-y-6 animate-in fade-in duration-150">
+            {/* TOOL 1: FIX BATCH VALUES */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-sky-600" />
+                    Fix Batch Values (Excel Date Serials)
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Converts corrupted 5-digit Excel date serials (e.g. <code className="bg-slate-100 px-1 py-0.5 rounded text-amber-700">46117</code> &rarr; <code className="bg-slate-100 px-1 py-0.5 rounded text-emerald-700 font-semibold">4-5</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-amber-700">46148</code> &rarr; <code className="bg-slate-100 px-1 py-0.5 rounded text-emerald-700 font-semibold">5-6</code>) back to standard readable batch slots. Safe & reversible (preserves raw value).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleBatchDryRun}
+                    disabled={batchDryRunLoading || batchApplyLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {batchDryRunLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                    Dry Run
+                  </button>
+                </div>
+              </div>
+
+              {batchFeedback && (
+                <div
+                  className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 border ${
+                    batchFeedback.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                  }`}
+                >
+                  {batchFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  )}
+                  <span>{batchFeedback.message}</span>
+                </div>
+              )}
+
+              {batchDryRunResult && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-semibold text-slate-800">
+                    <span>
+                      Identified {batchDryRunResult.count} student(s) with numeric date serial batch values
+                    </span>
+                    <span className="text-slate-500 font-normal">Dry Run Result</span>
+                  </div>
+
+                  {batchDryRunResult.mappings?.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                      {batchDryRunResult.mappings.map((m, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-white border border-slate-200 rounded-md p-2 flex items-center justify-between"
+                        >
+                          <span className="font-mono text-amber-700 font-semibold">{m.from}</span>
+                          <span className="text-slate-400">&rarr;</span>
+                          <span className="font-mono text-emerald-700 font-bold">{m.to}</span>
+                          <span className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                            {m.count} student(s)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 italic">No corrupted batch values found. All batches are clean!</p>
+                  )}
+
+                  {batchDryRunResult.count > 0 && (
+                    <div className="pt-2 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleBatchApply("apply")}
+                        disabled={batchApplyLoading}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                      >
+                        {batchApplyLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        Apply Fix ({batchDryRunResult.count} students)
+                      </button>
+                    </div>
+                  )}
+
+                  {batchDryRunResult.canRollback && (
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500">
+                        Rollback available for {batchDryRunResult.rollbackCount} student(s)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchApply("rollback")}
+                        disabled={batchApplyLoading}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-800 underline cursor-pointer"
+                      >
+                        Rollback to Raw Values
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* TOOL 2: REPAIR STUDENT DEVICES */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-sky-600" />
+                    Repair Devices (First-Login Device Auto-Registration)
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Finds students who logged in successfully (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">lastLoginAt != null</code>) but currently show "None / No Device" due to the prior device registration overwrite bug. Restores and approves their registered device records from active sessions.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDeviceDryRun}
+                    disabled={deviceDryRunLoading || deviceApplyLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {deviceDryRunLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                    Check Missing Devices
+                  </button>
+                </div>
+              </div>
+
+              {deviceFeedback && (
+                <div
+                  className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 border ${
+                    deviceFeedback.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                  }`}
+                >
+                  {deviceFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  )}
+                  <span>{deviceFeedback.message}</span>
+                </div>
+              )}
+
+              {deviceDryRunResult && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-semibold text-slate-800">
+                    <span>
+                      {deviceDryRunResult.count} of {deviceDryRunResult.totalLoggedIn} logged-in student(s) have missing device records
+                    </span>
+                    <span className="text-slate-500 font-normal">Dry Run Result</span>
+                  </div>
+
+                  {deviceDryRunResult.count > 0 ? (
+                    <>
+                      <div className="max-h-40 overflow-y-auto space-y-1.5 border border-slate-200 rounded p-2 bg-white">
+                        {deviceDryRunResult.students?.map((st, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[11px] text-slate-700 py-0.5">
+                            <span className="font-mono font-semibold text-slate-900">{st.loginId}</span>
+                            <span className="text-slate-500">
+                              {st.deviceType} &middot; {st.os}
+                            </span>
+                            <span className={st.hasSession ? "text-emerald-600 font-medium" : "text-amber-600 font-medium"}>
+                              {st.hasSession ? "Session data ready" : "Will auto-approve next login"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={handleDeviceApply}
+                          disabled={deviceApplyLoading}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                        >
+                          {deviceApplyLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          Repair Devices ({deviceDryRunResult.count} students)
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-slate-500 italic">All students with logged-in sessions already have approved device records!</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ================= DANGER ZONE SECTION (COLLAPSIBLE) ================= */}
       <div className="rounded-2xl border border-red-200 bg-red-50/40 p-5 sm:p-6 shadow-xs">

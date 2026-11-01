@@ -63,15 +63,26 @@ export default function AuthScene({
     urlErrorMessage = urlMessage;
   } else if (reason === "admin_logged_in" || urlError === "admin_logged_in") {
     urlErrorMessage = "Please log in as a student";
+  } else if (reason === "logged_out") {
+    urlErrorMessage = "You have been logged out successfully.";
+  } else if (
+    reason === "device_revoked" ||
+    urlError === "device_revoked" ||
+    reason === "device_not_approved"
+  ) {
+    urlErrorMessage =
+      "Your approved device was changed or revoked by the administrator. To use this device, contact RD Classes.";
+  } else if (reason === "logged_in_elsewhere") {
+    urlErrorMessage =
+      "Your account was logged in from another session. Please log in again.";
+  } else if (reason === "account_blocked" || urlError === "account_blocked") {
+    urlErrorMessage =
+      "Your student account has been deactivated. Please contact RD Classes.";
   } else if (reason === "expired" || urlError === "session_expired") {
     urlErrorMessage = "Your session expired. Please log in again.";
     isExpiredNotice = true;
-  } else if (urlError === "device_revoked") {
-    urlErrorMessage =
-      "Your approved device was revoked by the administrator. To use another device, contact RD Classes.";
-  } else if (urlError === "account_blocked") {
-    urlErrorMessage =
-      "Your student account has been deactivated. Please contact RD Classes.";
+  } else if (reason === "login_required") {
+    urlErrorMessage = null;
   }
 
   const isStudent = role === "student";

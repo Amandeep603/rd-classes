@@ -84,7 +84,7 @@ export function middleware(request) {
         loginUrl.searchParams.set("reason", "admin_logged_in");
         loginUrl.searchParams.set("message", "Please log in as a student");
       } else {
-        loginUrl.searchParams.set("reason", "expired");
+        loginUrl.searchParams.set("reason", "login_required");
       }
       loginUrl.searchParams.set("next", fullPath);
       return applyHeaders(NextResponse.redirect(loginUrl));

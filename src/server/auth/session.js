@@ -7,6 +7,7 @@ import connectDB from "../db/connect.js";
 import { Session, User, Device } from "@/lib/models";
 import { getCookie, deleteCookie, COOKIE_NAMES, COOKIE_DURATIONS } from "./cookies.js";
 import { hashToken } from "./tokens.js";
+import { parseDeviceDetails } from "./device.js";
 export { getStudentCourseAccess, getStudentCourseContext } from "../services/studentAccessService.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -101,21 +102,43 @@ export const getCurrentStudent = cache(async () => {
     return null;
   }
 
-  await connectDB();
-  const now = new Date();
-  const tokenHash = hashToken(studentToken);
-  const session = await Session.findOne({ tokenHash }).lean();
+  let session = null;
+  try {
+    await connectDB();
+    const tokenHash = hashToken(studentToken);
+    session = await Session.findOne({ tokenHash }).lean();
+  } catch (err) {
+    console.error("[SESSION_ERROR] Transient DB error in getCurrentStudent:", err?.message);
+    // Transient DB error: NEVER clear cookies or revoke sessions on database connectivity hiccups
+    return null;
+  }
 
-  if (!session || session.revoked || new Date(session.expiresAt) <= now) {
-    if (session) {
-      await Session.deleteOne({ _id: session._id }).catch(() => {});
-    }
+  const now = new Date();
+  if (!session) {
+    return null;
+  }
+
+  if (session.revoked) {
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
     await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
     return null;
   }
 
-  const user = await User.findById(session.userId).lean();
+  if (new Date(session.expiresAt) <= now) {
+    await Session.deleteOne({ _id: session._id }).catch(() => {});
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    return null;
+  }
+
+  let user = null;
+  try {
+    user = await User.findById(session.userId).lean();
+  } catch (err) {
+    console.error("[SESSION_ERROR] Transient DB error finding user:", err?.message);
+    return null;
+  }
+
   if (!user || user.role !== "student" || user.status === "blocked") {
     await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
@@ -123,14 +146,72 @@ export const getCurrentStudent = cache(async () => {
     return null;
   }
 
-  const deviceApproved = await Device.exists({
-    $or: [{ studentId: user._id }, { userId: user._id }],
-    deviceId: session.deviceId,
-    status: "approved",
-  });
+  // Device check with auto-healing for unassigned students
+  let deviceApproved = false;
+  try {
+    deviceApproved = await Device.exists({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
+      status: "approved",
+    });
+
+    if (!deviceApproved) {
+      // Check if student has ANY approved device
+      const hasAnyApproved = await Device.exists({
+        $or: [{ studentId: user._id }, { userId: user._id }],
+        status: "approved",
+      });
+
+      // If student has 0 approved devices in DB, auto-heal from active session
+      // (Protects existing students who logged in before the fix from getting kicked out)
+      if (!hasAnyApproved && session.deviceId) {
+        const details = parseDeviceDetails(session.userAgent || "");
+        await Device.findOneAndUpdate(
+          {
+            studentId: user._id,
+            $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
+          },
+          {
+            $set: {
+              studentId: user._id,
+              userId: user._id,
+              deviceId: session.deviceId,
+              deviceKey: session.deviceId,
+              deviceType: details.deviceType || "desktop",
+              os: details.osName || "",
+              browser: details.browserName || "",
+              model: details.model || "",
+              deviceLabel: details.label || "Approved Device",
+              label: details.label || "Approved Device",
+              ip: session.ip || user.lastLoginIp || "",
+              lastIp: session.ip || user.lastLoginIp || "",
+              userAgent: session.userAgent || "",
+              status: "approved",
+              firstLoginAt: user.lastLoginAt || now,
+              approvedAt: now,
+              decidedAt: now,
+              lastUsedAt: now,
+            },
+          },
+          { upsert: true, new: true }
+        ).catch((healErr) => {
+          console.warn("[SESSION_DEVICE_HEAL_FAILED]", healErr?.message);
+        });
+        deviceApproved = true;
+      }
+    }
+  } catch (deviceErr) {
+    console.error("[SESSION_ERROR] Error checking device:", deviceErr?.message);
+    // On transient DB error, do NOT kill active session; default to permitting request
+    deviceApproved = true;
+  }
 
   if (!deviceApproved) {
-    await Session.deleteOne({ _id: session._id }).catch(() => {});
+    // Device was explicitly revoked or replaced by admin
+    await Session.updateOne(
+      { _id: session._id },
+      { $set: { revoked: true, revokedReason: "device_revoked" } }
+    ).catch(() => {});
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
     await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
     return null;
@@ -271,12 +352,32 @@ export async function requireStudent() {
       redirect(target);
     }
 
-    const hadStudentCookie = Boolean(
+    const rawStudentToken =
       (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
-      (await getCookie(COOKIE_NAMES.LEGACY_SESSION))
-    );
+      (await getCookie(COOKIE_NAMES.LEGACY_SESSION));
+    const hadStudentCookie = Boolean(rawStudentToken);
 
-    const target = `/student-login?reason=expired&next=${encodeURIComponent(currentPath)}`;
+    let specificReason = "login_required";
+    if (hadStudentCookie) {
+      specificReason = "expired";
+      try {
+        const tokenHash = hashToken(rawStudentToken);
+        const sess = await Session.findOne({ tokenHash }).lean();
+        if (sess) {
+          if (sess.revokedReason === "device_revoked") {
+            specificReason = "device_revoked";
+          } else if (sess.revoked) {
+            specificReason = "logged_in_elsewhere";
+          } else if (new Date(sess.expiresAt) <= new Date()) {
+            specificReason = "expired";
+          }
+        }
+      } catch {
+        specificReason = "expired";
+      }
+    }
+
+    const target = `/student-login?reason=${specificReason}&next=${encodeURIComponent(currentPath)}`;
     if (hadStudentCookie) {
       redirect(`/api/auth/clear?cookie=student&to=${encodeURIComponent(target)}`);
     } else {

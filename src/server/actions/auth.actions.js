@@ -95,7 +95,7 @@ export async function loginAdminAction(prevState, formData) {
 
 export async function logoutStudentAction() {
   await logoutUser("student");
-  redirect("/student-login");
+  redirect("/student-login?reason=logged_out");
 }
 
 export async function logoutAdminAction() {

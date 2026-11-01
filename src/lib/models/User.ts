@@ -43,6 +43,11 @@ const userSchema = new Schema(
       trim: true,
       default: undefined,
     },
+    batchRaw: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
     importSerial: {
       type: Number,
       default: undefined,
