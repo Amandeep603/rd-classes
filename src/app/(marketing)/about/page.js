@@ -51,7 +51,7 @@ export const metadata = {
 
 /**
  * EXACT TYPED CONTENT OBJECT:
- * Single source of truth for all About page copy so the owner can edit text easily.
+ * Single source of truth for all About page copy.
  */
 export const ABOUT_CONTENT = {
   hero: {
@@ -121,8 +121,9 @@ export const ABOUT_CONTENT = {
     ],
   },
   cta: {
-    titlePrefix: "Ready to Start Accountancy ",
-    titleHighlight: "Preparation?",
+    headingLine1: "Ready to Start",
+    headingLine2: "Accountancy",
+    headingLine3: "Preparation?",
     descriptionPrefix:
       "Explore our structured batches for Class 11 and Class 12 or connect with us on ",
     whatsappText: "WhatsApp",
@@ -204,39 +205,42 @@ export default function AboutPage() {
         aria-labelledby="about-hero-heading"
       >
         {/* ========================================================================= */}
-        {/* 1. HERO SECTION (Desktop 2-column layout, Inset Text, Rotated Photo Card) */}
+        {/* 1. HERO SECTION (Landscape 5:4 Photo Card + Yellow -8deg Backdrop)        */}
         {/* ========================================================================= */}
         <section
-          className="relative flex flex-col lg:flex-row items-center lg:items-start justify-between gap-12 lg:gap-8 pt-4 pb-4"
+          className="relative flex flex-col lg:flex-row items-center lg:items-start justify-between gap-10 lg:gap-8 pt-4 pb-4 max-h-none lg:max-h-[560px]"
           aria-label="About RD Classes Introduction"
         >
-          {/* Left Column: Inset Text Content (~24px more inset than cards below) */}
-          <div className="w-full lg:max-w-[490px] xl:max-w-[530px] lg:pl-6 text-left shrink-0 z-10">
+          {/* Left Column: Inset Text Content (~440px wide on desktop) */}
+          <div className="w-full lg:max-w-[450px] xl:max-w-[480px] lg:pl-4 xl:pl-6 text-left shrink-0 z-10">
             {/* Pale Yellow Chip */}
-            <div className="inline-flex items-center rounded-full bg-[#FDEFB8] px-3.5 py-1 text-[11px] font-bold tracking-[0.08em] text-[#0D2240] uppercase mb-5 select-none">
+            <div className="inline-flex items-center rounded-full bg-[#FDEFB8] px-3.5 py-1 text-[11px] font-bold tracking-[0.08em] text-[#0D2240] uppercase mb-4 sm:mb-5 select-none">
               <span>{hero.chip}</span>
             </div>
 
             {/* High-Contrast Bold Serif H1 */}
             <h1
               id="about-hero-heading"
-              className={`${playfair.className} font-bold text-[#0D2240] text-[36px] sm:text-[44px] lg:text-[48px] xl:text-[52px] leading-[1.12] tracking-tight`}
+              className={`${playfair.className} font-bold text-[#0D2240] text-[36px] sm:text-[44px] lg:text-[46px] xl:text-[50px] leading-[1.14] tracking-tight`}
             >
               {hero.titleLines.map((line) => (
                 <span key={line} className="block">
                   {line}
                 </span>
               ))}
-              <span className="relative inline-block mt-1">
-                {/* Yellow Rounded Marker-Highlight Shape (slightly rotated) */}
+              {/* Teacher Highlight Row with Spark Cluster */}
+              <span className="inline-flex items-center gap-2 mt-1">
+                <span className="relative inline-block">
+                  {/* Yellow Rounded Marker-Highlight Shape (slightly rotated) */}
+                  <span
+                    className="absolute -inset-x-2.5 inset-y-0.5 bg-[#FFD966] rounded-md -rotate-[1.5deg] -z-0"
+                    aria-hidden="true"
+                  />
+                  <span className="relative z-10 italic">{hero.teacherHighlight}</span>
+                </span>
+                {/* 3 yellow spark strokes placed cleanly to the right of the highlight with margin, zero text overlap */}
                 <span
-                  className="absolute -inset-x-2.5 inset-y-0.5 bg-[#FFD966] rounded-md -rotate-[1.5deg] -z-0"
-                  aria-hidden="true"
-                />
-                <span className="relative z-10 italic">{hero.teacherHighlight}</span>
-                {/* Three short yellow spark strokes at top-right corner */}
-                <span
-                  className="absolute -top-3.5 -right-6.5 z-10 select-none pointer-events-none"
+                  className="inline-block select-none pointer-events-none ml-1.5"
                   aria-hidden="true"
                 >
                   <SparkCluster className="w-5 h-5 text-[#FFC629]" />
@@ -245,39 +249,41 @@ export default function AboutPage() {
             </h1>
 
             {/* Paragraph with 2px yellow vertical bar on its left */}
-            <div className="border-l-2 border-[#FFC629] pl-4 mt-6 sm:mt-7 max-w-[430px]">
-              <p className="text-[15.5px] sm:text-[17px] text-[#4A586E] leading-[1.6] font-normal">
+            <div className="border-l-2 border-[#FFC629] pl-4 mt-5 sm:mt-6 max-w-[430px]">
+              <p className="text-[15px] sm:text-[16.5px] text-[#4A586E] leading-[1.6] font-normal">
                 {hero.paragraph}
               </p>
             </div>
           </div>
 
-          {/* Right Column: Large Photo Card with Yellow Backplate & Sparks */}
-          <div className="w-full lg:w-auto flex justify-center lg:justify-end lg:pr-4 mt-4 lg:mt-0 relative">
-            <div className="relative w-[300px] sm:w-[350px] lg:w-[360px] xl:w-[390px] aspect-[3/4]">
-              {/* Bigger Yellow Rounded Rectangle Behind (-8deg rotation, peeking top-right/bottom-right/left) */}
+          {/* Right Column: Landscape 5:4 Photo Card with Yellow -8deg Backdrop */}
+          <div className="w-full lg:flex-1 flex justify-center lg:justify-end max-w-[480px] sm:max-w-[505px] xl:max-w-[540px] pt-4 lg:pt-0">
+            <div className="relative w-full aspect-[5/4]">
+              {/* FIX 1: Yellow (#FFC629) Rounded Rectangle Backdrop */}
+              {/* Radius ~44px, +4% wider, +8% taller, rotated -8deg (photo is -3deg) */}
+              {/* Shifted up & right so it peeks out ~55px top, ~35px right/bottom-right, ~15px left */}
               <div
-                className="absolute inset-0 bg-[#FFC629] rounded-[38px] sm:rounded-[42px] -rotate-[8deg] translate-x-2 -translate-y-2 sm:translate-x-3 sm:-translate-y-3 -z-10 shadow-sm"
+                className="absolute -top-[45px] sm:-top-[52px] -right-[28px] sm:-right-[35px] w-[104%] h-[108%] bg-[#FFC629] rounded-[42px] sm:rounded-[46px] -rotate-[8deg] -z-0 pointer-events-none select-none shadow-sm"
                 aria-hidden="true"
               />
 
-              {/* Cluster of 3 yellow spark strokes above top-right corner */}
+              {/* Three yellow spark strokes above the photo's top-right corner */}
               <div
-                className="absolute -top-6 -right-6 sm:-top-7 sm:-right-7 z-20 pointer-events-none select-none"
+                className="absolute -top-7 -right-7 sm:-top-8 sm:-right-8 z-20 pointer-events-none select-none"
                 aria-hidden="true"
               >
                 <SparkCluster className="w-8 h-8 sm:w-9 sm:h-9 text-[#FFC629]" />
               </div>
 
-              {/* Main Photo Card (-3deg rotation, big radius, soft shadow) */}
-              <div className="relative w-full h-full rounded-[36px] sm:rounded-[40px] overflow-hidden -rotate-[3deg] shadow-[0_20px_45px_rgba(13,34,64,0.14)] bg-[#F0EDE6] border-2 border-white/60">
+              {/* FIX 2: Photo card: landscape aspect 5/4, -3deg, radius 40px, soft shadow */}
+              <div className="relative z-10 w-full h-full rounded-[38px] sm:rounded-[42px] overflow-hidden -rotate-[3deg] shadow-[0_20px_45px_rgba(13,34,64,0.14)] bg-[#F0EDE6] border-2 border-white/60">
                 <Image
                   src={hero.photoSrc}
                   alt={hero.photoAlt}
                   fill
                   priority
-                  sizes="(max-width: 640px) 300px, (max-width: 1024px) 350px, 390px"
-                  className="object-cover object-top"
+                  sizes="(max-width: 640px) 460px, (max-width: 1024px) 505px, 540px"
+                  className="object-cover object-[center_15%]"
                 />
               </div>
             </div>
@@ -285,24 +291,25 @@ export default function AboutPage() {
         </section>
 
         {/* ========================================================================= */}
-        {/* 2. FOUNDER CARD (Full-width white card, Avatar, Credentials, 2 Stats)     */}
+        {/* 2. FOUNDER CARD: Single Horizontal Row with 1px Hairline Dividers         */}
         {/* ========================================================================= */}
+        {/* FIX 3: Desktop min 1024px single horizontal row: Card height ~135-160px   */}
+        {/* [Avatar 84px] | [Founder Text flex-1] | [Stat 1] | [Stat 2]               */}
         <section
-          className="mt-10 sm:mt-12 rounded-[24px] bg-white border border-[#E8ECEF] shadow-[0_8px_30px_rgba(13,34,64,0.06)] px-6 sm:px-8 py-5 sm:py-6"
+          className="mt-8 sm:mt-10 lg:mt-10 rounded-[24px] bg-white border border-[#E8ECEF] shadow-[0_8px_30px_rgba(13,34,64,0.06)] p-6 lg:p-7"
           aria-label="Founder and Mentor Profile"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-4">
-            {/* Left group: Navy Avatar circle with yellow ring + Name/Credentials */}
-            <div className="flex items-center gap-4 sm:gap-5">
-              {/* Navy circle with 3px yellow ring and "RD" in bold white */}
-              <div className="w-[76px] h-[76px] sm:w-[84px] sm:h-[84px] rounded-full bg-[#0D2240] border-[3px] border-[#FFC629] flex items-center justify-center shrink-0 shadow-sm">
-                <span className="text-white font-extrabold text-[24px] sm:text-[26px] tracking-tight">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 lg:gap-6">
+            {/* Avatar Block */}
+            <div className="flex items-center gap-4 sm:gap-5 lg:gap-0 shrink-0">
+              <div className="w-[76px] h-[76px] lg:w-[84px] lg:h-[84px] rounded-full bg-[#0D2240] border-[3px] border-[#FFC629] flex items-center justify-center shrink-0 shadow-sm">
+                <span className="text-white font-extrabold text-[24px] lg:text-[26px] tracking-tight">
                   {founder.avatarText}
                 </span>
               </div>
 
-              {/* Name & Title */}
-              <div>
+              {/* Name/Credentials displayed next to avatar below 1024px */}
+              <div className="block lg:hidden">
                 <span className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#0D2240]">
                   {founder.roleLabel}
                 </span>
@@ -315,44 +322,63 @@ export default function AboutPage() {
               </div>
             </div>
 
-            {/* Middle Divider (Desktop only) */}
+            {/* 1px Vertical Divider (Desktop min 1024px) */}
             <div
-              className="hidden lg:block w-[1px] h-[58px] bg-[#E8ECEF] self-center shrink-0"
+              className="hidden lg:block w-[1px] h-[72px] bg-[#E8ECEF] shrink-0"
               aria-hidden="true"
             />
 
-            {/* Horizontal divider on mobile */}
-            <div className="block md:hidden w-full h-[1px] bg-[#E8ECEF]" aria-hidden="true" />
+            {/* Founder & Mentor Info (Desktop only, takes flex-1) */}
+            <div className="hidden lg:block flex-1 min-w-[240px]">
+              <span className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#0D2240]">
+                {founder.roleLabel}
+              </span>
+              <h2 className="text-[24px] xl:text-[26px] font-extrabold text-[#0D2240] leading-tight mt-0.5">
+                {founder.name}
+              </h2>
+              <p className="text-[13px] font-medium text-[#5F6B7A] mt-1">
+                {founder.credentials}
+              </p>
+            </div>
 
-            {/* Right group: Stats (100/100 Century Board Scores & 10+ Yrs Teaching Excellence) */}
-            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:gap-8 lg:gap-10 items-center shrink-0">
+            {/* 1px Vertical Divider (Desktop min 1024px) */}
+            <div
+              className="hidden lg:block w-[1px] h-[72px] bg-[#E8ECEF] shrink-0"
+              aria-hidden="true"
+            />
+
+            {/* Horizontal divider on mobile/tablet */}
+            <div className="block lg:hidden w-full h-[1px] bg-[#E8ECEF]" aria-hidden="true" />
+
+            {/* Two Stats in Single Row on Desktop (Side by side with equal widths) */}
+            <div className="grid grid-cols-2 lg:flex lg:items-center gap-4 sm:gap-6 lg:gap-6 shrink-0">
               {/* Stat 1: 100/100 */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 lg:min-w-[170px] xl:min-w-[190px]">
                 <Trophy className="w-8 h-8 text-[#FFC629] shrink-0" strokeWidth={2} />
                 <div>
-                  <p className="text-[24px] sm:text-[27px] font-extrabold text-[#0D2240] leading-none">
+                  <p className="text-[24px] lg:text-[26px] font-extrabold text-[#0D2240] leading-none">
                     {founder.stats[0].value}
                   </p>
-                  <p className="text-[11.5px] sm:text-[12px] font-medium text-[#5F6B7A] mt-1">
+                  <p className="text-[11.5px] lg:text-[12px] font-medium text-[#5F6B7A] mt-1 whitespace-nowrap">
                     {founder.stats[0].label}
                   </p>
                 </div>
               </div>
 
-              {/* Stat Divider */}
+              {/* 1px Vertical Divider between Stat 1 and Stat 2 */}
               <div
-                className="hidden sm:block w-[1px] h-[48px] bg-[#E8ECEF] -ml-2"
+                className="hidden sm:block w-[1px] h-[52px] lg:h-[72px] bg-[#E8ECEF] shrink-0"
                 aria-hidden="true"
               />
 
               {/* Stat 2: 10+ Yrs */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 lg:min-w-[160px] xl:min-w-[180px]">
                 <Award className="w-8 h-8 text-[#FFC629] shrink-0" strokeWidth={2} />
                 <div>
-                  <p className="text-[24px] sm:text-[27px] font-extrabold text-[#0D2240] leading-none">
+                  <p className="text-[24px] lg:text-[26px] font-extrabold text-[#0D2240] leading-none">
                     {founder.stats[1].value}
                   </p>
-                  <p className="text-[11.5px] sm:text-[12px] font-medium text-[#5F6B7A] mt-1">
+                  <p className="text-[11.5px] lg:text-[12px] font-medium text-[#5F6B7A] mt-1 whitespace-nowrap">
                     {founder.stats[1].label}
                   </p>
                 </div>
@@ -500,83 +526,90 @@ export default function AboutPage() {
         </section>
 
         {/* ========================================================================= */}
-        {/* 4. CTA BANNER (Full-width Navy card, 3D Stacked Books, WhatsApp link, Btn) */}
+        {/* 4. CTA BANNER + BOTTOM CIRCLES BEHIND                                     */}
         {/* ========================================================================= */}
-        <section
-          className="mt-16 sm:mt-20 lg:mt-24 rounded-[28px] bg-[#0D2240] text-white shadow-[0_20px_50px_rgba(13,34,64,0.18)] relative overflow-hidden p-6 sm:p-8 lg:p-10"
-          aria-label="Accountancy Preparation Call to Action"
-        >
-          {/* Light diagonal wedge that cuts the banner's bottom-left corner */}
+        {/* FIX 5: Circles start ~50px above banner bottom, BEHIND fully opaque navy  */}
+        <div className="relative mt-16 sm:mt-20 lg:mt-24">
+          {/* Large Pale Yellow Circles BEHIND the CTA banner (z-0, no overflow) */}
           <div
-            className="absolute bottom-0 left-0 w-44 sm:w-56 h-32 sm:h-40 bg-gradient-to-tr from-[#162E52] via-[#1A3660] to-[#204070] opacity-80 pointer-events-none -z-0"
-            style={{
-              clipPath: "polygon(0 100%, 100% 100%, 0 0)",
-            }}
+            className="absolute -right-16 sm:-right-24 bottom-[-140px] sm:bottom-[-180px] w-[340px] sm:w-[420px] lg:w-[460px] h-[340px] sm:h-[420px] lg:h-[460px] pointer-events-none select-none z-0"
             aria-hidden="true"
-          />
+          >
+            {/* Outer soft pale yellow circle */}
+            <div className="absolute inset-0 rounded-full bg-[#FCEEB5]/50" />
+            {/* Inner soft pale yellow circle */}
+            <div className="absolute top-[40px] right-[30px] w-[220px] sm:w-[280px] h-[220px] sm:h-[280px] rounded-full bg-[#FDEFB8]/75" />
+          </div>
 
-          <div className="relative z-10 flex flex-col lg:flex-row items-center lg:items-center justify-between gap-6 sm:gap-8">
-            {/* Left section: Stacked Books Illustration + Divider */}
-            <div className="flex items-center gap-4 sm:gap-6 w-full lg:w-auto shrink-0 justify-center lg:justify-start">
-              <div className="shrink-0 -mb-2">
-                <CtaBooksIllustration className="w-28 sm:w-36 h-20 sm:h-26" />
+          {/* FIX 4: CTA BANNER (z-10, fully opaque navy #0D2240) */}
+          <section
+            className="relative z-10 rounded-[28px] bg-[#0D2240] text-white shadow-[0_20px_50px_rgba(13,34,64,0.18)] overflow-hidden p-6 sm:p-8 lg:px-8 lg:py-6"
+            aria-label="Accountancy Preparation Call to Action"
+          >
+            {/* Light CREAM (#F6EFE3) diagonal wedge at bottom-left corner */}
+            {/* Diagonal edge rises to the left: from bottom-right (100% 100%) to top-left (0 0) */}
+            <div
+              className="absolute bottom-0 left-0 w-[240px] sm:w-[280px] h-[150px] sm:h-[175px] bg-[#F6EFE3] pointer-events-none z-0"
+              style={{
+                clipPath: "polygon(0 0, 100% 100%, 0 100%)",
+              }}
+              aria-hidden="true"
+            />
+
+            {/* Desktop 4-column Grid + Button (>1024px), Stacked on Tablet/Mobile */}
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6 sm:gap-8">
+              {/* Column 1: Books Illustration (~24% on desktop) */}
+              <div className="w-full lg:w-[22%] xl:w-[24%] shrink-0 flex items-center justify-center lg:justify-start -mb-2 lg:-my-3">
+                <CtaBooksIllustration className="w-40 sm:w-48 lg:w-44 xl:w-50 h-28 sm:h-34" />
               </div>
 
-              {/* Vertical divider */}
+              {/* 1px Vertical Divider (Desktop only) */}
               <div
-                className="hidden lg:block w-[1px] h-[68px] bg-white/20 shrink-0"
+                className="hidden lg:block w-[1px] h-[90px] xl:h-[105px] bg-white/20 shrink-0"
                 aria-hidden="true"
               />
-            </div>
 
-            {/* Center section: Heading & WhatsApp paragraph */}
-            <div className="space-y-2 text-center lg:text-left flex-1 max-w-xl">
-              <h2 className="text-[21px] sm:text-[25px] font-extrabold tracking-tight text-white leading-tight">
-                {cta.titlePrefix}
-                <span className="text-[#FFC629]">{cta.titleHighlight}</span>
-              </h2>
-              <p className="text-[13px] sm:text-[14px] text-slate-300 leading-relaxed">
-                {cta.descriptionPrefix}
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-white font-semibold underline underline-offset-4 decoration-[#FFC629] hover:text-[#FFC629] transition-colors inline-block"
+              {/* Column 2: Heading in 3 lines (~28% on desktop) */}
+              <div className="w-full lg:w-[26%] xl:w-[28%] shrink-0 text-center lg:text-left">
+                <h2 className="text-[26px] sm:text-[30px] lg:text-[28px] xl:text-[33px] font-extrabold tracking-tight text-white leading-[1.15]">
+                  <span className="block">{cta.headingLine1}</span>
+                  <span className="block">{cta.headingLine2}</span>
+                  <span className="block text-[#FFC629]">{cta.headingLine3}</span>
+                </h2>
+              </div>
+
+              {/* Column 3: Paragraph in its own column (~28% on desktop, to the right of heading) */}
+              <div className="w-full lg:w-[26%] xl:w-[28%] text-center lg:text-left flex-1">
+                <p className="text-[14px] sm:text-[14.5px] lg:text-[14px] xl:text-[15px] text-slate-300 leading-[1.6]">
+                  {cta.descriptionPrefix}
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-white font-semibold underline underline-offset-4 decoration-[#FFC629] hover:text-[#FFC629] transition-colors inline-block"
+                  >
+                    {cta.whatsappText}
+                  </a>
+                  {cta.descriptionSuffix}
+                </p>
+              </div>
+
+              {/* Column 4: Yellow Pill Button "Explore Courses ↗" */}
+              <div className="shrink-0 w-full lg:w-auto flex justify-center lg:justify-end">
+                <Link
+                  href={cta.buttonHref}
+                  prefetch={true}
+                  className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3.5 rounded-full bg-[#FFC629] hover:bg-[#F5B810] active:scale-[0.98] text-[#0D2240] font-bold text-[14px] shadow-[0_4px_14px_rgba(255,198,41,0.35)] transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D2240] min-h-[44px] whitespace-nowrap"
                 >
-                  {cta.whatsappText}
-                </a>
-                {cta.descriptionSuffix}
-              </p>
+                  <span>{cta.buttonLabel}</span>
+                  <ArrowUpRight
+                    className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    strokeWidth={2.5}
+                  />
+                </Link>
+              </div>
             </div>
-
-            {/* Right section: Yellow Pill Button "Explore Courses ↗" */}
-            <div className="shrink-0 w-full sm:w-auto flex justify-center">
-              <Link
-                href={cta.buttonHref}
-                prefetch={true}
-                className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[#FFC629] hover:bg-[#F5B810] active:scale-[0.98] text-[#0D2240] font-bold text-[14px] shadow-[0_4px_14px_rgba(255,198,41,0.35)] transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D2240] min-h-[44px]"
-              >
-                <span>{cta.buttonLabel}</span>
-                <ArrowUpRight
-                  className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  strokeWidth={2.5}
-                />
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* ========================================================================= */}
-        {/* 5. BOTTOM DECORATION (Large pale yellow circles bleeding off bottom-right) */}
-        {/* ========================================================================= */}
-        <div
-          className="relative w-full h-16 sm:h-24 pointer-events-none select-none"
-          aria-hidden="true"
-        >
-          {/* Outer soft pale yellow circle */}
-          <div className="absolute right-[-80px] top-[-20px] w-[340px] sm:w-[400px] h-[340px] sm:h-[400px] rounded-full bg-[#FCEEB5]/45 -z-0" />
-          {/* Inner soft pale yellow circle */}
-          <div className="absolute right-[40px] top-[15px] w-[200px] sm:w-[260px] h-[200px] sm:h-[260px] rounded-full bg-[#FDEFB8]/70 -z-0" />
+          </section>
         </div>
       </main>
     </div>

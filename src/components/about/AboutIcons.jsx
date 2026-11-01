@@ -1,7 +1,8 @@
 /**
  * Custom inline vector graphics for About page:
  * - SparkCluster: 3 short angled yellow strokes
- * - CtaBooksIllustration: Two stacked isometric books (yellow on top, deep blue below)
+ * - CtaBooksIllustration: Two stacked hardcover books (Yellow on top, Deep Blue below)
+ *   with visible cover thickness, white page blocks with ledger lines, and crisp isometric perspective.
  * - DecorativeArcLeft & DecorativeArcRight: Thin yellow curved SVG lines
  */
 
@@ -37,84 +38,105 @@ export function SparkCluster({ className = "w-6 h-6 text-[#FFC629]" }) {
   );
 }
 
-// CTA 3D Stacked Books Illustration
-export function CtaBooksIllustration({ className = "w-36 h-28" }) {
+// CTA 3D Stacked Hardcover Books Illustration
+export function CtaBooksIllustration({ className = "w-44 sm:w-52 h-32 sm:h-38" }) {
   return (
     <svg
-      viewBox="0 0 160 120"
+      viewBox="0 0 200 140"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-hidden="true"
     >
-      {/* Soft Drop Shadow */}
+      {/* Soft Drop Shadow under bottom book */}
       <ellipse
-        cx="78"
-        cy="104"
-        rx="64"
-        ry="14"
-        fill="#081426"
-        fillOpacity="0.45"
+        cx="96"
+        cy="124"
+        rx="82"
+        ry="13"
+        fill="#05101E"
+        fillOpacity="0.5"
       />
 
-      {/* BOTTOM BOOK (Deep Navy Cover, White Pages) */}
-      <g transform="translate(0, 16)">
-        {/* Bottom Cover Base */}
+      {/* ========================================================================= */}
+      {/* BOTTOM BOOK: Deep Blue Hardcover with White Pages                         */}
+      {/* ========================================================================= */}
+      <g id="bottom-book">
+        {/* Bottom book lower board */}
         <path
-          d="M12 70L80 94L148 70L80 48L12 70Z"
-          fill="#0A1C36"
+          d="M16 88L96 117L182 86L102 59L16 88Z"
+          fill="#0B1B32"
         />
-        {/* Page Block (Front and Right edges) */}
+
+        {/* Bottom book page block - front edge */}
         <path
-          d="M12 68L80 92V78L12 56V68Z"
-          fill="#DDE5EE"
+          d="M18 86L96 114V99L18 72V86Z"
+          fill="#DDE5ED"
         />
+        {/* Bottom book page block - right edge */}
         <path
-          d="M80 92L148 68V56L80 78V92Z"
+          d="M96 114L180 84V69L96 99V114Z"
           fill="#F2F6FA"
         />
-        {/* Subtle page lines */}
-        <line x1="80" y1="84" x2="146" y2="61" stroke="#CAD5E2" strokeWidth="0.8" />
-        <line x1="80" y1="88" x2="146" y2="65" stroke="#CAD5E2" strokeWidth="0.8" />
-        {/* Bottom Book Top Cover */}
+        {/* Subtle page lines on right edge */}
+        <line x1="96" y1="104" x2="178" y2="75" stroke="#CAD5E2" strokeWidth="0.8" />
+        <line x1="96" y1="109" x2="178" y2="79" stroke="#CAD5E2" strokeWidth="0.8" />
+
+        {/* Bottom book top cover board */}
         <path
-          d="M12 55L80 76L148 55L80 34L12 55Z"
-          fill="#132B4F"
+          d="M15 69L96 98L183 67L102 41L15 69Z"
+          fill="#1B3A68"
         />
+        {/* Front cover edge rim / thickness */}
         <path
-          d="M12 55L80 76V78L12 57V55Z"
-          fill="#0D2240"
+          d="M15 69L96 98V102L15 73V69Z"
+          fill="#112543"
+        />
+        {/* Left spine rim */}
+        <path
+          d="M15 69L102 41V44L15 73V69Z"
+          fill="#0E1E36"
         />
       </g>
 
-      {/* TOP BOOK (Vibrant Yellow Cover, White Pages) */}
-      <g transform="translate(2, -4)">
-        {/* Top Book Bottom Cover Flap */}
+      {/* ========================================================================= */}
+      {/* TOP BOOK: Vibrant Yellow Hardcover (#FFC629) with Crisp White Pages       */}
+      {/* ========================================================================= */}
+      <g id="top-book" transform="translate(4, -14)">
+        {/* Top book lower board */}
         <path
-          d="M14 62L80 84L146 62L80 42L14 62Z"
-          fill="#D69E14"
+          d="M18 76L96 104L180 75L102 49L18 76Z"
+          fill="#CC9408"
         />
-        {/* Page Block */}
+
+        {/* Top book page block - front edge */}
         <path
-          d="M14 60L80 82V68L14 48V60Z"
+          d="M20 74L96 101V81L20 54V74Z"
           fill="#EDF2F7"
         />
+        {/* Top book page block - right edge */}
         <path
-          d="M80 82L146 60V48L80 68V82Z"
+          d="M96 101L178 72V52L96 81V101Z"
           fill="#FFFFFF"
         />
-        {/* Page lines */}
-        <line x1="80" y1="74" x2="144" y2="53" stroke="#CBD5E1" strokeWidth="0.8" />
-        <line x1="80" y1="78" x2="144" y2="57" stroke="#CBD5E1" strokeWidth="0.8" />
-        {/* Top Book Main Cover */}
+        {/* Clean page lines on right edge */}
+        <line x1="96" y1="88" x2="176" y2="59" stroke="#CBD5E1" strokeWidth="0.9" />
+        <line x1="96" y1="94" x2="176" y2="65" stroke="#CBD5E1" strokeWidth="0.9" />
+
+        {/* Top book main top cover */}
         <path
-          d="M14 47L80 68L146 47L80 26L14 47Z"
+          d="M17 51L96 79L182 50L102 24L17 51Z"
           fill="#FFC629"
         />
-        {/* Cover Spine / Trim */}
+        {/* Front cover edge thickness / spine rim */}
         <path
-          d="M14 47L80 68V71L14 50V47Z"
-          fill="#E6AC17"
+          d="M17 51L96 79V83L17 55V51Z"
+          fill="#E5A812"
+        />
+        {/* Left spine edge */}
+        <path
+          d="M17 51L102 24V28L17 55V51Z"
+          fill="#CC9408"
         />
       </g>
     </svg>
@@ -152,7 +174,7 @@ export function DecorativeArcRight({ className = "w-20 h-40 text-[#FFC629]" }) {
       aria-hidden="true"
     >
       <path
-        d="M10 5 C35 35, 35 85, 10 115"
+        d="M70 10 C20 40, 20 80, 70 110"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
