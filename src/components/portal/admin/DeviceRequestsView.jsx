@@ -14,10 +14,25 @@ import {
   RefreshCw,
   Laptop,
   Tablet,
+  RotateCcw,
+  Layers,
+  HelpCircle,
 } from "lucide-react";
 import PageHeader from "@/components/admin/ui/PageHeader";
 import Modal from "@/components/admin/ui/Modal";
-import { formatDeviceLabel } from "@/lib/utils/deviceLabel";
+import Link from "next/link";
+
+function getDeviceIcon(type = "", os = "") {
+  const normType = String(type).toLowerCase();
+  const normOs = String(os).toLowerCase();
+  if (normOs.includes("ipad") || normType === "tablet") {
+    return <Tablet className="w-4 h-4 text-slate-600 shrink-0" />;
+  }
+  if (normType === "mobile" || normOs.includes("ios") || normOs.includes("android")) {
+    return <Smartphone className="w-4 h-4 text-slate-600 shrink-0" />;
+  }
+  return <Laptop className="w-4 h-4 text-slate-600 shrink-0" />;
+}
 
 export default function DeviceRequestsView({ initialStatus = "pending" }) {
   const [currentTab, setCurrentTab] = useState(initialStatus);
@@ -28,8 +43,9 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
   // Approve modal state
   const [selectedForApprove, setSelectedForApprove] = useState(null);
-  const [approveMode, setApproveMode] = useState("replace"); // "replace" or "add"
+  const [approveMode, setApproveMode] = useState("additional"); // "additional" | "replace" | "same_device"
   const [replaceDeviceId, setReplaceDeviceId] = useState("");
+  const [targetDeviceId, setTargetDeviceId] = useState("");
   const [approving, setApproving] = useState(false);
 
   // Reject modal state
@@ -37,25 +53,34 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
   const [rejectNote, setRejectNote] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
+  // Reconsider state
+  const [reconsideringId, setReconsideringId] = useState(null);
+
   const [refreshIndex, setRefreshIndex] = useState(0);
+
+  // Auto-refresh: 20 seconds while tab is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        setRefreshIndex((i) => i + 1);
+      }
+    }, 20000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const q = new URLSearchParams();
-        q.set("status", currentTab === "rejected" ? "all" : currentTab);
+        q.set("status", currentTab);
         if (search.trim()) q.set("search", search.trim());
 
         const res = await fetch(`/api/admin/device-requests?${q.toString()}`);
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          let list = data.requests || [];
-          if (currentTab === "rejected") {
-            list = list.filter((r) => r.status === "rejected" || r.status === "revoked");
-          }
-          setRequests(list);
+          setRequests(data.requests || []);
           setCounts(data.counts || { pending: 0, approved: 0, rejected: 0 });
         }
       } catch (e) {
@@ -72,15 +97,16 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
     };
   }, [currentTab, search, refreshIndex]);
 
-  const handleOpenApproveModal = (req) => {
+  const handleOpenApproveModal = (req, defaultMode = "additional") => {
     setSelectedForApprove(req);
+    setApproveMode(defaultMode);
     const approvedDevices = req.currentApprovedDevices || [];
     if (approvedDevices.length > 0) {
-      setApproveMode("replace");
       setReplaceDeviceId(approvedDevices[0].deviceId);
+      setTargetDeviceId(approvedDevices[0].deviceId);
     } else {
-      setApproveMode("add");
       setReplaceDeviceId("");
+      setTargetDeviceId("");
     }
   };
 
@@ -88,19 +114,23 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
     if (!selectedForApprove) return;
     setApproving(true);
     try {
-      const res = await fetch(`/api/admin/device-requests/${selectedForApprove._id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: approveMode,
-          replaceDeviceId: approveMode === "replace" ? replaceDeviceId : null,
-        }),
-      });
+      const res = await fetch(
+        `/api/admin/device-requests/${selectedForApprove._id}/approve`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: approveMode,
+            replaceDeviceId: approveMode === "replace" ? replaceDeviceId : null,
+            targetDeviceId: approveMode === "same_device" ? targetDeviceId : null,
+          }),
+        }
+      );
       if (res.ok) {
         setSelectedForApprove(null);
         setRefreshIndex((i) => i + 1);
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         alert(data.error || "Failed to approve device.");
       }
     } catch (e) {
@@ -114,16 +144,20 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
     if (!selectedForReject) return;
     setRejecting(true);
     try {
-      const res = await fetch(`/api/admin/device-requests/${selectedForReject._id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: rejectNote }),
-      });
+      const res = await fetch(
+        `/api/admin/device-requests/${selectedForReject._id}/reject`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: rejectNote }),
+        }
+      );
       if (res.ok) {
         setSelectedForReject(null);
+        setRejectNote("");
         setRefreshIndex((i) => i + 1);
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         alert(data.error || "Failed to reject device.");
       }
     } catch (e) {
@@ -133,27 +167,22 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
     }
   };
 
-  const [revokingId, setRevokingId] = useState(null);
-
-  const handleRevokeDevice = async (reqId) => {
-    if (!confirm("Are you sure you want to revoke this approved device? The student will be logged out immediately.")) {
-      return;
-    }
-    setRevokingId(reqId);
+  const handleReconsider = async (reqId) => {
+    setReconsideringId(reqId);
     try {
-      const res = await fetch(`/api/admin/device-requests/${reqId}/revoke`, {
+      const res = await fetch(`/api/admin/device-requests/${reqId}/reconsider`, {
         method: "POST",
       });
       if (res.ok) {
         setRefreshIndex((i) => i + 1);
       } else {
-        const data = await res.json();
-        alert(data.error || "Failed to revoke device.");
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to reconsider device.");
       }
     } catch (e) {
-      alert("Error revoking device: " + e.message);
+      alert("Error reconsidering device: " + e.message);
     } finally {
-      setRevokingId(null);
+      setReconsideringId(null);
     }
   };
 
@@ -161,19 +190,36 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
     <div className="space-y-6">
       <PageHeader
         title="Device Approval Requests"
-        description="Enforce single-device learning policy. Authorize new student devices or replace existing ones."
+        description="Enforce single-device learning policy. Authorize new student devices, replace old ones, or add aliases."
         breadcrumbs={[
           { label: "Dashboard", href: "/admin" },
           { label: "Device Requests", href: "/admin/device-requests" },
         ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/devices"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+            >
+              All Approved Devices
+            </Link>
+            <button
+              onClick={() => setRefreshIndex((i) => i + 1)}
+              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm"
+              title="Refresh requests"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        }
       />
 
       {/* Tabs and Search Header */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
-        <div className="flex items-center gap-2 border-b md:border-b-0 pb-3 md:pb-0 border-slate-100">
+        <div className="flex items-center gap-2 border-b md:border-b-0 pb-3 md:pb-0 border-slate-100 overflow-x-auto">
           <button
             onClick={() => setCurrentTab("pending")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               currentTab === "pending"
                 ? "bg-[#0A192F] text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
@@ -190,7 +236,7 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
           <button
             onClick={() => setCurrentTab("approved")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               currentTab === "approved"
                 ? "bg-[#0A192F] text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
@@ -203,15 +249,27 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
           <button
             onClick={() => setCurrentTab("rejected")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               currentTab === "rejected"
                 ? "bg-[#0A192F] text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             <X className="w-3.5 h-3.5" />
-            Rejected / Revoked
+            Rejected
             <span className="text-slate-400 font-normal">({counts.rejected})</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab("all")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              currentTab === "all"
+                ? "bg-[#0A192F] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            All Requests
           </button>
         </div>
 
@@ -221,14 +279,14 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by student or device..."
+            placeholder="Search by student name or login ID..."
             className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]/40"
           />
         </div>
       </div>
 
       {/* Requests List */}
-      {loading ? (
+      {loading && requests.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-500 text-sm">
           <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#FFB800] mb-2" />
           Loading device requests...
@@ -244,342 +302,403 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           {requests.map((req) => {
             const student = req.student || {};
             const approvedDevices = req.currentApprovedDevices || [];
-            const deviceLabel = formatDeviceLabel(req.deviceLabel || req.label || "Unknown Device", {
-              model: req.model,
-              os: req.os,
-              deviceType: req.deviceType,
-            });
-            const requestedDate = req.requestedAt || req.createdAt;
+            const reqLabel = req.label || `${req.osFamily || "Device"} · ${req.browserName || "Browser"}`;
+            const reqScreen =
+              req.profile?.screenMajor && req.profile?.screenMinor
+                ? `${req.profile.screenMajor}x${req.profile.screenMinor}`
+                : "Standard";
+            const reqLoc =
+              [req.city, req.region, req.country].filter(Boolean).join(", ") ||
+              "Approx. location unavailable";
+            const attemptTime = req.lastAttemptAt || req.createdAt;
 
             return (
               <div
                 key={req._id}
                 className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow"
               >
-                {/* Student info header */}
-                <div className="flex items-start justify-between gap-3">
+                {/* Header: Student & Status */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-[#0A192F] text-[#FFB800] font-bold flex items-center justify-center text-sm shrink-0">
                       {student.name ? student.name.charAt(0).toUpperCase() : "S"}
                     </div>
                     <div>
-                      <div className="font-bold text-slate-900 text-sm">{student.name || "Student"}</div>
-                      <div className="text-xs text-slate-500 font-mono">
-                        {student.loginId} • {student.phone || "No phone"}
+                      <div className="font-bold text-slate-900 text-sm">
+                        {student.name || "Student"}{" "}
+                        <span className="text-xs font-normal text-slate-400 font-mono">
+                          ({student.loginId})
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Phone: {student.phone || "—"} &bull; Allowed Limit:{" "}
+                        {student.maxDevices || 1} &bull; Approved Now:{" "}
+                        {approvedDevices.length}
                       </div>
                     </div>
                   </div>
 
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                      req.status === "pending"
-                        ? "bg-amber-100 text-amber-800 animate-pulse"
-                        : req.status === "approved"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {req.status?.toUpperCase()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                        req.status === "pending"
+                          ? "bg-amber-100 text-amber-800 animate-pulse"
+                          : req.status === "approved"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-rose-100 text-rose-800"
+                      }`}
+                    >
+                      {req.status?.toUpperCase()}
+                    </span>
+                    {req.decidedAt && (
+                      <span className="text-[11px] text-slate-400">
+                        Decided by {req.decidedBy || "Admin"} on{" "}
+                        {new Date(req.decidedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Requested Device Box */}
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
-                    <span className="flex items-center gap-1.5">
-                      {req.deviceType === "mobile" ? (
-                        <Smartphone className="w-4 h-4 text-slate-600" />
-                      ) : req.deviceType === "tablet" ? (
-                        <Tablet className="w-4 h-4 text-slate-600" />
-                      ) : (
-                        <Laptop className="w-4 h-4 text-slate-600" />
-                      )}
-                      {deviceLabel}
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-normal">
-                      {req.status === "pending" ? "Attempted: " : "Requested: "}
-                      {requestedDate
-                        ? new Date(requestedDate).toLocaleDateString("en-IN", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Recently"}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-mono space-y-0.5">
-                    <div>
-                      IP: {req.lastIp || req.ip || "Unknown"}
-                      {(req.city || req.country) && (
-                        <span className="ml-2 text-slate-600 font-sans font-medium">
-                          • {[req.city, req.country].filter(Boolean).join(", ")}
-                        </span>
-                      )}
+                {/* Side-by-Side Comparison */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left Column: NEW Device */}
+                  <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                        {getDeviceIcon(req.deviceType, req.osFamily)}
+                        NEW Requesting Device
+                      </span>
+                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                        Attempts: {req.attemptCount || 1}
+                      </span>
                     </div>
-                    {(req.os || req.browser) && (
-                      <div className="text-slate-600 font-sans">
-                        {[req.os, req.browser].filter(Boolean).join(" · ")}
+
+                    <div className="font-semibold text-slate-900 text-sm">{reqLabel}</div>
+                    <div className="text-xs text-slate-600 space-y-1">
+                      <div>
+                        <strong>OS:</strong> {req.osFamily || req.osName} {req.osVersion} &bull;{" "}
+                        <strong>Browser:</strong> {req.browserName} {req.browserVersion}
+                      </div>
+                      <div>
+                        <strong>Screen:</strong> {reqScreen}{" "}
+                        {req.model ? `&bull; Model: ${req.model}` : ""}
+                      </div>
+                      <div>
+                        <strong>IP:</strong> {req.ip || "127.0.0.1"} &bull;{" "}
+                        <strong>Location:</strong> {reqLoc}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Last attempt: {attemptTime ? new Date(attemptTime).toLocaleString() : "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Already Approved Device(s) */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      Current Approved Device(s) ({approvedDevices.length})
+                    </span>
+
+                    {approvedDevices.length === 0 ? (
+                      <div className="text-xs text-slate-400 italic py-2">
+                        Student currently has no approved devices.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {approvedDevices.map((ad, idx) => (
+                          <div
+                            key={ad._id || idx}
+                            className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-0.5"
+                          >
+                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                              {getDeviceIcon(ad.deviceType, ad.osFamily || ad.os)}
+                              {ad.deviceLabel || ad.label || "Approved Device"}
+                            </div>
+                            <div>
+                              OS: {ad.osFamily || ad.os} &bull; Browser: {ad.browser || ad.browserName} &bull; Screen:{" "}
+                              {ad.profile?.screenMajor && ad.profile?.screenMinor
+                                ? `${ad.profile.screenMajor}x${ad.profile.screenMinor}`
+                                : "Standard"}
+                              {ad.model ? ` &bull; Model: ${ad.model}` : ""}
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              IP: {ad.lastIp || ad.ip} &bull; Approx. Location:{" "}
+                              {[ad.city, ad.country].filter(Boolean).join(", ") || "—"} &bull; Last used:{" "}
+                              {ad.lastUsedAt ? new Date(ad.lastUsedAt).toLocaleDateString() : "—"}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Already Approved Device section */}
-                <div className="text-xs space-y-1.5">
-                  <span className="font-semibold text-slate-700 block">
-                    Already Approved Device(s):
-                  </span>
-                  {approvedDevices.length === 0 ? (
-                    <span className="text-slate-400 italic">None (First device)</span>
-                  ) : (
-                    approvedDevices.map((ad) => (
-                      <div
-                        key={ad._id}
-                        className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-950 font-medium space-y-1"
+                {/* Why Flagged Section */}
+                {Array.isArray(req.flags) && req.flags.length > 0 && (
+                  <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl">
+                    <div className="text-xs font-bold text-rose-900 mb-1 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      Why Flagged:
+                    </div>
+                    <ul className="list-disc list-inside text-xs text-rose-800 space-y-0.5">
+                      {req.flags.map((flag, idx) => (
+                        <li key={idx}>{flag}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Rejection Note (if rejected) */}
+                {req.rejectionReason && (
+                  <div className="p-2.5 bg-slate-100 rounded-lg text-xs text-slate-600">
+                    <strong>Declined Reason:</strong> {req.rejectionReason}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                  {req.status === "pending" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenApproveModal(req, "additional")}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm inline-flex items-center gap-1"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 text-xs font-semibold">
-                            {ad.deviceType === "mobile" ? (
-                              <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
-                            ) : ad.deviceType === "tablet" ? (
-                              <Tablet className="w-3.5 h-3.5 text-emerald-700" />
-                            ) : (
-                              <Laptop className="w-3.5 h-3.5 text-emerald-700" />
-                            )}
-                            {formatDeviceLabel(ad.deviceLabel || ad.label || "Approved Device", {
-                              model: ad.model,
-                              os: ad.os,
-                              deviceType: ad.deviceType,
-                            })}
-                          </span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                            Active
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-600 font-mono flex flex-wrap items-center gap-x-2">
-                          <span>IP: {ad.lastIp || ad.ip || "Unknown"}</span>
-                          {(ad.city || ad.country) && (
-                            <span className="font-sans">
-                              • {[ad.city, ad.country].filter(Boolean).join(", ")}
-                            </span>
-                          )}
-                          <span className="font-sans text-slate-500">
-                            Last used:{" "}
-                            {ad.lastUsedAt
-                              ? new Date(ad.lastUsedAt).toLocaleDateString("en-IN", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "Never"}
-                          </span>
-                        </div>
-                      </div>
-                    ))
+                        <Check className="w-3.5 h-3.5" />
+                        Approve as Additional
+                      </button>
+
+                      {approvedDevices.length > 0 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenApproveModal(req, "replace")}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-sm inline-flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                            Replace Old Device
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenApproveModal(req, "same_device")}
+                            className="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold shadow-sm inline-flex items-center gap-1"
+                            title="Adds this screen profile/token to the student's existing device (for external monitors or browser desktop mode)"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Approve as Same Device (Alias)
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedForReject(req);
+                          setRejectNote("");
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {req.status === "rejected" && (
+                    <button
+                      type="button"
+                      disabled={reconsideringId === req._id}
+                      onClick={() => handleReconsider(req._id)}
+                      className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold inline-flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reconsider (Move to Pending)
+                    </button>
                   )}
                 </div>
-
-                {/* Actions for Pending */}
-                {req.status === "pending" && (
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      onClick={() => {
-                        setSelectedForReject(req);
-                        setRejectNote("");
-                      }}
-                      className="px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-xl transition-colors cursor-pointer"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => handleOpenApproveModal(req)}
-                      className="px-5 py-2 text-xs font-semibold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors shadow-sm cursor-pointer"
-                    >
-                      Approve Device
-                    </button>
-                  </div>
-                )}
-
-                {/* Actions for Approved */}
-                {req.status === "approved" && (
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      onClick={() => handleRevokeDevice(req._id)}
-                      disabled={revokingId === req._id}
-                      className="px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {revokingId === req._id ? "Revoking..." : "Revoke Device"}
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ================= MODAL: APPROVE DEVICE ================= */}
+      {/* Approve Modal */}
       {selectedForApprove && (
         <Modal
           isOpen={true}
           onClose={() => setSelectedForApprove(null)}
           title="Approve Device Request"
-          description={`Student: ${selectedForApprove.student?.name} (${selectedForApprove.student?.loginId})`}
-          maxWidth="max-w-md"
         >
           <div className="space-y-4">
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
-              <span className="text-slate-500 block">New Device to Approve:</span>
-              <span className="font-semibold text-slate-900 text-sm block">
-                {formatDeviceLabel(selectedForApprove.deviceLabel || selectedForApprove.label, {
-                  model: selectedForApprove.model,
-                  os: selectedForApprove.os,
-                  deviceType: selectedForApprove.deviceType,
-                })}
-              </span>
-              <span className="text-slate-500 font-mono text-[11px]">
-                IP: {selectedForApprove.ip || "Unknown"}
-              </span>
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900">
+              <p className="font-semibold text-emerald-800">
+                Approving device for {selectedForApprove.student?.name || "Student"}
+              </p>
+              <p className="mt-0.5 text-emerald-700 font-medium">
+                {selectedForApprove.label || "Requested Device"}
+              </p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-800 block">
-                Approval Policy:
+              <label className="text-xs font-bold text-slate-700 block">
+                Choose Approval Action:
               </label>
 
-              {/* Choice 1: Replace Old Device */}
-              <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-[#FFB800] bg-white cursor-pointer transition-colors">
-                <input
-                  type="radio"
-                  name="approveMode"
-                  value="replace"
-                  checked={approveMode === "replace"}
-                  onChange={() => setApproveMode("replace")}
-                  className="mt-0.5 text-[#0A192F] focus:ring-[#FFB800]"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-slate-900 block">
-                    Replace an Existing Device (Recommended)
-                  </span>
-                  <span className="text-slate-500 block mt-0.5">
-                    Revokes the old device and terminates all its active sessions immediately.
-                  </span>
+              <div className="space-y-2 text-xs">
+                <label className="flex items-start gap-2.5 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="mode"
+                    value="additional"
+                    checked={approveMode === "additional"}
+                    onChange={(e) => setApproveMode(e.target.value)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <strong className="block text-slate-800">Approve as Additional Device</strong>
+                    <span className="text-slate-500">
+                      Increases student&apos;s allowed device limit and permits both devices to log in normally.
+                    </span>
+                  </div>
+                </label>
 
-                  {approveMode === "replace" && (selectedForApprove.currentApprovedDevices || []).length > 0 && (
-                    <div className="mt-2.5">
-                      <span className="text-[11px] font-semibold text-slate-700 block mb-1">
-                        Select Device to Revoke:
-                      </span>
-                      <select
-                        value={replaceDeviceId}
-                        onChange={(e) => setReplaceDeviceId(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg"
-                      >
-                        {(selectedForApprove.currentApprovedDevices || []).map((ad) => (
-                          <option key={ad.deviceId} value={ad.deviceId}>
-                            {formatDeviceLabel(ad.deviceLabel || ad.label || "Approved Device", {
-                              model: ad.model,
-                              os: ad.os,
-                              deviceType: ad.deviceType,
-                            })}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </label>
+                {(selectedForApprove.currentApprovedDevices || []).length > 0 && (
+                  <>
+                    <label className="flex items-start gap-2.5 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="mode"
+                        value="replace"
+                        checked={approveMode === "replace"}
+                        onChange={(e) => setApproveMode(e.target.value)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <strong className="block text-slate-800">Replace Old Device</strong>
+                        <span className="text-slate-500">
+                          Revokes authorization for an existing device and immediately terminates its active sessions.
+                        </span>
+                      </div>
+                    </label>
 
-              {/* Choice 2: Allow as Additional Device */}
-              <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-[#FFB800] bg-white cursor-pointer transition-colors">
-                <input
-                  type="radio"
-                  name="approveMode"
-                  value="add"
-                  checked={approveMode === "add"}
-                  onChange={() => setApproveMode("add")}
-                  className="mt-0.5 text-[#0A192F] focus:ring-[#FFB800]"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-slate-900 block">
-                    Allow as Additional Device
-                  </span>
-                  <span className="text-slate-500 block mt-0.5">
-                    Increments this student&apos;s allowed device limit so both old and new devices remain active.
-                  </span>
-                </div>
-              </label>
+                    {approveMode === "replace" && (
+                      <div className="pl-6 pt-1 pb-2">
+                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                          Select which approved device to revoke:
+                        </label>
+                        <select
+                          value={replaceDeviceId}
+                          onChange={(e) => setReplaceDeviceId(e.target.value)}
+                          className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-white"
+                        >
+                          {(selectedForApprove.currentApprovedDevices || []).map((d) => (
+                            <option key={d.deviceId} value={d.deviceId}>
+                              {d.deviceLabel || d.label} ({d.osFamily || d.os} &bull; last used:{" "}
+                              {d.lastUsedAt ? new Date(d.lastUsedAt).toLocaleDateString() : "—"})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <label className="flex items-start gap-2.5 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="mode"
+                        value="same_device"
+                        checked={approveMode === "same_device"}
+                        onChange={(e) => setApproveMode(e.target.value)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <strong className="block text-slate-800">
+                          Approve as Same Device (Alias)
+                        </strong>
+                        <span className="text-slate-500">
+                          Links this hardware profile to the existing device without creating a new device slot. Use for external monitors or Desktop Mode.
+                        </span>
+                      </div>
+                    </label>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
+                disabled={approving}
                 onClick={() => setSelectedForApprove(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={approving}
                 onClick={handleConfirmApprove}
-                disabled={approving || (approveMode === "replace" && !replaceDeviceId && (selectedForApprove.currentApprovedDevices || []).length > 0)}
-                className="px-5 py-2 text-xs font-semibold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm inline-flex items-center gap-1.5 disabled:opacity-50"
               >
-                {approving ? "Approving..." : "Confirm & Approve"}
+                {approving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Confirm Approval
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* ================= MODAL: REJECT DEVICE ================= */}
+      {/* Reject Modal */}
       {selectedForReject && (
         <Modal
           isOpen={true}
           onClose={() => setSelectedForReject(null)}
           title="Reject Device Request"
-          description={`Reject login request for ${selectedForReject.student?.name} (${selectedForReject.student?.loginId})`}
-          maxWidth="max-w-md"
         >
           <div className="space-y-4">
-            <div className="text-xs text-slate-600">
-              The student will not be allowed to log in on this device. You can provide an optional administrative note below.
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-900">
+              <p className="font-semibold text-rose-800">
+                Reject device for {selectedForReject.student?.name || "Student"}?
+              </p>
+              <p className="mt-0.5 text-rose-700">
+                The student will see: &quot;Your request for this device was declined. Please contact RD Classes.&quot;
+              </p>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1">
-                Reason / Note (Optional)
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Reason / Internal Note (Optional):
               </label>
-              <input
-                type="text"
+              <textarea
                 value={rejectNote}
                 onChange={(e) => setRejectNote(e.target.value)}
-                placeholder="e.g. Device limit reached; contact staff."
-                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+                placeholder="e.g. Unrecognized location, suspect credential sharing..."
+                className="w-full text-xs rounded-lg border border-slate-300 p-2.5 focus:outline-none focus:border-rose-500 h-20"
               />
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
+                disabled={rejecting}
                 onClick={() => setSelectedForReject(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleConfirmReject}
                 disabled={rejecting}
-                className="px-5 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                onClick={handleConfirmReject}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm inline-flex items-center gap-1.5 disabled:opacity-50"
               >
-                {rejecting ? "Rejecting..." : "Confirm Reject"}
+                {rejecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                Confirm Rejection
               </button>
             </div>
           </div>

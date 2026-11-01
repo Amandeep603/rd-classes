@@ -13,6 +13,7 @@ export { ResultPdf } from "./ResultPdf.ts";
 export { GalleryItem } from "./GalleryItem.ts";
 export { Review } from "./Review.ts";
 export { Device } from "./Device.ts";
+export { DeviceRequest } from "./DeviceRequest.ts";
 export { Session } from "./Session.ts";
 export { ActivityLog } from "./ActivityLog.ts";
 export { Setting } from "./Setting.ts";

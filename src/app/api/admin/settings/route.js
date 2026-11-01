@@ -85,8 +85,11 @@ export async function PATCH(request) {
     if (body.defaultMaxDevices !== undefined) {
       settings.defaultMaxDevices = Math.max(1, Number(body.defaultMaxDevices) || 1);
     }
-    if (body.deviceLockMode !== undefined && ["relaxed", "strict"].includes(body.deviceLockMode)) {
-      settings.deviceLockMode = body.deviceLockMode;
+    if (body.deviceLockMode !== undefined && ["smart", "basic", "strict", "relaxed"].includes(body.deviceLockMode)) {
+      settings.deviceLockMode = body.deviceLockMode === "relaxed" ? "smart" : body.deviceLockMode;
+    }
+    if (body.sessionMode !== undefined && ["tab", "browser"].includes(body.sessionMode)) {
+      settings.sessionMode = body.sessionMode;
     }
 
     await settings.save();

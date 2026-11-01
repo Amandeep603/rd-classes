@@ -68,8 +68,13 @@ const settingSchema = new Schema(
     },
     deviceLockMode: {
       type: String,
-      enum: ["relaxed", "strict"],
-      default: "relaxed",
+      enum: ["smart", "basic", "strict", "relaxed"],
+      default: "smart",
+    },
+    sessionMode: {
+      type: String,
+      enum: ["tab", "browser"],
+      default: "tab",
     },
     workspaceName: {
       type: String,
@@ -104,6 +109,9 @@ const settingSchema = new Schema(
 );
 
 settingSchema.pre("validate", function () {
+  if (this.deviceLockMode === "relaxed") {
+    this.deviceLockMode = "smart";
+  }
   if (this.instituteName && !this.workspaceName) {
     this.workspaceName = this.instituteName;
   } else if (this.workspaceName && !this.instituteName) {

@@ -33,8 +33,45 @@ export function middleware(request) {
     if (shouldNoindex) {
       res.headers.set("X-Robots-Tag", "noindex, nofollow");
     }
+    if (isProtectedPath) {
+      res.headers.set("X-Frame-Options", "DENY");
+      res.headers.set("X-Content-Type-Options", "nosniff");
+    }
     return res;
   };
+
+  // CSRF Origin & Referer protection for state-changing requests
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
+    const origin = request.headers.get("origin");
+    const referer = request.headers.get("referer");
+    const isAllowedHost = (urlStr) => {
+      if (!urlStr) return true;
+      try {
+        const u = new URL(urlStr);
+        const h = u.hostname.toLowerCase();
+        return (
+          h === host ||
+          h === "www.rd-classes.in" ||
+          h === "rd-classes.in" ||
+          h === "rd-classes-sandy.vercel.app" ||
+          h.endsWith(".vercel.app") ||
+          h === "localhost" ||
+          h === "127.0.0.1"
+        );
+      } catch {
+        return false;
+      }
+    };
+
+    if ((origin && !isAllowedHost(origin)) || (referer && !isAllowedHost(referer))) {
+      return applyHeaders(
+        NextResponse.json(
+          { success: false, error: "Forbidden: Invalid request origin or referer." },
+          { status: 403 }
+        )
+      );
+    }
+  }
 
   // 2. Admin API protection (check cookie presence at edge)
   if (pathname.startsWith("/api/admin")) {

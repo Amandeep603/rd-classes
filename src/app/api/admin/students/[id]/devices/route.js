@@ -1,64 +1,114 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/server/auth/session.js";
+import { requireAdminApi } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
-import { Device, Session } from "@/lib/models";
+import { Device, DeviceRequest, Session } from "@/lib/models";
 import {
   removeDevice,
-  logoutAllSessions,
+  approveDeviceRequest,
+  rejectDeviceRequest,
+  reconsiderDeviceRequest,
 } from "@/server/auth/deviceService.js";
 
 export async function GET(request, { params }) {
   try {
-    await requireAdmin();
+    const auth = await requireAdminApi();
+    if (!auth.authenticated) return auth.response;
+
     const resolvedParams = await params;
     const { id } = resolvedParams;
 
     await connectDB();
-    const devices = await Device.find({
-      $or: [{ studentId: id }, { userId: id }],
-    })
-      .sort({ createdAt: -1 })
-      .lean();
 
-    const activeSessions = await Session.find({
-      userId: id,
-      revoked: { $ne: true },
-      expiresAt: { $gt: new Date() },
-    }).lean();
+    const [devices, requests, activeSessions] = await Promise.all([
+      Device.find({
+        $or: [{ studentId: id }, { userId: id }],
+      })
+        .sort({ lastUsedAt: -1, createdAt: -1 })
+        .lean(),
+      DeviceRequest.find({
+        $or: [{ studentId: id }, { userId: id }],
+      })
+        .sort({ lastAttemptAt: -1, createdAt: -1 })
+        .lean(),
+      Session.find({
+        userId: id,
+        revoked: { $ne: true },
+        expiresAt: { $gt: new Date() },
+      }).lean(),
+    ]);
+
+    const approved = devices.filter((d) => d.status === "approved");
+    const pending = [
+      ...requests.filter((r) => r.status === "pending"),
+      ...devices.filter((d) => d.status === "pending"),
+    ];
+    const rejected = [
+      ...requests.filter((r) => r.status === "rejected"),
+      ...devices.filter((d) => d.status === "rejected"),
+    ];
 
     return NextResponse.json({
+      success: true,
       devices,
+      approved,
+      pending,
+      rejected,
       activeSessionsCount: activeSessions.length,
+      activeSessionDeviceIds: activeSessions.map((s) => s.deviceId),
     });
   } catch (error) {
-    const status = error.message === "Unauthorized" ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request, { params }) {
   try {
-    const admin = await requireAdmin();
+    const auth = await requireAdminApi();
+    if (!auth.authenticated) return auth.response;
+
     const resolvedParams = await params;
     const { id } = resolvedParams;
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const adminId = auth.user._id;
+    const adminName = auth.user.name || "Admin";
 
     if (body.action === "revoke") {
       if (!body.deviceId) {
         return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
       }
-      await removeDevice(id, body.deviceId, admin.user._id);
-      return NextResponse.json({ success: true });
+      await removeDevice(id, body.deviceId, adminId, adminName);
+      return NextResponse.json({ success: true, message: "Device revoked successfully." });
     }
 
-    if (body.action === "logout-all") {
-      await logoutAllSessions(id, admin.user._id);
-      return NextResponse.json({ success: true });
+    if (body.action === "approve") {
+      const reqId = body.requestId || body.deviceId;
+      await approveDeviceRequest(
+        reqId,
+        {
+          mode: body.mode || "additional",
+          replaceDeviceId: body.replaceDeviceId || null,
+          targetDeviceId: body.targetDeviceId || null,
+        },
+        adminId,
+        adminName
+      );
+      return NextResponse.json({ success: true, message: "Device approved successfully." });
+    }
+
+    if (body.action === "reject") {
+      const reqId = body.requestId || body.deviceId;
+      await rejectDeviceRequest(reqId, body.note || "", adminId, adminName);
+      return NextResponse.json({ success: true, message: "Device rejected successfully." });
+    }
+
+    if (body.action === "reconsider") {
+      const reqId = body.requestId || body.deviceId;
+      await reconsiderDeviceRequest(reqId, adminId, adminName);
+      return NextResponse.json({ success: true, message: "Device reconsidered successfully." });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
-    const status = error.message === "Unauthorized" ? 401 : 400;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

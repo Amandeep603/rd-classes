@@ -29,6 +29,10 @@ const sessionSchema = new Schema(
       default: false,
       index: true,
     },
+    revokedReason: {
+      type: String,
+      default: "",
+    },
     role: {
       type: String,
       default: "student",

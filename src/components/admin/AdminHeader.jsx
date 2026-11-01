@@ -15,6 +15,33 @@ import { logoutAdminAction } from "@/server/actions/auth.actions.js";
 
 export default function AdminHeader({ admin, pendingCount = 0 }) {
   const pathname = usePathname();
+  const [livePendingCount, setLivePendingCount] = useState(pendingCount);
+
+  useEffect(() => {
+    setLivePendingCount(pendingCount);
+  }, [pendingCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function pollPendingCount() {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/admin/pending-count");
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (typeof data.count === "number") {
+            setLivePendingCount(data.count);
+          }
+        }
+      } catch {}
+    }
+
+    const interval = setInterval(pollPendingCount, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const navLinks = [
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -22,7 +49,7 @@ export default function AdminHeader({ admin, pendingCount = 0 }) {
       href: "/admin/device-requests",
       label: "Device Requests",
       icon: Smartphone,
-      badge: pendingCount > 0 ? pendingCount : null,
+      badge: livePendingCount > 0 ? livePendingCount : null,
     },
     { href: "/admin/students", label: "Students", icon: Users },
     { href: "/admin/courses", label: "Courses", icon: BookOpen },

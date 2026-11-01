@@ -80,7 +80,12 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
     initialSettings.defaultMaxDevices || 1
   );
   const [deviceLockMode, setDeviceLockMode] = useState(
-    initialSettings.deviceLockMode || "relaxed"
+    initialSettings.deviceLockMode === "relaxed"
+      ? "smart"
+      : initialSettings.deviceLockMode || "smart"
+  );
+  const [sessionMode, setSessionMode] = useState(
+    initialSettings.sessionMode || "tab"
   );
 
   const [savingSettings, setSavingSettings] = useState(false);
@@ -210,6 +215,7 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
         },
         defaultMaxDevices: Number(defaultMaxDevices),
         deviceLockMode,
+        sessionMode,
       };
 
       const res = await fetch("/api/admin/settings", {
@@ -535,15 +541,33 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
 
                 <FormField
                   label="Device Lock Mode"
-                  helper="Relaxed matches by device type & OS; Strict binds to a persistent cookie token."
+                  helper="Configures device recognition and anti-sharing security policy."
                 >
                   <select
                     value={deviceLockMode}
                     onChange={(e) => setDeviceLockMode(e.target.value)}
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-[#111827] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
                   >
-                    <option value="relaxed">Relaxed (Default: Device type + OS)</option>
-                    <option value="strict">Strict (Cookie Token Bound)</option>
+                    <option value="smart">Smart (Default: Hardware Profile + Screen 3% + Token)</option>
+                    <option value="basic">Basic (OS Family + Device Type Only)</option>
+                    <option value="strict">Strict (Per-Browser Cookie Token Required)</option>
+                  </select>
+                  <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed italic">
+                    Note: A website cannot tell apart two phones of the same model, or two laptops with the same screen. Use Reject or Revoke if you suspect account sharing.
+                  </p>
+                </FormField>
+
+                <FormField
+                  label="Session Security Mode"
+                  helper="Controls student session duration when tabs are closed."
+                >
+                  <select
+                    value={sessionMode}
+                    onChange={(e) => setSessionMode(e.target.value)}
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-[#111827] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
+                  >
+                    <option value="tab">Tab Mode (Default: Log out on tab close; watch & refresh safe)</option>
+                    <option value="browser">Browser Mode (Session remains active across tabs)</option>
                   </select>
                 </FormField>
               </div>

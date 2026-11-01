@@ -83,6 +83,11 @@ export default function StudentsManagementView({
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [devicesDrawerStudent, setDevicesDrawerStudent] = useState(null);
   const [studentDevices, setStudentDevices] = useState([]);
+  const [drawerApproved, setDrawerApproved] = useState([]);
+  const [drawerPending, setDrawerPending] = useState([]);
+  const [drawerRejected, setDrawerRejected] = useState([]);
+  const [drawerActiveSessionDeviceIds, setDrawerActiveSessionDeviceIds] = useState([]);
+  const [drawerTab, setDrawerTab] = useState("approved");
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [deleteConfirmStudent, setDeleteConfirmStudent] = useState(null);
   const [resetConfirmStudent, setResetConfirmStudent] = useState(null);
@@ -140,10 +145,14 @@ export default function StudentsManagementView({
   const [batchDryRunResult, setBatchDryRunResult] = useState(null);
   const [batchFeedback, setBatchFeedback] = useState(null);
 
-  const [deviceDryRunLoading, setDeviceDryRunLoading] = useState(false);
-  const [deviceApplyLoading, setDeviceApplyLoading] = useState(false);
-  const [deviceDryRunResult, setDeviceDryRunResult] = useState(null);
-  const [deviceFeedback, setDeviceFeedback] = useState(null);
+  // Reset Devices Maintenance State
+  const [resetDryRunLoading, setResetDryRunLoading] = useState(false);
+  const [resetApplyLoading, setResetApplyLoading] = useState(false);
+  const [resetDryRunResult, setResetDryRunResult] = useState(null);
+  const [resetFeedback, setResetFeedback] = useState(null);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState("");
+  const [resetAdminPassword, setResetAdminPassword] = useState("");
 
   const handleBatchDryRun = async () => {
     try {
@@ -181,38 +190,53 @@ export default function StudentsManagementView({
     }
   };
 
-  const handleDeviceDryRun = async () => {
+  const handleResetDryRun = async () => {
     try {
-      setDeviceDryRunLoading(true);
-      setDeviceFeedback(null);
-      const res = await fetch("/api/admin/maintenance/repair-devices");
+      setResetDryRunLoading(true);
+      setResetFeedback(null);
+      const res = await fetch("/api/admin/maintenance/reset-devices");
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Device check failed");
-      setDeviceDryRunResult(data);
+      if (!res.ok) throw new Error(data.error || "Reset dry run failed");
+      setResetDryRunResult(data);
     } catch (err) {
-      setDeviceFeedback({ type: "error", message: err.message });
+      setResetFeedback({ type: "error", message: err.message });
     } finally {
-      setDeviceDryRunLoading(false);
+      setResetDryRunLoading(false);
     }
   };
 
-  const handleDeviceApply = async () => {
+  const handleApplyResetDevices = async () => {
+    if (resetConfirmation.trim() !== "RESET DEVICES") {
+      alert('You must type "RESET DEVICES" exactly.');
+      return;
+    }
+    if (!resetAdminPassword.trim()) {
+      alert("Admin password is required.");
+      return;
+    }
     try {
-      setDeviceApplyLoading(true);
-      setDeviceFeedback(null);
-      const res = await fetch("/api/admin/maintenance/repair-devices", {
+      setResetApplyLoading(true);
+      setResetFeedback(null);
+      const res = await fetch("/api/admin/maintenance/reset-devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmation: resetConfirmation.trim(),
+          adminPassword: resetAdminPassword.trim(),
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Device repair failed");
-      setDeviceFeedback({ type: "success", message: data.message });
-      setDeviceDryRunResult(null);
+      if (!res.ok) throw new Error(data.error || "Reset devices failed");
+      setResetFeedback({ type: "success", message: data.message });
+      setResetModalOpen(false);
+      setResetConfirmation("");
+      setResetAdminPassword("");
+      setResetDryRunResult(null);
       fetchStudents();
     } catch (err) {
-      setDeviceFeedback({ type: "error", message: err.message });
+      alert("Error: " + err.message);
     } finally {
-      setDeviceApplyLoading(false);
+      setResetApplyLoading(false);
     }
   };
 
@@ -512,12 +536,17 @@ export default function StudentsManagementView({
   // Open Devices Drawer
   const handleOpenDevicesDrawer = async (student) => {
     setDevicesDrawerStudent(student);
+    setDrawerTab("approved");
     setDevicesLoading(true);
     try {
       const res = await fetch(`/api/admin/students/${student._id}/devices`);
       if (res.ok) {
         const data = await res.json();
         setStudentDevices(data.devices || []);
+        setDrawerApproved(data.approved || []);
+        setDrawerPending(data.pending || []);
+        setDrawerRejected(data.rejected || []);
+        setDrawerActiveSessionDeviceIds(data.activeSessionDeviceIds || []);
       }
     } catch (e) {
       console.error(e);
@@ -534,6 +563,60 @@ export default function StudentsManagementView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "revoke", deviceId }),
+      });
+      if (res.ok) {
+        handleOpenDevicesDrawer(devicesDrawerStudent);
+        fetchStudents();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Approve request from drawer
+  const handleApproveFromDrawer = async (requestId, mode = "additional") => {
+    if (!devicesDrawerStudent) return;
+    try {
+      const res = await fetch(`/api/admin/students/${devicesDrawerStudent._id}/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve", requestId, mode }),
+      });
+      if (res.ok) {
+        handleOpenDevicesDrawer(devicesDrawerStudent);
+        fetchStudents();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Reject request from drawer
+  const handleRejectFromDrawer = async (requestId, note = "") => {
+    if (!devicesDrawerStudent) return;
+    try {
+      const res = await fetch(`/api/admin/students/${devicesDrawerStudent._id}/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject", requestId, note }),
+      });
+      if (res.ok) {
+        handleOpenDevicesDrawer(devicesDrawerStudent);
+        fetchStudents();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Reconsider request from drawer
+  const handleReconsiderFromDrawer = async (requestId) => {
+    if (!devicesDrawerStudent) return;
+    try {
+      const res = await fetch(`/api/admin/students/${devicesDrawerStudent._id}/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reconsider", requestId }),
       });
       if (res.ok) {
         handleOpenDevicesDrawer(devicesDrawerStudent);
@@ -1017,41 +1100,56 @@ export default function StudentsManagementView({
       accessor: "firstDevice",
       render: (student) => {
         const fd = student.firstDevice;
-        const isMobile = fd?.type === "mobile";
-        const isTablet = fd?.type === "tablet";
+        const isTablet = fd?.type === "tablet" || fd?.os?.toLowerCase().includes("ipad");
+        const isMobile =
+          fd?.type === "mobile" ||
+          fd?.os?.toLowerCase().includes("android") ||
+          fd?.os?.toLowerCase().includes("ios");
+        const loc = [fd?.city, fd?.country].filter(Boolean).join(", ");
+
         return (
-          <div className="min-w-0 max-w-[110px]">
-            <div className="flex items-center gap-1.5 text-xs text-slate-700">
-              {fd ? (
-                isMobile ? (
-                  <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                ) : isTablet ? (
-                  <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                ) : (
-                  <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                )
-              ) : null}
-              <span className="truncate font-medium" title={fd ? formatDeviceLabel(fd.label, { os: fd.os, deviceType: fd.type }) : "No device"}>
-                {fd ? formatDeviceLabel(fd.label, { os: fd.os, deviceType: fd.type }) : "None"}
-              </span>
-            </div>
-            <div className="mt-1">
-              {student.deviceStatus === "pending" ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Pending
-                </span>
-              ) : student.deviceStatus === "approved" ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <Check className="w-2.5 h-2.5 text-emerald-600" />
-                  {student.approvedDeviceCount} Approved
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
-                  No Device
-                </span>
-              )}
-            </div>
+          <div className="min-w-0 max-w-[170px]">
+            {fd ? (
+              <>
+                <div className="flex items-center gap-1.5 text-xs text-slate-800">
+                  {isTablet ? (
+                    <Tablet className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  ) : isMobile ? (
+                    <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  ) : (
+                    <Laptop className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  )}
+                  <span className="truncate font-semibold text-slate-800" title={fd.label}>
+                    {fd.label}
+                  </span>
+                </div>
+                {fd.ip && (
+                  <div
+                    className="text-[10px] text-slate-400 font-mono truncate mt-0.5"
+                    title={`${fd.ip} ${loc ? `· ${loc}` : ""}`}
+                  >
+                    {fd.ip}
+                    {loc ? ` · ${loc}` : ""}
+                  </div>
+                )}
+                <div className="mt-1 flex items-center gap-1 flex-wrap">
+                  {student.approvedDeviceCount > 0 && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <Check className="w-2.5 h-2.5 text-emerald-600" />
+                      {student.approvedDeviceCount} approved
+                    </span>
+                  )}
+                  {student.pendingDeviceCount > 0 && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                      <Clock className="w-2.5 h-2.5 text-amber-600" />
+                      {student.pendingDeviceCount} pending
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400 italic">None</span>
+            )}
           </div>
         );
       },
@@ -1459,92 +1557,109 @@ export default function StudentsManagementView({
               )}
             </div>
 
-            {/* TOOL 2: REPAIR STUDENT DEVICES */}
+            {/* TOOL 2: RESET STUDENT DEVICES */}
             <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-sky-600" />
-                    Repair Devices (First-Login Device Auto-Registration)
+                    <Smartphone className="w-4 h-4 text-amber-600" />
+                    Reset Devices (Archive & Re-adopt All Student Devices)
                   </h4>
                   <p className="text-xs text-slate-600 mt-1">
-                    Finds students who logged in successfully (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">lastLoginAt != null</code>) but currently show "None / No Device" due to the prior device registration overwrite bug. Restores and approves their registered device records from active sessions.
+                    Safely resets device records to apply new device recognition rules. Archives all devices &amp; requests to timestamped collections (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">devices_archive_YYYYMMDD_HHmm</code>), deletes existing device records, and unbinds active sessions without logging students out. At their next request, active students automatically re-register their current device. Student accounts, passwords, enrolments, batch assignments, and learning progress remain 100% untouched.
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={handleDeviceDryRun}
-                    disabled={deviceDryRunLoading || deviceApplyLoading}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors cursor-pointer disabled:opacity-50"
+                    onClick={handleResetDryRun}
+                    disabled={resetDryRunLoading || resetApplyLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    {deviceDryRunLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                    Check Missing Devices
+                    {resetDryRunLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                    Dry Run Reset
                   </button>
                 </div>
               </div>
 
-              {deviceFeedback && (
+              {resetFeedback && (
                 <div
                   className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 border ${
-                    deviceFeedback.type === "success"
+                    resetFeedback.type === "success"
                       ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                       : "bg-red-50 text-red-800 border-red-200"
                   }`}
                 >
-                  {deviceFeedback.type === "success" ? (
+                  {resetFeedback.type === "success" ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   ) : (
                     <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                   )}
-                  <span>{deviceFeedback.message}</span>
+                  <span>{resetFeedback.message}</span>
                 </div>
               )}
 
-              {deviceDryRunResult && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between font-semibold text-slate-800">
-                    <span>
-                      {deviceDryRunResult.count} of {deviceDryRunResult.totalLoggedIn} logged-in student(s) have missing device records
+              {resetDryRunResult && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3 text-xs">
+                  <div className="flex items-center justify-between font-semibold text-slate-800 border-b border-slate-200 pb-2">
+                    <span>Dry Run Impact Summary</span>
+                    <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Safe Archive Mode
                     </span>
-                    <span className="text-slate-500 font-normal">Dry Run Result</span>
                   </div>
 
-                  {deviceDryRunResult.count > 0 ? (
-                    <>
-                      <div className="max-h-40 overflow-y-auto space-y-1.5 border border-slate-200 rounded p-2 bg-white">
-                        {deviceDryRunResult.students?.map((st, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-[11px] text-slate-700 py-0.5">
-                            <span className="font-mono font-semibold text-slate-900">{st.loginId}</span>
-                            <span className="text-slate-500">
-                              {st.deviceType} &middot; {st.os}
-                            </span>
-                            <span className={st.hasSession ? "text-emerald-600 font-medium" : "text-amber-600 font-medium"}>
-                              {st.hasSession ? "Session data ready" : "Will auto-approve next login"}
-                            </span>
-                          </div>
-                        ))}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                    <div className="bg-white p-2 rounded border border-slate-200">
+                      <div className="text-base font-bold text-slate-800">
+                        {resetDryRunResult.counts?.devices || 0}
                       </div>
+                      <div className="text-[10px] text-slate-500">Devices to Archive</div>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-slate-200">
+                      <div className="text-base font-bold text-slate-800">
+                        {resetDryRunResult.counts?.requests || 0}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Requests to Archive</div>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-slate-200">
+                      <div className="text-base font-bold text-slate-800">
+                        {resetDryRunResult.counts?.sessionsToUnbind || 0}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Sessions to Unbind</div>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-slate-200">
+                      <div className="text-base font-bold text-slate-800">
+                        {resetDryRunResult.counts?.studentsAffected || 0}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Students Logged In</div>
+                    </div>
+                  </div>
 
-                      <div className="pt-2 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={handleDeviceApply}
-                          disabled={deviceApplyLoading}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                        >
-                          {deviceApplyLoading ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Check className="w-3.5 h-3.5" />
-                          )}
-                          Repair Devices ({deviceDryRunResult.count} students)
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-slate-500 italic">All students with logged-in sessions already have approved device records!</p>
-                  )}
+                  <div>
+                    <span className="font-semibold text-slate-700 block mb-1">
+                      Strictly Untouched Data (Verified Safe):
+                    </span>
+                    <ul className="list-disc list-inside text-[11px] text-slate-600 space-y-0.5">
+                      {(resetDryRunResult.notTouched || []).map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetConfirmation("");
+                        setResetAdminPassword("");
+                        setResetModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer shadow-xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Apply Reset Devices...
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -2539,17 +2654,85 @@ export default function StudentsManagementView({
         variant="danger"
       />
 
+      {/* ================= RESET DEVICES CONFIRMATION MODAL ================= */}
+      {resetModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => setResetModalOpen(false)}
+          title="Confirm: Reset All Devices"
+        >
+          <div className="space-y-4">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
+              <p className="font-bold text-amber-800 mb-1">
+                Warning: You are preparing to reset all student devices
+              </p>
+              <p className="leading-relaxed">
+                All devices and requests will be safely archived to <code className="bg-white/80 px-1 py-0.5 rounded font-mono">devices_archive_YYYYMMDD_HHmm</code> collections. Active student sessions will be unbound but NOT logged out; each student will automatically re-register their current device at their next request.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Type <span className="font-mono text-amber-700 bg-amber-50 px-1 py-0.5 rounded">RESET DEVICES</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmation}
+                  onChange={(e) => setResetConfirmation(e.target.value)}
+                  placeholder="RESET DEVICES"
+                  className="w-full text-xs rounded-lg border border-slate-300 p-2.5 font-mono focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Admin Password:
+                </label>
+                <input
+                  type="password"
+                  value={resetAdminPassword}
+                  onChange={(e) => setResetAdminPassword(e.target.value)}
+                  placeholder="Enter your admin password"
+                  className="w-full text-xs rounded-lg border border-slate-300 p-2.5 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={resetApplyLoading}
+                onClick={() => setResetModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={resetApplyLoading || resetConfirmation.trim() !== "RESET DEVICES" || !resetAdminPassword.trim()}
+                onClick={handleApplyResetDevices}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm inline-flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {resetApplyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                Archive & Reset Devices
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* ================= DRAWER: STUDENT DEVICES ================= */}
       {devicesDrawerStudent && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+          <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">
                   {devicesDrawerStudent.name}
                 </h3>
                 <p className="text-xs text-slate-500 font-mono">
-                  {devicesDrawerStudent.loginId} &bull; Allowed Devices: {devicesDrawerStudent.maxDevices || 1}
+                  {devicesDrawerStudent.loginId} &bull; Allowed Limit: {devicesDrawerStudent.maxDevices || 1} &bull; Approved: {drawerApproved.length}
                 </p>
               </div>
               <button
@@ -2560,66 +2743,210 @@ export default function StudentsManagementView({
               </button>
             </div>
 
+            {/* Drawer Tabs */}
+            <div className="flex items-center border-b border-slate-200 px-5 pt-3 gap-2 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setDrawerTab("approved")}
+                className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+                  drawerTab === "approved"
+                    ? "border-emerald-600 text-emerald-800"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Approved ({drawerApproved.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawerTab("pending")}
+                className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+                  drawerTab === "pending"
+                    ? "border-amber-600 text-amber-800"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Pending ({drawerPending.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawerTab("rejected")}
+                className={`pb-2 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+                  drawerTab === "rejected"
+                    ? "border-rose-600 text-rose-800"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Rejected ({drawerRejected.length})
+              </button>
+            </div>
+
             <div className="p-5 flex-1 overflow-y-auto space-y-3">
               {devicesLoading ? (
                 <div className="text-center py-10 text-slate-500 text-sm">
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto text-amber-500 mb-2" />
                   Loading devices...
                 </div>
-              ) : studentDevices.length === 0 ? (
+              ) : drawerTab === "approved" && drawerApproved.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 text-sm">
                   <Smartphone className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                  No devices registered yet. First login will automatically register the student&apos;s device.
+                  No approved devices yet. Student&apos;s first login will automatically register their device.
+                </div>
+              ) : drawerTab === "pending" && drawerPending.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  <Check className="w-10 h-10 mx-auto text-emerald-300 mb-2" />
+                  No pending device requests for this student.
+                </div>
+              ) : drawerTab === "rejected" && drawerRejected.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  <ShieldCheck className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                  No declined devices on record for this student.
                 </div>
               ) : (
-                studentDevices.map((d) => (
-                  <div
-                    key={d._id}
-                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
-                        <Smartphone className="w-4 h-4 text-slate-500" />
-                        {formatDeviceLabel(d.deviceLabel || d.label || "Unknown Device", {
-                          model: d.model,
-                          os: d.os,
-                          deviceType: d.deviceType,
-                        })}
-                      </div>
-                      <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                          d.status === "approved"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : d.status === "pending"
-                            ? "bg-amber-100 text-amber-800 animate-pulse"
-                            : "bg-slate-200 text-slate-700"
-                        }`}
-                      >
-                        {d.status?.toUpperCase()}
-                      </span>
-                    </div>
+                (drawerTab === "approved"
+                  ? drawerApproved
+                  : drawerTab === "pending"
+                  ? drawerPending
+                  : drawerRejected
+                ).map((d) => {
+                  const label = d.deviceLabel || d.label || "Device";
+                  const isTablet = d.deviceType === "tablet" || d.osFamily?.toLowerCase().includes("ipad");
+                  const isMobile = d.deviceType === "mobile" || d.osFamily?.toLowerCase().includes("android") || d.osFamily?.toLowerCase().includes("ios");
+                  const screen = d.profile?.screenMajor && d.profile?.screenMinor
+                    ? `${d.profile.screenMajor}x${d.profile.screenMinor}`
+                    : "Standard";
+                  const loc = [d.city, d.region, d.country].filter(Boolean).join(", ") || "Unknown";
+                  const hasActiveSession = drawerActiveSessionDeviceIds.includes(d.deviceId);
 
-                    <div className="text-[11px] text-slate-500 space-y-0.5 font-mono">
-                      <div>IP: {d.ip || "Unknown"}</div>
-                      <div>
-                        Last used:{" "}
-                        {d.lastUsedAt
-                          ? new Date(d.lastUsedAt).toLocaleString("en-IN")
-                          : "Never"}
+                  return (
+                    <div
+                      key={d._id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2.5 text-xs text-slate-600"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                          {isTablet ? (
+                            <Tablet className="w-4 h-4 text-emerald-600" />
+                          ) : isMobile ? (
+                            <Smartphone className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Laptop className="w-4 h-4 text-emerald-600" />
+                          )}
+                          <span>{label}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {hasActiveSession && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
+                              Active Session
+                            </span>
+                          )}
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              d.status === "approved"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : d.status === "pending"
+                                ? "bg-amber-100 text-amber-800 animate-pulse"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {d.status?.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] bg-white p-2.5 rounded-lg border border-slate-200/80">
+                        <div>
+                          <strong>OS:</strong> {d.osFamily || d.os || "—"} {d.osVersion}
+                        </div>
+                        <div>
+                          <strong>Type:</strong> {d.deviceType || "desktop"}
+                        </div>
+                        <div>
+                          <strong>Browser:</strong> {d.browserName || d.browser || "—"}
+                        </div>
+                        <div>
+                          <strong>Model:</strong> {d.model || "—"}
+                        </div>
+                        <div>
+                          <strong>Screen:</strong> {screen}
+                        </div>
+                        <div>
+                          <strong>Attempts:</strong> {d.loginAttempts || d.attemptCount || 1}
+                        </div>
+                        <div className="col-span-2">
+                          <strong>Browsers Seen:</strong>{" "}
+                          {Array.isArray(d.browsersSeen) && d.browsersSeen.length > 0
+                            ? d.browsersSeen.join(", ")
+                            : d.browserName || d.browser || "Browser"}
+                        </div>
+                        <div className="col-span-2">
+                          <strong>IP:</strong> First: {d.firstIp || d.ip || "—"} &bull; Last: {d.lastIp || d.ip || "—"}
+                        </div>
+                        <div className="col-span-2">
+                          <strong>Approx. Location:</strong> {loc}
+                        </div>
+                        <div className="col-span-2 text-[10px] text-slate-400 pt-0.5 border-t border-slate-100">
+                          First: {d.firstLoginAt ? new Date(d.firstLoginAt).toLocaleString() : "—"} &bull; Last used:{" "}
+                          {d.lastUsedAt ? new Date(d.lastUsedAt).toLocaleString() : "—"}
+                        </div>
+                      </div>
+
+                      {/* Action buttons inside drawer */}
+                      <div className="pt-1 flex items-center justify-end gap-2">
+                        {d.status === "approved" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeDevice(d.deviceId)}
+                            className="px-3 py-1 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                          >
+                            Revoke Device
+                          </button>
+                        )}
+
+                        {d.status === "pending" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApproveFromDrawer(d._id, "additional")}
+                              className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg"
+                            >
+                              Approve
+                            </button>
+                            {drawerApproved.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveFromDrawer(d._id, "replace", drawerApproved[0]?.deviceId)}
+                                className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg"
+                              >
+                                Replace
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const note = prompt("Optional reason for declining:");
+                                handleRejectFromDrawer(d._id, note || "");
+                              }}
+                              className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+
+                        {d.status === "rejected" && (
+                          <button
+                            type="button"
+                            onClick={() => handleReconsiderFromDrawer(d._id)}
+                            className="px-2.5 py-1 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg inline-flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Reconsider
+                          </button>
+                        )}
                       </div>
                     </div>
-
-                    {d.status === "approved" && (
-                      <div className="pt-2 flex justify-end">
-                        <button
-                          onClick={() => handleRevokeDevice(d.deviceId)}
-                          className="px-3 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Revoke Device
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

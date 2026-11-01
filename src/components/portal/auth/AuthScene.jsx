@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { SITE_CONFIG } from "@/constants/site";
 import AuthLayout from "./AuthLayout";
+import DeviceHintsCollector from "./DeviceHintsCollector";
 
 /**
  * UserShieldIcon - Admin ID field icon
@@ -61,17 +62,19 @@ export default function AuthScene({
   let isExpiredNotice = false;
   if (urlMessage) {
     urlErrorMessage = urlMessage;
+  } else if (reason === "tab_closed") {
+    urlErrorMessage = "You were logged out because the tab was closed. Please log in again.";
   } else if (reason === "admin_logged_in" || urlError === "admin_logged_in") {
     urlErrorMessage = "Please log in as a student";
   } else if (reason === "logged_out") {
     urlErrorMessage = "You have been logged out successfully.";
   } else if (
+    reason === "device_removed" ||
     reason === "device_revoked" ||
     urlError === "device_revoked" ||
     reason === "device_not_approved"
   ) {
-    urlErrorMessage =
-      "Your approved device was changed or revoked by the administrator. To use this device, contact RD Classes.";
+    urlErrorMessage = "This device was removed by RD Classes.";
   } else if (reason === "logged_in_elsewhere") {
     urlErrorMessage =
       "Your account was logged in from another session. Please log in again.";
@@ -130,6 +133,7 @@ export default function AuthScene({
           : "Manage batches, students, notes, results and announcements from one secure dashboard."
       }
     >
+      <DeviceHintsCollector />
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -188,7 +192,14 @@ export default function AuthScene({
       )}
 
       {/* Login Form */}
-      <form action={formAction}>
+      <form
+        action={formAction}
+        onSubmit={() => {
+          try {
+            if (isStudent) sessionStorage.setItem("rd_tab", "1");
+          } catch {}
+        }}
+      >
         <input type="hidden" name="next" value={nextParam} />
         <div className="auth-form-gap flex flex-col gap-[18px]">
           {/* Field 1: Login ID or email */}

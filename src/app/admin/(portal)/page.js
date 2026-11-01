@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import {
   User,
   Device,
+  DeviceRequest,
   Session,
   Lecture,
   Note,
@@ -73,10 +74,15 @@ async function DashboardContent() {
         console.error("[Dashboard] Error counting students online:", err);
         return 0;
       }),
-    Device.countDocuments({ status: "pending" }).catch((err) => {
-      console.error("[Dashboard] Error counting pending devices:", err);
-      return 0;
-    }),
+    Promise.all([
+      DeviceRequest.countDocuments({ status: "pending" }),
+      Device.countDocuments({ status: "pending" }),
+    ])
+      .then(([r, d]) => r + d)
+      .catch((err) => {
+        console.error("[Dashboard] Error counting pending devices:", err);
+        return 0;
+      }),
     Lecture.countDocuments().catch((err) => {
       console.error("[Dashboard] Error counting lectures:", err);
       return 0;
@@ -97,11 +103,19 @@ async function DashboardContent() {
   let activeDevicesMap = {};
 
   try {
-    pendingRequests = await Device.find({ status: "pending" })
-      .populate("studentId", "name loginId deviceCount maxDevices deviceLimit")
-      .sort({ requestedAt: -1, createdAt: -1 })
-      .limit(6)
-      .lean();
+    const [reqs, legacyDevs] = await Promise.all([
+      DeviceRequest.find({ status: "pending" })
+        .populate("studentId", "name loginId deviceCount maxDevices deviceLimit")
+        .sort({ lastAttemptAt: -1, createdAt: -1 })
+        .limit(5)
+        .lean(),
+      Device.find({ status: "pending" })
+        .populate("studentId", "name loginId deviceCount maxDevices deviceLimit")
+        .sort({ requestedAt: -1, createdAt: -1 })
+        .limit(5)
+        .lean(),
+    ]);
+    pendingRequests = [...reqs, ...legacyDevs].slice(0, 5);
 
     // Map active devices for pending students
     const studentIds = pendingRequests
@@ -129,20 +143,19 @@ async function DashboardContent() {
 
   // Format pending requests for DeviceApprovalCard compatibility
   const normalizedPendingRequests = pendingRequests.map((r) => {
-    const student = r.studentId || null;
+    const student = r.studentId || r.userId || null;
     return {
       _id: r._id.toString(),
-      userId: student, // card accesses req.userId for student details
+      userId: student,
       deviceId: r.deviceId,
-      label: formatDeviceLabel(r.deviceLabel || r.label || r.deviceName || "Personal Device", {
-        model: r.model,
-        os: r.os,
-        deviceType: r.deviceType,
-      }),
+      label:
+        r.label ||
+        r.deviceLabel ||
+        `${r.osFamily || "Device"} · ${r.browserName || "Browser"}`,
       userAgent: r.userAgent || "",
       ip: r.ip || "",
       status: r.status,
-      requestedAt: r.requestedAt || r.createdAt,
+      requestedAt: r.lastAttemptAt || r.requestedAt || r.createdAt,
       studentNote: r.studentNote || "",
     };
   });

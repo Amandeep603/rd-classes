@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/server/auth/session.js";
+import { requireAdminApi } from "@/server/auth/session.js";
 import { approveDeviceRequest } from "@/server/auth/deviceService.js";
 
 export async function POST(request, { params }) {
   try {
-    const admin = await requireAdmin();
+    const auth = await requireAdminApi();
+    if (!auth.authenticated) return auth.response;
+
     const resolvedParams = await params;
     const { id } = resolvedParams;
     const body = await request.json().catch(() => ({}));
 
-    const mode = body.mode || "add"; // "replace" or "add"
+    const mode = body.mode || "additional"; // "additional" | "replace" | "same_device"
     const replaceDeviceId = body.replaceDeviceId || null;
+    const targetDeviceId = body.targetDeviceId || null;
 
     const result = await approveDeviceRequest(
       id,
-      { mode, replaceDeviceId },
-      admin.user._id
+      { mode, replaceDeviceId, targetDeviceId },
+      auth.user._id,
+      auth.user.name || "Admin"
     );
 
     return NextResponse.json({ success: true, result });

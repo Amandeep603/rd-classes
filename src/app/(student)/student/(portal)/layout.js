@@ -12,6 +12,8 @@ import { Note } from "@/server/db/models/Note.js";
 import StudentPortalShell from "@/components/portal/student/StudentPortalShell";
 import { StudentDashboardSkeleton } from "@/components/portal/ui/Skeleton";
 import { getStudentCourseAccess, getStudentCourseContext } from "@/server/services/studentAccessService.js";
+import DeviceHintsCollector from "@/components/portal/auth/DeviceHintsCollector";
+import TabSessionGuard from "@/components/portal/student/TabSessionGuard";
 
 export const metadata = {
   title: "Student Portal | RD Classes",
@@ -29,8 +31,9 @@ async function StudentPortalLayoutContent({ children }) {
   const now = new Date();
   const userId = auth.user._id;
 
-  // 1. Fetch Setting for whatsappNumber
+  // 1. Fetch Setting for whatsappNumber & sessionMode
   const setting = await Setting.findOne().lean();
+  const sessionMode = setting?.sessionMode || "tab";
   const whatsappNumber =
     setting?.whatsappNumber || setting?.whatsapp || "918368545620";
 
@@ -166,6 +169,8 @@ async function StudentPortalLayoutContent({ children }) {
       }))}
       courseProgress={courseProgress}
     >
+      <DeviceHintsCollector />
+      <TabSessionGuard sessionMode={sessionMode} />
       <Suspense fallback={<StudentDashboardSkeleton />}>
         {children}
       </Suspense>

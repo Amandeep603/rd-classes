@@ -69,6 +69,14 @@ const nextConfig = {
         source: "/student/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
+      {
+        source: "/student",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "X-Frame-Options", value: "DENY" },
         ],
       },
       {
@@ -78,6 +86,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: "frame-src 'self' https://player.vimeo.com https://*.vimeo.com https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com;",
           },
+          { key: "X-Frame-Options", value: "DENY" },
         ],
       },
       {
@@ -93,24 +102,28 @@ const nextConfig = {
         source: "/admin/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "X-Frame-Options", value: "DENY" },
         ],
       },
       {
         source: "/admin",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "X-Frame-Options", value: "DENY" },
         ],
       },
       {
         source: "/admin-login",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "X-Frame-Options", value: "DENY" },
         ],
       },
       {
         source: "/student-login",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "X-Frame-Options", value: "DENY" },
         ],
       },
       {

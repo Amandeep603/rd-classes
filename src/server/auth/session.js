@@ -1,14 +1,29 @@
 import "server-only";
 import { cache } from "react";
+import crypto from "crypto";
 import { connection, NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import connectDB from "../db/connect.js";
-import { Session, User, Device } from "@/lib/models";
-import { getCookie, deleteCookie, COOKIE_NAMES, COOKIE_DURATIONS } from "./cookies.js";
+import { Session, User, Device, DeviceRequest } from "@/lib/models";
+import {
+  getCookie,
+  setCookie,
+  deleteCookie,
+  COOKIE_NAMES,
+  COOKIE_DURATIONS,
+} from "./cookies.js";
 import { hashToken } from "./tokens.js";
-import { parseDeviceDetails } from "./device.js";
-export { getStudentCourseAccess, getStudentCourseContext } from "../services/studentAccessService.js";
+import {
+  parseClientHints,
+  parseServerSignals,
+  computeProfile,
+  matchDevice,
+} from "./deviceIdentity.js";
+export {
+  getStudentCourseAccess,
+  getStudentCourseContext,
+} from "../services/studentAccessService.js";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const FIVE_MINS_MS = 5 * 60 * 1000;
@@ -38,10 +53,22 @@ export const getCurrentAdmin = cache(async () => {
     return null;
   }
 
-  await connectDB();
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error("[ADMIN_SESSION_ERROR] DB connection error:", err?.message);
+    return null;
+  }
+
   const now = new Date();
   const tokenHash = hashToken(adminToken);
-  const session = await Session.findOne({ tokenHash }).lean();
+  let session = null;
+  try {
+    session = await Session.findOne({ tokenHash }).lean();
+  } catch (err) {
+    console.error("[ADMIN_SESSION_ERROR] Session find error:", err?.message);
+    return null;
+  }
 
   if (!session || session.revoked || new Date(session.expiresAt) <= now) {
     if (session) {
@@ -51,7 +78,14 @@ export const getCurrentAdmin = cache(async () => {
     return null;
   }
 
-  const user = await User.findById(session.userId).lean();
+  let user = null;
+  try {
+    user = await User.findById(session.userId).lean();
+  } catch (err) {
+    console.error("[ADMIN_SESSION_ERROR] User find error:", err?.message);
+    return null;
+  }
+
   if (!user || user.role !== "admin" || user.status === "blocked") {
     await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.ADMIN_SESSION);
@@ -59,9 +93,13 @@ export const getCurrentAdmin = cache(async () => {
   }
 
   // Sliding renewal: extend expiresAt at most once per hour on activity
-  const lastSeen = session.lastSeenAt ? new Date(session.lastSeenAt).getTime() : 0;
+  const lastSeen = session.lastSeenAt
+    ? new Date(session.lastSeenAt).getTime()
+    : 0;
   if (now.getTime() - lastSeen > ONE_HOUR_MS) {
-    const newExpiresAt = new Date(now.getTime() + COOKIE_DURATIONS.ADMIN_SESSION * 1000);
+    const newExpiresAt = new Date(
+      now.getTime() + COOKIE_DURATIONS.ADMIN_SESSION * 1000
+    );
     await Session.updateOne(
       { _id: session._id },
       { $set: { lastSeenAt: now, expiresAt: newExpiresAt } }
@@ -89,7 +127,7 @@ export const getCurrentAdmin = cache(async () => {
 /**
  * Returns fresh authenticated student user from MongoDB.
  * Reads ONLY rd_student_session (falling back to legacy rd_session).
- * Never trusts name, courses, or permissions stored in the token.
+ * Validates session AND that its device is still approved (one indexed lookup, cached per request).
  * Memoized per request using React cache.
  */
 export const getCurrentStudent = cache(async () => {
@@ -102,18 +140,30 @@ export const getCurrentStudent = cache(async () => {
     return null;
   }
 
-  let session = null;
   try {
     await connectDB();
-    const tokenHash = hashToken(studentToken);
-    session = await Session.findOne({ tokenHash }).lean();
   } catch (err) {
-    console.error("[SESSION_ERROR] Transient DB error in getCurrentStudent:", err?.message);
+    console.error("[SESSION_ERROR] DB connection error in getCurrentStudent:", err?.message);
     // Transient DB error: NEVER clear cookies or revoke sessions on database connectivity hiccups
-    return null;
+    return {
+      transientError: true,
+      authenticated: false,
+    };
   }
 
   const now = new Date();
+  const tokenHash = hashToken(studentToken);
+  let session = null;
+  try {
+    session = await Session.findOne({ tokenHash }).lean();
+  } catch (err) {
+    console.error("[SESSION_ERROR] Transient DB error querying session:", err?.message);
+    return {
+      transientError: true,
+      authenticated: false,
+    };
+  }
+
   if (!session) {
     return null;
   }
@@ -124,6 +174,7 @@ export const getCurrentStudent = cache(async () => {
     return null;
   }
 
+  // 30-day sliding cap check
   if (new Date(session.expiresAt) <= now) {
     await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
@@ -135,8 +186,11 @@ export const getCurrentStudent = cache(async () => {
   try {
     user = await User.findById(session.userId).lean();
   } catch (err) {
-    console.error("[SESSION_ERROR] Transient DB error finding user:", err?.message);
-    return null;
+    console.error("[SESSION_ERROR] Transient DB error finding student user:", err?.message);
+    return {
+      transientError: true,
+      authenticated: false,
+    };
   }
 
   if (!user || user.role !== "student" || user.status === "blocked") {
@@ -146,85 +200,160 @@ export const getCurrentStudent = cache(async () => {
     return null;
   }
 
-  // Device check with auto-healing for unassigned students
-  let deviceApproved = false;
-  try {
-    deviceApproved = await Device.exists({
-      $or: [{ studentId: user._id }, { userId: user._id }],
-      $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
-      status: "approved",
-    });
+  // Device check & Adoption rule
+  if (session.deviceId) {
+    // Session is bound to deviceId -> verify device is still approved
+    let approvedDevice = null;
+    try {
+      approvedDevice = await Device.findOne({
+        studentId: user._id,
+        $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
+        status: "approved",
+      }).lean();
+    } catch (devErr) {
+      console.error("[SESSION_ERROR] Transient DB error checking device:", devErr?.message);
+      // On transient DB error, do NOT kill active session
+      approvedDevice = { deviceId: session.deviceId };
+    }
 
-    if (!deviceApproved) {
-      // Check if student has ANY approved device
-      const hasAnyApproved = await Device.exists({
-        $or: [{ studentId: user._id }, { userId: user._id }],
+    if (!approvedDevice) {
+      // Device was explicitly revoked or replaced by admin
+      await Session.updateOne(
+        { _id: session._id },
+        { $set: { revoked: true, revokedReason: "device_removed" } }
+      ).catch(() => {});
+      await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+      await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+      return null;
+    }
+  } else {
+    // ADOPTION RULE for existing sessions without deviceId (e.g. after Reset Devices):
+    try {
+      const headerList = await headers();
+      const rawHintsCookie = await getCookie(COOKIE_NAMES.HINTS);
+      const clientHints = parseClientHints(rawHintsCookie);
+      const signals = parseServerSignals(
+        headerList.get("user-agent") || "",
+        headerList,
+        clientHints
+      );
+      const profile = computeProfile(signals, clientHints);
+
+      const approvedDevices = await Device.find({
+        studentId: user._id,
         status: "approved",
       });
 
-      // If student has 0 approved devices in DB, auto-heal from active session
-      // (Protects existing students who logged in before the fix from getting kicked out)
-      if (!hasAnyApproved && session.deviceId) {
-        const details = parseDeviceDetails(session.userAgent || "");
-        await Device.findOneAndUpdate(
-          {
-            studentId: user._id,
-            $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
-          },
-          {
-            $set: {
-              studentId: user._id,
-              userId: user._id,
-              deviceId: session.deviceId,
-              deviceKey: session.deviceId,
-              deviceType: details.deviceType || "desktop",
-              os: details.osName || "",
-              browser: details.browserName || "",
-              model: details.model || "",
-              deviceLabel: details.label || "Approved Device",
-              label: details.label || "Approved Device",
-              ip: session.ip || user.lastLoginIp || "",
-              lastIp: session.ip || user.lastLoginIp || "",
-              userAgent: session.userAgent || "",
-              status: "approved",
-              firstLoginAt: user.lastLoginAt || now,
-              approvedAt: now,
-              decidedAt: now,
-              lastUsedAt: now,
-            },
-          },
-          { upsert: true, new: true }
-        ).catch((healErr) => {
-          console.warn("[SESSION_DEVICE_HEAL_FAILED]", healErr?.message);
+      if (approvedDevices.length === 0) {
+        // Auto-register current device as approved
+        const rawDeviceCookie = await getCookie(COOKIE_NAMES.DEVICE);
+        const deviceToken = rawDeviceCookie || crypto.randomUUID();
+        const devTokenHash = crypto
+          .createHash("sha256")
+          .update(deviceToken)
+          .digest("hex");
+        const newDeviceId = "dev_" + crypto.randomBytes(8).toString("hex");
+
+        await Device.create({
+          studentId: user._id,
+          userId: user._id,
+          deviceId: newDeviceId,
+          deviceKey: newDeviceId,
+          coarseKey: signals.coarseKey,
+          deviceType: signals.deviceType,
+          osFamily: signals.osFamily,
+          os: signals.osName,
+          osVersion: signals.osVersion,
+          browser: signals.browserName,
+          browserName: signals.browserName,
+          browserVersion: signals.browserVersion,
+          browsersSeen: [signals.browserName],
+          model: signals.model,
+          profile: profile || null,
+          aliases: [],
+          browserTokenHashes: [devTokenHash],
+          city: signals.city,
+          region: signals.region,
+          country: signals.country,
+          timezone: signals.timezone,
+          firstIp: signals.ip,
+          lastIp: signals.ip,
+          ip: signals.ip,
+          firstLoginAt: now,
+          lastUsedAt: now,
+          approvedAt: now,
+          decidedAt: now,
+          loginAttempts: 1,
+          deviceLabel: signals.label,
+          label: signals.label,
+          userAgent: signals.userAgent,
+          status: "approved",
         });
-        deviceApproved = true;
+
+        await setCookie(
+          COOKIE_NAMES.DEVICE,
+          deviceToken,
+          COOKIE_DURATIONS.DEVICE
+        );
+
+        // Bind session to newDeviceId
+        session.deviceId = newDeviceId;
+        await Session.updateOne(
+          { _id: session._id },
+          { $set: { deviceId: newDeviceId } }
+        ).catch(() => {});
+      } else {
+        // MATCH check against approved devices
+        const rawDeviceCookie = await getCookie(COOKIE_NAMES.DEVICE);
+        const cookieTokenHash = rawDeviceCookie
+          ? crypto.createHash("sha256").update(rawDeviceCookie).digest("hex")
+          : null;
+
+        const matchResult = matchDevice({
+          signals,
+          profile,
+          cookieTokenHash,
+          approvedDevices,
+          deviceLockMode: "smart",
+        });
+
+        if (matchResult.matched && matchResult.device) {
+          session.deviceId = matchResult.device.deviceId;
+          await Session.updateOne(
+            { _id: session._id },
+            { $set: { deviceId: matchResult.device.deviceId } }
+          ).catch(() => {});
+        } else {
+          // Unmatched legacy session -> end session
+          await Session.updateOne(
+            { _id: session._id },
+            { $set: { revoked: true, revokedReason: "device_pending" } }
+          ).catch(() => {});
+          await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+          await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+          return null;
+        }
       }
+    } catch (adoptErr) {
+      console.warn("[SESSION_ADOPTION_ERROR]", adoptErr?.message);
     }
-  } catch (deviceErr) {
-    console.error("[SESSION_ERROR] Error checking device:", deviceErr?.message);
-    // On transient DB error, do NOT kill active session; default to permitting request
-    deviceApproved = true;
   }
 
-  if (!deviceApproved) {
-    // Device was explicitly revoked or replaced by admin
-    await Session.updateOne(
-      { _id: session._id },
-      { $set: { revoked: true, revokedReason: "device_revoked" } }
-    ).catch(() => {});
-    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
-    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
-    return null;
-  }
-
-  // Update lastSeenAt throttled to once per 5 minutes; extend expiresAt if sliding window elapsed
-  const lastSeen = session.lastSeenAt ? new Date(session.lastSeenAt).getTime() : 0;
+  // Update lastSeenAt throttled to once per 5 minutes; sliding renewal extends expiresAt
+  const lastSeen = session.lastSeenAt
+    ? new Date(session.lastSeenAt).getTime()
+    : 0;
   if (now.getTime() - lastSeen > FIVE_MINS_MS) {
     const updateFields = { lastSeenAt: now };
+    // Sliding renewal: extend 30-day window
     if (now.getTime() - lastSeen > ONE_HOUR_MS) {
-      updateFields.expiresAt = new Date(now.getTime() + COOKIE_DURATIONS.SESSION * 1000);
+      updateFields.expiresAt = new Date(
+        now.getTime() + COOKIE_DURATIONS.SESSION * 1000
+      );
     }
-    await Session.updateOne({ _id: session._id }, { $set: updateFields }).catch(() => {});
+    await Session.updateOne({ _id: session._id }, { $set: updateFields }).catch(
+      () => {}
+    );
   }
 
   return {
@@ -258,7 +387,11 @@ export const getAdminAuthStatus = cache(async () => {
   const admin = await getCurrentAdmin();
   if (!admin) {
     const hadCookie = Boolean(await getCookie(COOKIE_NAMES.ADMIN_SESSION));
-    return { authenticated: false, reason: hadCookie ? "session_expired" : "no_session", hadCookie };
+    return {
+      authenticated: false,
+      reason: hadCookie ? "session_expired" : "no_session",
+      hadCookie,
+    };
   }
   return {
     authenticated: true,
@@ -273,12 +406,23 @@ export const getAdminAuthStatus = cache(async () => {
  */
 export const getStudentAuthStatus = cache(async () => {
   const student = await getCurrentStudent();
-  if (!student) {
+  if (!student || !student.authenticated) {
+    if (student?.transientError) {
+      return {
+        authenticated: false,
+        transientError: true,
+        reason: "reconnecting",
+      };
+    }
     const hadCookie = Boolean(
       (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
-      (await getCookie(COOKIE_NAMES.LEGACY_SESSION))
+        (await getCookie(COOKIE_NAMES.LEGACY_SESSION))
     );
-    return { authenticated: false, reason: hadCookie ? "session_expired" : "no_session", hadCookie };
+    return {
+      authenticated: false,
+      reason: hadCookie ? "session_expired" : "no_session",
+      hadCookie,
+    };
   }
   return {
     authenticated: true,
@@ -289,20 +433,18 @@ export const getStudentAuthStatus = cache(async () => {
 
 /**
  * Returns current authenticated admin or student user without throwing.
- * DEPRECATED: Student routes must call getCurrentStudent(); Admin routes must call getCurrentAdmin().
  */
 export const getCurrentUser = cache(async () => {
   const student = await getCurrentStudent();
-  if (student) return student;
+  if (student && student.authenticated) return student;
   const admin = await getCurrentAdmin();
-  if (admin) return admin;
+  if (admin && admin.authenticated) return admin;
   return null;
 });
 
 /**
  * For page components: verifies admin session.
- * Redirects to /admin-login (or /api/auth/clear) if unauthenticated.
- * NEVER throws an error.
+ * Redirects to /admin-login if unauthenticated.
  */
 export async function requireAdmin() {
   const admin = await getCurrentAdmin();
@@ -314,7 +456,9 @@ export async function requireAdmin() {
         { status: 401 }
       );
     }
-    const target = `/admin-login?reason=expired&next=${encodeURIComponent(currentPath)}`;
+    const target = `/admin-login?reason=expired&next=${encodeURIComponent(
+      currentPath
+    )}`;
     const hadCookie = Boolean(await getCookie(COOKIE_NAMES.ADMIN_SESSION));
     if (hadCookie) {
       redirect(`/api/auth/clear?cookie=admin&to=${encodeURIComponent(target)}`);
@@ -328,13 +472,26 @@ export async function requireAdmin() {
 
 /**
  * For page components: verifies student session.
- * If /student/* is opened with only an admin cookie, redirect to student login with "Please log in as a student".
- * NEVER renders student UI using admin data.
- * NEVER throws an error.
+ * A transient DB or network error NEVER logs out or redirects; it renders with reconnecting flag.
  */
 export async function requireStudent() {
   const student = await getCurrentStudent();
-  if (!student) {
+  if (!student || !student.authenticated) {
+    // If transient DB error, do NOT redirect to login; allow render to keep student on page
+    if (student?.transientError) {
+      return {
+        authenticated: true,
+        transientError: true,
+        user: {
+          _id: "transient",
+          name: "Student",
+          loginId: "STUDENT",
+          role: "student",
+        },
+        session: { _id: "transient", deviceId: "" },
+      };
+    }
+
     const currentPath = await resolveCurrentPath("/student");
     if (currentPath.startsWith("/api/")) {
       return NextResponse.json(
@@ -364,8 +521,13 @@ export async function requireStudent() {
         const tokenHash = hashToken(rawStudentToken);
         const sess = await Session.findOne({ tokenHash }).lean();
         if (sess) {
-          if (sess.revokedReason === "device_revoked") {
-            specificReason = "device_revoked";
+          if (
+            sess.revokedReason === "device_removed" ||
+            sess.revokedReason === "device_revoked"
+          ) {
+            specificReason = "device_removed";
+          } else if (sess.revokedReason === "device_pending") {
+            specificReason = "device_pending";
           } else if (sess.revoked) {
             specificReason = "logged_in_elsewhere";
           } else if (new Date(sess.expiresAt) <= new Date()) {
@@ -377,9 +539,13 @@ export async function requireStudent() {
       }
     }
 
-    const target = `/student-login?reason=${specificReason}&next=${encodeURIComponent(currentPath)}`;
+    const target = `/student-login?reason=${specificReason}&next=${encodeURIComponent(
+      currentPath
+    )}`;
     if (hadStudentCookie) {
-      redirect(`/api/auth/clear?cookie=student&to=${encodeURIComponent(target)}`);
+      redirect(
+        `/api/auth/clear?cookie=student&to=${encodeURIComponent(target)}`
+      );
     } else {
       redirect(target);
     }
@@ -390,58 +556,49 @@ export async function requireStudent() {
 
 /**
  * For API routes and server actions: verifies admin session.
- * Returns 401 response object when unauthorized.
- * NEVER throws an error.
  */
 export async function requireAdminApi() {
   const status = await getAdminAuthStatus();
   if (!status.authenticated) {
     const res = NextResponse.json(
-      { success: false, error: "Unauthorized", reason: status.reason || "unauthorized" },
+      {
+        success: false,
+        error: "Unauthorized",
+        reason: status.reason || "unauthorized",
+      },
       { status: 401 }
     );
-    res.authenticated = false;
-    res.authorized = false;
-    res.ok = false;
-    res.user = null;
-    res.session = null;
-    res.response = res;
-    return res;
+    return { authenticated: false, response: res };
   }
-
-  return {
-    authenticated: true,
-    authorized: true,
-    ok: true,
-    user: status.user,
-    session: status.session,
-    response: null,
-  };
+  return { authenticated: true, user: status.user, session: status.session };
 }
 
 /**
  * For API routes and server actions: verifies student session.
- * Returns 401 response object when unauthorized.
- * NEVER throws an error.
  */
 export async function requireStudentApi() {
-  const student = await getCurrentStudent();
-  if (!student) {
-    const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
-    const reason = adminToken ? "admin_logged_in" : "unauthorized";
-    const errorMsg = adminToken ? "Please log in as a student" : "Unauthorized";
+  const status = await getStudentAuthStatus();
+  if (!status.authenticated) {
+    if (status.transientError) {
+      const res = NextResponse.json(
+        {
+          success: false,
+          error: "Temporary server reconnecting, please retry",
+          reason: "reconnecting",
+        },
+        { status: 503 }
+      );
+      return { authenticated: false, response: res };
+    }
     const res = NextResponse.json(
-      { success: false, error: errorMsg, reason },
+      {
+        success: false,
+        error: "Unauthorized",
+        reason: status.reason || "unauthorized",
+      },
       { status: 401 }
     );
-    res.authenticated = false;
-    res.authorized = false;
-    res.ok = false;
-    res.user = null;
-    res.session = null;
-    res.response = res;
-    return res;
+    return { authenticated: false, response: res };
   }
-
-  return student;
+  return { authenticated: true, user: status.user, session: status.session };
 }

@@ -1,13 +1,13 @@
 import "server-only";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { read, utils, SSF } from "xlsx";
-const XLSX = { read, utils, SSF };
+import * as XLSX from "xlsx";
 import mongoose from "mongoose";
 import connectDB from "../../lib/mongodb.ts";
 import {
   User,
   Device,
+  DeviceRequest,
   Session,
   Enrollment,
   Course,
@@ -55,8 +55,8 @@ export function normalizeBatch(val) {
     const num = Number(rawStr);
     if (num >= 30000 && num <= 70000) {
       try {
-        if (SSF?.parse_date_code) {
-          const parsed = SSF.parse_date_code(num);
+        if (XLSX.SSF?.parse_date_code) {
+          const parsed = XLSX.SSF.parse_date_code(num);
           if (parsed && parsed.m && parsed.d) {
             return `${parsed.m}-${parsed.d}`;
           }
@@ -1220,10 +1220,15 @@ export async function getStudentsListPaginated({
     if (e.courseId) enrollmentsMap[sId].push(e.courseId);
   }
 
-  // Devices map
-  const devices = await Device.find({
-    $or: [{ studentId: { $in: studentIds } }, { userId: { $in: studentIds } }],
-  }).lean();
+  // Devices and Requests map
+  const [devices, requests] = await Promise.all([
+    Device.find({
+      $or: [{ studentId: { $in: studentIds } }, { userId: { $in: studentIds } }],
+    }).lean(),
+    DeviceRequest.find({
+      $or: [{ studentId: { $in: studentIds } }, { userId: { $in: studentIds } }],
+    }).lean(),
+  ]);
 
   const devicesMap = {};
   for (const d of devices) {
@@ -1232,11 +1237,22 @@ export async function getStudentsListPaginated({
     devicesMap[sId].push(d);
   }
 
+  const requestsMap = {};
+  for (const r of requests) {
+    const sId = (r.studentId || r.userId).toString();
+    if (!requestsMap[sId]) requestsMap[sId] = [];
+    requestsMap[sId].push(r);
+  }
+
   const enrichedStudents = students.map((student) => {
     const sId = student._id.toString();
     const studentDevices = devicesMap[sId] || [];
+    const studentReqs = requestsMap[sId] || [];
     const approvedDevices = studentDevices.filter((d) => d.status === "approved");
-    const pendingDevices = studentDevices.filter((d) => d.status === "pending");
+    const pendingDevices = [
+      ...studentDevices.filter((d) => d.status === "pending"),
+      ...studentReqs.filter((r) => r.status === "pending"),
+    ];
 
     let deviceStatus = "no-device";
     if (pendingDevices.length > 0) deviceStatus = "pending";
@@ -1259,13 +1275,18 @@ export async function getStudentsListPaginated({
       firstDevice: firstDev
         ? {
             type: firstDev.deviceType || "desktop",
-            label: formatDeviceLabel(firstDev.deviceLabel || firstDev.label || "Device", {
-              model: firstDev.model,
-              os: firstDev.os,
-              deviceType: firstDev.deviceType,
-            }),
-            os: firstDev.os || "",
-            browser: firstDev.browser || "",
+            label:
+              firstDev.deviceLabel ||
+              firstDev.label ||
+              `${firstDev.osFamily || firstDev.os || "Device"} · ${
+                firstDev.browserName || firstDev.browser || "Browser"
+              }`,
+            os: firstDev.osFamily || firstDev.os || "",
+            browser: firstDev.browserName || firstDev.browser || "",
+            model: firstDev.model || "",
+            ip: firstDev.lastIp || firstDev.ip || firstDev.firstIp || "",
+            city: firstDev.city || "",
+            country: firstDev.country || "",
           }
         : null,
       lastLoginIp: student.lastLoginIp || (firstDev?.lastIp || firstDev?.ip || null),

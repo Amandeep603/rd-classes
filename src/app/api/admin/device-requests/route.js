@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
-import { Device, User } from "@/lib/models";
+import { Device, DeviceRequest, User } from "@/lib/models";
 
 export async function GET(request) {
   const auth = await requireAdminApi();
@@ -19,35 +19,31 @@ export async function GET(request) {
       query.status = status;
     }
 
-    const devices = await Device.find(query)
+    // Query DeviceRequest collection
+    const requests = await DeviceRequest.find(query)
       .populate({
         path: "studentId",
-        select: "name loginId email phone maxDevices status",
+        select: "name loginId email phone maxDevices status deviceCount",
       })
-      .sort({ requestedAt: -1, createdAt: -1 })
+      .sort({ lastAttemptAt: -1, createdAt: -1 })
       .lean();
 
-    // Map each device and resolve student details
-    const mapped = [];
+    // Map each request and gather student IDs
     const studentIds = [];
-
-    for (const d of devices) {
-      const student = d.studentId || d.userId;
-      if (student) {
+    const mapped = requests.map((r) => {
+      const student = r.studentId || r.userId;
+      if (student && student._id) {
         studentIds.push(student._id);
       }
-      mapped.push({
-        ...d,
+      return {
+        ...r,
         student,
-      });
-    }
+      };
+    });
 
-    // Fetch approved devices for these students to show "already approved device"
+    // Fetch approved devices for these students to show side-by-side
     const approvedDevices = await Device.find({
-      $or: [
-        { studentId: { $in: studentIds } },
-        { userId: { $in: studentIds } },
-      ],
+      studentId: { $in: studentIds },
       status: "approved",
     }).lean();
 
@@ -66,19 +62,26 @@ export async function GET(request) {
       };
     });
 
+    // Apply search filter
     if (search.trim()) {
       const s = search.trim().toLowerCase();
       results = results.filter((item) => {
         const name = (item.student?.name || "").toLowerCase();
         const loginId = (item.student?.loginId || "").toLowerCase();
-        const label = (item.deviceLabel || item.label || "").toLowerCase();
-        return name.includes(s) || loginId.includes(s) || label.includes(s);
+        const label = (item.label || "").toLowerCase();
+        const model = (item.model || "").toLowerCase();
+        return (
+          name.includes(s) ||
+          loginId.includes(s) ||
+          label.includes(s) ||
+          model.includes(s)
+        );
       });
     }
 
-    const pendingCount = await Device.countDocuments({ status: "pending" });
-    const approvedCount = await Device.countDocuments({ status: "approved" });
-    const rejectedCount = await Device.countDocuments({ status: { $in: ["rejected", "revoked"] } });
+    const pendingCount = await DeviceRequest.countDocuments({ status: "pending" });
+    const approvedCount = await DeviceRequest.countDocuments({ status: "approved" });
+    const rejectedCount = await DeviceRequest.countDocuments({ status: "rejected" });
 
     return NextResponse.json({
       requests: results,

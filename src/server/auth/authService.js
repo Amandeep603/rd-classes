@@ -1,8 +1,10 @@
 import "server-only";
 import crypto from "crypto";
+import { headers } from "next/headers";
 import connectDB from "../db/connect.js";
 import { User } from "../../lib/models/User.ts";
 import { Device } from "../../lib/models/Device.ts";
+import { DeviceRequest } from "../db/models/DeviceRequest.js";
 import { Session } from "../../lib/models/Session.ts";
 import { Setting } from "../../lib/models/Setting.ts";
 import { comparePassword, comparePasswordDummy } from "./password.js";
@@ -14,7 +16,15 @@ import {
   COOKIE_NAMES,
   COOKIE_DURATIONS,
 } from "./cookies.js";
-import { resolveDeviceContext } from "./device.js";
+import {
+  parseClientHints,
+  parseServerSignals,
+  computeProfile,
+  computeProfileBucket,
+  computeDedupeKey,
+  matchDevice,
+  computeDeviceDifferences,
+} from "./deviceIdentity.js";
 import {
   checkRateLimit,
   recordFailedAttempt,
@@ -35,19 +45,17 @@ export async function studentLogin({ loginId, password }) {
   const upperId = cleanId.toUpperCase();
   const cleanPassword = (password || "").trim();
 
-  const deviceCtx = await resolveDeviceContext();
-  const {
-    deviceKey,
-    deviceType,
-    osName,
-    browserName,
-    model,
-    label,
-    ip,
-    city,
-    country,
-    userAgent,
-  } = deviceCtx;
+  // Extract signals and hints
+  const headerList = await headers();
+  const rawHintsCookie = await getCookie(COOKIE_NAMES.HINTS);
+  const clientHints = parseClientHints(rawHintsCookie);
+  const signals = parseServerSignals(
+    headerList.get("user-agent") || "",
+    headerList,
+    clientHints
+  );
+  const profile = computeProfile(signals, clientHints);
+  const ip = signals.ip;
 
   // Keyed on IP + student loginId so one student's failure doesn't lock others on a shared network
   const rateLimitKey = `rl:${ip}:${upperId}`;
@@ -56,7 +64,9 @@ export async function studentLogin({ loginId, password }) {
   const rateCheck = await checkRateLimit(rateLimitKey);
   if (rateCheck.locked) {
     const mins = Math.max(1, Math.ceil(rateCheck.remainingSec / 60));
-    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=rate_limited ip=${ip} remainingMin=${mins}`);
+    console.warn(
+      `[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=rate_limited ip=${ip} remainingMin=${mins}`
+    );
     return {
       success: false,
       error: `Too many attempts, try again in ${mins} minutes`,
@@ -78,7 +88,9 @@ export async function studentLogin({ loginId, password }) {
       ],
     });
   } catch (dbErr) {
-    console.error(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=db_error ip=${ip} error=${dbErr.message}`);
+    console.error(
+      `[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=db_error ip=${ip} error=${dbErr.message}`
+    );
     return {
       success: false,
       error: "Server error (code DB_ERR), contact RD Classes",
@@ -89,7 +101,9 @@ export async function studentLogin({ loginId, password }) {
   if (!user) {
     await comparePasswordDummy(cleanPassword);
     await recordFailedAttempt(rateLimitKey, 5);
-    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=user_not_found ip=${ip}`);
+    console.warn(
+      `[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=user_not_found ip=${ip}`
+    );
     return {
       success: false,
       error: "Invalid login ID or password",
@@ -102,7 +116,9 @@ export async function studentLogin({ loginId, password }) {
   try {
     isPasswordValid = await comparePassword(cleanPassword, user.passwordHash);
   } catch (err) {
-    console.error(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=config_error ip=${ip} error=${err.message}`);
+    console.error(
+      `[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=config_error ip=${ip} error=${err.message}`
+    );
     return {
       success: false,
       error: "Server error (code AUTH_CFG), contact RD Classes",
@@ -112,7 +128,9 @@ export async function studentLogin({ loginId, password }) {
 
   if (!isPasswordValid) {
     await recordFailedAttempt(rateLimitKey, 5);
-    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=wrong_password ip=${ip}`);
+    console.warn(
+      `[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=wrong_password ip=${ip}`
+    );
     return {
       success: false,
       error: "Invalid login ID or password",
@@ -122,7 +140,9 @@ export async function studentLogin({ loginId, password }) {
 
   // 4. Blocked check (only after password verification)
   if (user.status === "blocked") {
-    console.warn(`[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=blocked ip=${ip}`);
+    console.warn(
+      `[STUDENT_LOGIN] timestamp=${new Date().toISOString()} loginId=${upperId} result=blocked ip=${ip}`
+    );
     return {
       success: false,
       error: "Your account has been deactivated. Please contact RD Classes administration.",
@@ -134,70 +154,216 @@ export async function studentLogin({ loginId, password }) {
   await resetRateLimit(rateLimitKey);
 
   const now = new Date();
+  // 30-day sliding safety cap for session in database
   const sessionExpiresAt = new Date(
     now.getTime() + COOKIE_DURATIONS.SESSION * 1000
   );
 
   // 5. Query approved devices for this student
   const approvedDevices = await Device.find({
-    $or: [{ studentId: user._id }, { userId: user._id }],
+    studentId: user._id,
     status: "approved",
   });
 
-  const matchingApproved = approvedDevices.find(
-    (d) => d.deviceKey === deviceKey || d.deviceId === deviceKey
-  );
+  const setting = await Setting.findOne().lean();
+  const rawMode = setting?.deviceLockMode;
+  const deviceLockMode = rawMode === "relaxed" ? "smart" : rawMode || "smart";
 
-  let maxAllowed = user.maxDevices;
-  if (!maxAllowed || maxAllowed < 1) {
-    const setting = await Setting.findOne().lean();
-    maxAllowed = setting?.defaultMaxDevices || 1;
+  // Check rd_device cookie
+  const rawDeviceCookie = await getCookie(COOKIE_NAMES.DEVICE);
+  let cookieTokenHash = null;
+  if (rawDeviceCookie) {
+    cookieTokenHash = crypto
+      .createHash("sha256")
+      .update(rawDeviceCookie)
+      .digest("hex");
   }
 
-  // CASE 1: Device is already approved
-  if (matchingApproved) {
-    const activeDeviceId = matchingApproved.deviceId || matchingApproved.deviceKey || deviceKey;
-    await Device.updateOne(
-      { _id: matchingApproved._id },
-      {
-        $set: {
-          lastUsedAt: now,
-          lastIp: ip,
-          ip,
-          browser: browserName,
-          userAgent,
-          city: city || matchingApproved.city || "",
-          country: country || matchingApproved.country || "",
-        },
-      }
+  // CASE 1: Student has zero approved devices -> Auto-register current device
+  if (approvedDevices.length === 0) {
+    const rawDeviceToken = rawDeviceCookie || crypto.randomUUID();
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawDeviceToken)
+      .digest("hex");
+    const newDeviceId = "dev_" + crypto.randomBytes(8).toString("hex");
+
+    await Device.create({
+      studentId: user._id,
+      userId: user._id,
+      deviceId: newDeviceId,
+      deviceKey: newDeviceId,
+      coarseKey: signals.coarseKey,
+      deviceType: signals.deviceType,
+      osFamily: signals.osFamily,
+      os: signals.osName,
+      osVersion: signals.osVersion,
+      browser: signals.browserName,
+      browserName: signals.browserName,
+      browserVersion: signals.browserVersion,
+      browsersSeen: [signals.browserName],
+      model: signals.model,
+      profile: profile || null,
+      aliases: [],
+      browserTokenHashes: [tokenHash],
+      city: signals.city,
+      region: signals.region,
+      country: signals.country,
+      timezone: signals.timezone,
+      firstIp: signals.ip,
+      lastIp: signals.ip,
+      ip: signals.ip,
+      firstLoginAt: now,
+      lastUsedAt: now,
+      approvedAt: now,
+      decidedAt: now,
+      loginAttempts: 1,
+      deviceLabel: signals.label,
+      label: signals.label,
+      userAgent: signals.userAgent,
+      status: "approved",
+    });
+
+    // Set 1-year rd_device cookie
+    await setCookie(
+      COOKIE_NAMES.DEVICE,
+      rawDeviceToken,
+      COOKIE_DURATIONS.DEVICE
     );
 
     user.lastLoginAt = now;
-    user.lastLoginIp = ip;
+    user.lastLoginIp = signals.ip;
+    user.deviceCount = 1;
     await user.save();
 
-    // Enforce one active session per device: replace old session
-    await Session.deleteMany({ userId: user._id, deviceId: activeDeviceId });
+    // Replace any old active session for student
+    await Session.deleteMany({ userId: user._id });
 
-    const rawToken = generateSessionToken();
-    const tokenHash = hashToken(rawToken);
+    const rawSessionToken = generateSessionToken();
+    const sessionTokenHash = hashToken(rawSessionToken);
+
+    await Session.create({
+      userId: user._id,
+      deviceId: newDeviceId,
+      tokenHash: sessionTokenHash,
+      lastSeenAt: now,
+      expiresAt: sessionExpiresAt,
+      ip: signals.ip,
+      userAgent: signals.userAgent,
+      revoked: false,
+    });
+
+    // Browser session cookie (no Max-Age/Expires)
+    await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawSessionToken);
+
+    console.log(
+      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_registered deviceId=${newDeviceId} ip=${signals.ip}`
+    );
+
+    return {
+      success: true,
+      redirectTo: "/student",
+    };
+  }
+
+  // CASE 2: Match against student's approved devices
+  const matchResult = matchDevice({
+    signals,
+    profile,
+    cookieTokenHash,
+    approvedDevices,
+    deviceLockMode,
+  });
+
+  if (matchResult.matched && matchResult.device) {
+    const matchedDevice = matchResult.device;
+    const activeDeviceId = matchedDevice.deviceId;
+
+    // Update lastUsedAt, lastIp, location, browsersSeen
+    matchedDevice.lastUsedAt = now;
+    matchedDevice.lastIp = signals.ip;
+    matchedDevice.ip = signals.ip;
+    if (signals.city) matchedDevice.city = signals.city;
+    if (signals.country) matchedDevice.country = signals.country;
+    if (signals.region) matchedDevice.region = signals.region;
+    if (signals.timezone) matchedDevice.timezone = signals.timezone;
+    matchedDevice.loginAttempts = (matchedDevice.loginAttempts || 1) + 1;
+
+    if (!Array.isArray(matchedDevice.browsersSeen)) {
+      matchedDevice.browsersSeen = [];
+    }
+    if (!matchedDevice.browsersSeen.includes(signals.browserName)) {
+      matchedDevice.browsersSeen.push(signals.browserName);
+    }
+
+    // Legacy device profile learning
+    if (matchResult.shouldLearnProfile && profile) {
+      matchedDevice.profile = profile;
+    }
+
+    // Continuity: ensure rd_device cookie token hash is added to browserTokenHashes
+    let activeDeviceToken = rawDeviceCookie;
+    if (!activeDeviceToken) {
+      activeDeviceToken = crypto.randomUUID();
+    }
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(activeDeviceToken)
+      .digest("hex");
+
+    if (!Array.isArray(matchedDevice.browserTokenHashes)) {
+      matchedDevice.browserTokenHashes = [];
+    }
+    if (!matchedDevice.browserTokenHashes.includes(tokenHash)) {
+      matchedDevice.browserTokenHashes.push(tokenHash);
+      if (matchedDevice.browserTokenHashes.length > 10) {
+        matchedDevice.browserTokenHashes.shift();
+      }
+    }
+
+    await setCookie(
+      COOKIE_NAMES.DEVICE,
+      activeDeviceToken,
+      COOKIE_DURATIONS.DEVICE
+    );
+    await matchedDevice.save();
+
+    user.lastLoginAt = now;
+    user.lastLoginIp = signals.ip;
+    await user.save();
+
+    // Replace any active session on this device
+    await Session.deleteMany({
+      userId: user._id,
+      deviceId: activeDeviceId,
+    });
+
+    const rawSessionToken = generateSessionToken();
+    const sessionTokenHash = hashToken(rawSessionToken);
 
     await Session.create({
       userId: user._id,
       deviceId: activeDeviceId,
-      tokenHash,
+      tokenHash: sessionTokenHash,
       lastSeenAt: now,
       expiresAt: sessionExpiresAt,
-      ip,
-      userAgent,
+      ip: signals.ip,
+      userAgent: signals.userAgent,
       revoked: false,
     });
 
-    await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawToken, COOKIE_DURATIONS.SESSION);
+    // Browser session cookie (no Max-Age/Expires)
+    await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawSessionToken);
 
-    console.log(
-      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=success status=device_approved deviceId=${activeDeviceId} ip=${ip} ua="${(userAgent || "").slice(0, 60)}"`
-    );
+    if (matchResult.failOpen) {
+      console.warn(
+        `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=hints_missing deviceId=${activeDeviceId} ip=${signals.ip}`
+      );
+    } else {
+      console.log(
+        `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_matched deviceId=${activeDeviceId} ip=${signals.ip}`
+      );
+    }
 
     return {
       success: true,
@@ -205,144 +371,137 @@ export async function studentLogin({ loginId, password }) {
     };
   }
 
-  // CASE 2: Device is NOT approved, but student has available slots (e.g. first login or < maxAllowed)
-  // Fix: Scope query strictly to THIS student so other students' devices are never stolen!
-  if (approvedDevices.length < maxAllowed) {
-    await Device.findOneAndUpdate(
-      {
-        studentId: user._id,
-        $or: [{ deviceId: deviceKey }, { deviceKey: deviceKey }],
-      },
-      {
-        $set: {
-          studentId: user._id,
-          userId: user._id,
-          deviceId: deviceKey,
-          deviceKey: deviceKey,
-          deviceType,
-          os: osName,
-          browser: browserName,
-          model,
-          city,
-          country,
-          lastIp: ip,
-          ip,
-          deviceLabel: label,
-          label,
-          userAgent,
-          status: "approved",
-          firstLoginAt: now,
-          lastUsedAt: now,
-          approvedAt: now,
-          decidedAt: now,
-        },
-        $setOnInsert: {
-          requestedAt: now,
-        },
-      },
-      { upsert: true, new: true }
-    );
-
-    user.lastLoginAt = now;
-    user.lastLoginIp = ip;
-    user.deviceCount = approvedDevices.length + 1;
-    await user.save();
-
-    // One active session per device
-    await Session.deleteMany({ userId: user._id, deviceId: deviceKey });
-
-    const rawToken = generateSessionToken();
-    const tokenHash = hashToken(rawToken);
-
-    await Session.create({
-      userId: user._id,
-      deviceId: deviceKey,
-      tokenHash,
-      lastSeenAt: now,
-      expiresAt: sessionExpiresAt,
-      ip,
-      userAgent,
-      revoked: false,
-    });
-
-    await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawToken, COOKIE_DURATIONS.SESSION);
-
-    console.log(
-      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=success status=device_auto_approved slot=${approvedDevices.length + 1}/${maxAllowed} deviceId=${deviceKey} ip=${ip} ua="${(userAgent || "").slice(0, 60)}"`
-    );
-
-    return {
-      success: true,
-      redirectTo: "/student",
-    };
-  }
-
-  // CASE 3: Device is NOT approved and student has reached their allowed device limit
-  console.warn(
-    `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_pending limit=${maxAllowed} ip=${ip} deviceKey=${deviceKey}`
+  // CASE 3: NO MATCH -> Second device flow
+  const dedupeKey = computeDedupeKey(
+    user._id.toString(),
+    signals.coarseKey,
+    profile
   );
 
-  let pendingDoc = await Device.findOne({
+  // Check if a REJECTED request exists with the same key
+  const rejectedReq = await DeviceRequest.findOne({
     studentId: user._id,
-    $or: [{ deviceKey }, { deviceId: deviceKey }],
+    dedupeKey,
+    status: "rejected",
   });
 
-  if (pendingDoc) {
-    pendingDoc.status = "pending";
-    pendingDoc.lastAttemptAt = now;
-    pendingDoc.lastIp = ip;
-    pendingDoc.ip = ip;
-    pendingDoc.userAgent = userAgent;
-    pendingDoc.browser = browserName;
-    pendingDoc.deviceType = deviceType;
-    pendingDoc.os = osName;
-    pendingDoc.model = model;
-    pendingDoc.city = city;
-    pendingDoc.country = country;
-    pendingDoc.deviceLabel = label;
-    pendingDoc.label = label;
-    await pendingDoc.save();
-  } else {
-    pendingDoc = await Device.create({
-      studentId: user._id,
-      userId: user._id,
-      deviceId: deviceKey,
-      deviceKey,
-      deviceType,
-      os: osName,
-      browser: browserName,
-      model,
-      city,
-      country,
-      lastIp: ip,
-      ip,
-      deviceLabel: label,
-      label,
-      userAgent,
-      status: "pending",
-      requestedAt: now,
-      lastAttemptAt: now,
-    });
+  if (rejectedReq) {
+    rejectedReq.attemptCount = (rejectedReq.attemptCount || 1) + 1;
+    rejectedReq.lastAttemptAt = now;
+    rejectedReq.ip = signals.ip;
+    await rejectedReq.save();
+
+    console.warn(
+      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_rejected dedupeKey=${dedupeKey} ip=${signals.ip}`
+    );
+
+    return {
+      success: false,
+      error:
+        "Your request for this device was declined. Please contact RD Classes.",
+      reason: "device_rejected",
+    };
   }
 
-  // Trigger admin notification
-  await createAdminNotification({
-    type: "device_request",
-    title: "New Device Request",
-    message: `New device request from ${user.name || user.loginId || "Student"}`,
-    link: "/admin/device-requests",
-    entityId: pendingDoc._id.toString(),
+  // Ensure rd_device token cookie is set for continuity across requests
+  let reqDeviceToken = rawDeviceCookie;
+  if (!reqDeviceToken) {
+    reqDeviceToken = crypto.randomUUID();
+  }
+  const reqTokenHash = crypto
+    .createHash("sha256")
+    .update(reqDeviceToken)
+    .digest("hex");
+  await setCookie(
+    COOKIE_NAMES.DEVICE,
+    reqDeviceToken,
+    COOKIE_DURATIONS.DEVICE
+  );
+
+  // Check if a PENDING request exists with the same key
+  let pendingReq = await DeviceRequest.findOne({
+    studentId: user._id,
+    dedupeKey,
+    status: "pending",
   });
 
-  const pendingNotice =
+  if (pendingReq) {
+    pendingReq.attemptCount = (pendingReq.attemptCount || 1) + 1;
+    pendingReq.lastAttemptAt = now;
+    pendingReq.ip = signals.ip;
+    if (signals.city) pendingReq.city = signals.city;
+    if (signals.region) pendingReq.region = signals.region;
+    if (signals.country) pendingReq.country = signals.country;
+    pendingReq.tokenHash = reqTokenHash;
+    await pendingReq.save();
+  } else {
+    // Find closest approved device to calculate flags
+    const closest =
+      approvedDevices.find((d) => d.coarseKey === signals.coarseKey) ||
+      approvedDevices[0];
+    const flags = computeDeviceDifferences(signals, profile, closest);
+    const newReqDeviceId = "req_" + crypto.randomBytes(8).toString("hex");
+
+    pendingReq = await DeviceRequest.create({
+      studentId: user._id,
+      userId: user._id,
+      dedupeKey,
+      deviceId: newReqDeviceId,
+      coarseKey: signals.coarseKey,
+      deviceType: signals.deviceType,
+      osFamily: signals.osFamily,
+      osName: signals.osName,
+      osVersion: signals.osVersion,
+      browserName: signals.browserName,
+      browserVersion: signals.browserVersion,
+      model: signals.model,
+      label: signals.label,
+      profile: profile || null,
+      bucketKey: computeProfileBucket(profile),
+      tokenHash: reqTokenHash,
+      userAgent: signals.userAgent,
+      ip: signals.ip,
+      city: signals.city,
+      region: signals.region,
+      country: signals.country,
+      timezone: signals.timezone,
+      flags,
+      attemptCount: 1,
+      firstAttemptAt: now,
+      lastAttemptAt: now,
+      status: "pending",
+    });
+
+    // Create admin notification
+    await createAdminNotification({
+      type: "device_request",
+      title: `New Device Request: ${user.name}`,
+      message: `${user.name} (${user.loginId}) requested login from ${signals.label}.`,
+      link: "/admin/device-requests",
+      meta: {
+        studentId: user._id.toString(),
+        studentName: user.name,
+        loginId: user.loginId,
+        requestId: pendingReq._id.toString(),
+        label: signals.label,
+      },
+    }).catch(() => {});
+  }
+
+  console.warn(
+    `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_pending dedupeKey=${dedupeKey} ip=${signals.ip}`
+  );
+
+  const pendingMsg =
     "This account is registered on another device. You cannot log in here. A request has been sent to RD Classes. You can log in after the admin approves this device.";
 
   return {
     success: false,
     pendingApproval: true,
+    error: pendingMsg,
+    message: pendingMsg,
     reason: "device_pending",
-    message: pendingNotice,
-    error: pendingNotice,
+    deviceId: pendingReq.deviceId,
   };
 }
 
@@ -352,8 +511,15 @@ export async function studentLogin({ loginId, password }) {
 export async function adminLogin({ loginId, password }) {
   await connectDB();
   const normalizedId = (loginId || "").trim().toLowerCase();
-  const deviceCtx = await resolveDeviceContext();
-  const { ip, userAgent } = deviceCtx;
+  const headerList = await headers();
+  const rawHintsCookie = await getCookie(COOKIE_NAMES.HINTS);
+  const clientHints = parseClientHints(rawHintsCookie);
+  const signals = parseServerSignals(
+    headerList.get("user-agent") || "",
+    headerList,
+    clientHints
+  );
+  const { ip, userAgent } = signals;
 
   const userKey = `admin:u:${normalizedId}`;
   const ipKey = `admin:ip:${ip}`;

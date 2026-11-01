@@ -9,12 +9,13 @@ export const COOKIE_NAMES = {
   SESSION: "rd_student_session",
   LEGACY_SESSION: "rd_session",
   DEVICE: "rd_device",
+  HINTS: "rd_hints",
 };
 
 export const COOKIE_DURATIONS = {
-  SESSION: 30 * 24 * 60 * 60, // 30 days
+  SESSION: 30 * 24 * 60 * 60, // 30 days sliding safety cap
   ADMIN_SESSION: 7 * 24 * 60 * 60, // 7 days
-  DEVICE: 2 * 365 * 24 * 60 * 60, // 2 years
+  DEVICE: 365 * 24 * 60 * 60, // 1 year
 };
 
 export async function getCookie(name) {
@@ -23,15 +24,26 @@ export async function getCookie(name) {
   return c ? c.value : null;
 }
 
-export async function setCookie(name, value, maxAgeSeconds) {
+/**
+ * Sets a cookie.
+ * If maxAgeSeconds is omitted, null, or undefined, no maxAge/expires is set,
+ * creating a standard browser session cookie.
+ */
+export async function setCookie(name, value, maxAgeSeconds, options = {}) {
   const cookieStore = await cookies();
-  cookieStore.set(name, value, {
-    httpOnly: true,
-    secure: IS_PROD,
-    sameSite: "lax",
-    path: "/",
-    maxAge: maxAgeSeconds,
-  });
+  const cookieOptions = {
+    httpOnly: options.httpOnly !== undefined ? options.httpOnly : true,
+    secure: options.secure !== undefined ? options.secure : IS_PROD,
+    sameSite: options.sameSite || "lax",
+    path: options.path || "/",
+    ...options,
+  };
+
+  if (typeof maxAgeSeconds === "number" && maxAgeSeconds > 0) {
+    cookieOptions.maxAge = maxAgeSeconds;
+  }
+
+  cookieStore.set(name, value, cookieOptions);
 }
 
 export async function deleteCookie(name) {
