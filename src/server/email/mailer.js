@@ -147,9 +147,9 @@ export function renderCredentialsEmail({
   const subject = "Your RD Classes student login";
   const loginUrl = `${siteUrl.replace(/\/+$/, "")}/student-login`;
 
-  const contactPhone = settings?.phone || DEFAULT_CONTACT.phoneDisplay || "+91 83685 45620";
-  const contactEmail = settings?.email || DEFAULT_CONTACT.email || "rdclasses177@gmail.com";
-  const rawWhatsApp = settings?.whatsapp || settings?.whatsappNumber || DEFAULT_CONTACT.whatsappPhone || "918368545620";
+  const contactPhone = settings?.phone || SITE_CONFIG.contact.phoneDisplay || "+91 83685 45620";
+  const contactEmail = settings?.email || SITE_CONFIG.contact.email || "rdclasses177@gmail.com";
+  const rawWhatsApp = settings?.whatsapp || settings?.whatsappNumber || SITE_CONFIG.contact.whatsappPhone || "918368545620";
   const cleanWhatsApp = String(rawWhatsApp).replace(/\D/g, "");
   const whatsappUrl = `https://wa.me/${cleanWhatsApp}?text=${encodeURIComponent(
     `Hello Sir, this is ${studentName} (${loginId}). I received my student login.`
@@ -359,7 +359,7 @@ export async function sendEmailDirect({
     attempts++;
     try {
       const info = await transporter.sendMail(mailOptions);
-      
+
       // Log success without sensitive data
       console.log(`[MAIL] studentId=${studentId || "none"} status=sent to=${to.slice(0, 3)}***`);
 
@@ -545,4 +545,3 @@ Timestamp: ${new Date().toISOString()}
     customTransporter,
   });
 }
-
