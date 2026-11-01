@@ -25,7 +25,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("next/server", () => ({
-  connection: async () => {},
+  connection: async () => { },
   NextResponse: {
     json: (data, init) => ({ data, status: init?.status || 200 }),
   },
@@ -487,7 +487,7 @@ describe("Step 7: Comprehensive Device & Auth Test Matrix", () => {
     // Verify session lookup
     const studentSession = await getCurrentStudent();
     expect(studentSession).toBeDefined();
-    expect(studentSession.user?.loginId).toBe("RD-2026-008");
+    expect(studentSession.loginId).toBe("RD-2026-008");
   });
 
   // TEST 9: Reset devices maintenance tool
@@ -587,4 +587,3 @@ describe("Step 7: Comprehensive Device & Auth Test Matrix", () => {
     expect(res2.matched).toBe(false);
   });
 });
-

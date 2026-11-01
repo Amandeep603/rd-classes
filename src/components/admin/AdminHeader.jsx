@@ -33,7 +33,7 @@ export default function AdminHeader({ admin, pendingCount = 0 }) {
             setLivePendingCount(data.count);
           }
         }
-      } catch {}
+      } catch { }
     }
 
     const interval = setInterval(pollPendingCount, 30000);
@@ -87,21 +87,19 @@ export default function AdminHeader({ admin, pendingCount = 0 }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    isActive
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isActive
                       ? "bg-[#FFB800] text-[#0A0A0B]"
                       : "text-gray-300 hover:text-white hover:bg-[#1C1C22]"
-                  }`}
+                    }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span className="hidden md:inline">{item.label}</span>
                   {item.badge && (
                     <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        isActive
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive
                           ? "bg-[#0A0A0B] text-[#FFB800]"
                           : "bg-amber-500 text-black"
-                      }`}
+                        }`}
                     >
                       {item.badge}
                     </span>
