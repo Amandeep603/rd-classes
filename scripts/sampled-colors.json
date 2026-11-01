@@ -1,0 +1,128 @@
+{
+  "Page Background": {
+    "r": 253,
+    "g": 248,
+    "b": 244,
+    "hex": "#FDF8F4"
+  },
+  "Hero Chip Background": {
+    "r": 218,
+    "g": 203,
+    "b": 156,
+    "hex": "#DACB9C"
+  },
+  "Hero H1 Navy Text": {
+    "r": 195,
+    "g": 199,
+    "b": 204,
+    "hex": "#C3C7CC"
+  },
+  "Highlight Behind Ronak Sir.": {
+    "r": 62,
+    "g": 68,
+    "b": 63,
+    "hex": "#3E443F"
+  },
+  "Yellow Backdrop Shape (Top-Right)": {
+    "r": 253,
+    "g": 198,
+    "b": 69,
+    "hex": "#FDC645"
+  },
+  "Hero Body Paragraph Text": {
+    "r": 250,
+    "g": 246,
+    "b": 240,
+    "hex": "#FAF6F0"
+  },
+  "Founder Card Background": {
+    "r": 254,
+    "g": 251,
+    "b": 249,
+    "hex": "#FEFBF9"
+  },
+  "Founder Card Heading/Navy": {
+    "r": 255,
+    "g": 250,
+    "b": 250,
+    "hex": "#FFFAFA"
+  },
+  "Pillar 1 Card (Top-Left)": {
+    "r": 220,
+    "g": 234,
+    "b": 247,
+    "hex": "#DCEAF7"
+  },
+  "Pillar 1 Card (Center)": {
+    "r": 107,
+    "g": 119,
+    "b": 137,
+    "hex": "#6B7789"
+  },
+  "Pillar 1 Card (Bottom-Right)": {
+    "r": 207,
+    "g": 218,
+    "b": 230,
+    "hex": "#CFDAE6"
+  },
+  "Pillar 2 Card (Top-Left)": {
+    "r": 243,
+    "g": 227,
+    "b": 188,
+    "hex": "#F3E3BC"
+  },
+  "Pillar 2 Card (Center)": {
+    "r": 90,
+    "g": 95,
+    "b": 103,
+    "hex": "#5A5F67"
+  },
+  "Pillar 2 Card (Bottom-Right)": {
+    "r": 254,
+    "g": 241,
+    "b": 208,
+    "hex": "#FEF1D0"
+  },
+  "Pillar 3 Card (Top-Left)": {
+    "r": 236,
+    "g": 246,
+    "b": 237,
+    "hex": "#ECF6ED"
+  },
+  "Pillar 3 Card (Center)": {
+    "r": 234,
+    "g": 245,
+    "b": 238,
+    "hex": "#EAF5EE"
+  },
+  "Pillar 3 Card (Bottom-Right)": {
+    "r": 236,
+    "g": 246,
+    "b": 236,
+    "hex": "#ECF6EC"
+  },
+  "CTA Banner Navy": {
+    "r": 51,
+    "g": 72,
+    "b": 95,
+    "hex": "#33485F"
+  },
+  "CTA Banner Wedge (Bottom-Left)": {
+    "r": 25,
+    "g": 41,
+    "b": 60,
+    "hex": "#19293C"
+  },
+  "CTA Button Yellow": {
+    "r": 19,
+    "g": 40,
+    "b": 67,
+    "hex": "#132843"
+  },
+  "Bottom Circles Yellow (Right)": {
+    "r": 254,
+    "g": 236,
+    "b": 194,
+    "hex": "#FEECC2"
+  }
+}
