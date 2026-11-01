@@ -1,7 +1,8 @@
 import "server-only";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import * as XLSX from "xlsx";
+import { read, utils, SSF } from "xlsx";
+const XLSX = { read, utils, SSF };
 import mongoose from "mongoose";
 import connectDB from "../../lib/mongodb.ts";
 import {
@@ -54,9 +55,8 @@ export function normalizeBatch(val) {
     const num = Number(rawStr);
     if (num >= 30000 && num <= 70000) {
       try {
-        const ssf = XLSX.SSF || XLSX.default?.SSF;
-        if (ssf?.parse_date_code) {
-          const parsed = ssf.parse_date_code(num);
+        if (SSF?.parse_date_code) {
+          const parsed = SSF.parse_date_code(num);
           if (parsed && parsed.m && parsed.d) {
             return `${parsed.m}-${parsed.d}`;
           }
