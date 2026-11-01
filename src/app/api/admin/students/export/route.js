@@ -29,6 +29,7 @@ export async function GET() {
     const headers = [
       "Login ID",
       "Name",
+      "Batch",
       "Email",
       "Phone",
       "Status",
@@ -47,6 +48,7 @@ export async function GET() {
       return [
         `"${s.loginId || ""}"`,
         `"${(s.name || "").replace(/"/g, '""')}"`,
+        `"${s.batch || ""}"`,
         `"${s.email || ""}"`,
         `"${s.phone || ""}"`,
         `"${s.status || "active"}"`,

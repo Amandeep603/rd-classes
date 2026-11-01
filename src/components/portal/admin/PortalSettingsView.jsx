@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import {
   Settings,
@@ -91,6 +91,70 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
   // Logout All Students State
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOutStudents, setLoggingOutStudents] = useState(false);
+
+  // Email SMTP Settings State
+  const [emailConfig, setEmailConfig] = useState(null);
+  const [loadingEmailConfig, setLoadingEmailConfig] = useState(true);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadEmailConfig() {
+      try {
+        const res = await fetch("/api/admin/settings/email-status");
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setEmailConfig(data);
+        }
+      } catch (e) {
+        console.error("Failed to load email config:", e);
+      } finally {
+        if (!cancelled) setLoadingEmailConfig(false);
+      }
+    }
+    loadEmailConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSendTestEmail = async () => {
+    setSendingTestEmail(true);
+    setTestEmailResult(null);
+    try {
+      const recipient = admin?.email || email || "admin@rd-classes.in";
+      const res = await fetch("/api/admin/settings/email-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestEmailResult({
+          success: true,
+          message: data.message || `Test email sent successfully to ${recipient}!`,
+        });
+        showToast("Test email sent successfully!", "success");
+      } else {
+        setTestEmailResult({
+          success: false,
+          code: data.errorCode || "SEND_FAILED",
+          message: data.error || `Failed with code: ${data.errorCode || "SEND_FAILED"}`,
+        });
+        showToast(`Test email failed: ${data.errorCode || "Error"}`, "error");
+      }
+    } catch (err) {
+      setTestEmailResult({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: err.message,
+      });
+      showToast(err.message, "error");
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -507,7 +571,118 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
           </form>
         </div>
 
-        {/* 2. Emergency Session Control: Log out all students */}
+        {/* 2. Email Delivery (SMTP) Settings */}
+        <div className="rounded-[22px] border border-black/8 bg-white p-6 sm:p-8 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-black/6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700">
+                <Mail className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-[#111827]">Email Delivery (SMTP)</h2>
+                <p className="text-xs text-[#6B7280]">
+                  Automated credentials delivery for new students, password resets, and bulk spreadsheet imports.
+                </p>
+              </div>
+            </div>
+
+            {/* Status Indicator Badge */}
+            <div className="flex items-center gap-2">
+              {loadingEmailConfig ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Checking status...</span>
+                </div>
+              ) : emailConfig?.isConfigured ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Configured</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-700">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>Email is not configured</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-5 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="rounded-xl border border-black/6 bg-slate-50/60 p-4 space-y-1">
+                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Configured Sender</span>
+                <div className="font-mono font-bold text-slate-900 text-sm">
+                  {emailConfig?.fromHeader || emailConfig?.user || "None configured"}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Sender address used in the From header of student credentials emails.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-black/6 bg-slate-50/60 p-4 space-y-1">
+                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">SMTP Server & Port</span>
+                <div className="font-mono font-bold text-slate-900 text-sm">
+                  {emailConfig?.host ? `${emailConfig.host}:${emailConfig.port}` : "smtp.gmail.com:465"}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Secure TLS connection with 15-second timeout and 1 mail/sec bulk throttle.
+                </p>
+              </div>
+            </div>
+
+            {/* Test Email Button & Result Row */}
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-xs">
+                {testEmailResult && (
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                      testEmailResult.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-red-50 text-red-800 border border-red-200"
+                    }`}
+                  >
+                    {testEmailResult.success ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                    )}
+                    <span>
+                      {testEmailResult.success
+                        ? `Last test OK (${testEmailResult.message})`
+                        : `Last test failed (${testEmailResult.code || "ERROR"}: ${testEmailResult.message})`}
+                    </span>
+                  </div>
+                )}
+                {!testEmailResult && (
+                  <span className="text-slate-500">
+                    Sends a test email to admin ({admin?.email || email || "admin account"}).
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSendTestEmail}
+                disabled={sendingTestEmail || !emailConfig?.isConfigured}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 active:scale-98"
+              >
+                {sendingTestEmail ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Sending test email...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-3.5 w-3.5" />
+                    <span>Send Test Email</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Emergency Session Control: Log out all students */}
         <div className="rounded-[22px] border border-red-200 bg-red-50/50 p-6 sm:p-8 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div className="flex items-start gap-4">

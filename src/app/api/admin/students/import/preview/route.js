@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/server/auth/session.js";
+import { requireAdminApi } from "@/server/auth/session.js";
 import { parseAndValidateImport } from "@/server/services/studentAdminService.js";
 
 export async function POST(request) {
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return auth.response;
+
   try {
-    await requireAdmin();
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -18,7 +20,6 @@ export async function POST(request) {
     const result = await parseAndValidateImport(buffer);
     return NextResponse.json(result);
   } catch (error) {
-    const status = error.message === "Unauthorized" ? 401 : 400;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

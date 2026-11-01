@@ -53,6 +53,11 @@ backup-lectures-*.json
 /.local-emails/
 /.local-uploads/
 /backups/
+/imports/
+*.csv
+*.xlsx
+*.xls
+.env.local
 backup-lectures-*.json
 /scratch/
 /reference/

@@ -14,6 +14,7 @@ export async function GET(request) {
 
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
+    const batch = searchParams.get("batch") || "";
     const deviceFilter = searchParams.get("device") || "";
     const courseId = searchParams.get("course") || "";
     const page = parseInt(searchParams.get("page") || "1", 10) || 1;
@@ -22,6 +23,7 @@ export async function GET(request) {
     const data = await getStudentsListPaginated({
       search,
       status,
+      batch,
       deviceFilter,
       courseId,
       page,
@@ -46,8 +48,10 @@ export async function POST(request) {
       name: body.name,
       email: body.email,
       phone: body.phone,
+      batch: body.batch,
       loginId: body.loginId,
       courseIds: body.courseIds || [],
+      sendEmail: body.sendEmail !== false,
       adminId: admin.user._id,
     });
 

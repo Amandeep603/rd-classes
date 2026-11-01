@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
 import { User, Enrollment, Session, ActivityLog } from "@/lib/models";
-import { deleteStudent } from "@/server/services/studentAdminService.js";
+import { deleteStudent, normalizeBatch } from "@/server/services/studentAdminService.js";
 
 export async function PATCH(request, { params }) {
   try {
@@ -22,7 +22,10 @@ export async function PATCH(request, { params }) {
       student.email = body.email ? body.email.toLowerCase().trim() : undefined;
     }
     if (body.phone !== undefined) {
-      student.phone = body.phone.replace(/\D/g, "").slice(-10);
+      student.phone = body.phone ? body.phone.replace(/\D/g, "").slice(-10) : undefined;
+    }
+    if (body.batch !== undefined) {
+      student.batch = body.batch ? normalizeBatch(body.batch) : undefined;
     }
     if (body.status !== undefined) {
       student.status = body.status;

@@ -30,6 +30,15 @@ import {
   Laptop,
   Tablet,
   Unlock,
+  Mail,
+  Send,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Clock,
+  Database,
+  FileDown,
+  RotateCcw,
 } from "lucide-react";
 import PageHeader from "@/components/admin/ui/PageHeader";
 import DataTable from "@/components/admin/ui/DataTable";
@@ -44,6 +53,7 @@ export default function StudentsManagementView({
   initialPage = 1,
   initialTotalPages = 1,
   availableCourses = [],
+  initialBatches = [],
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,15 +62,20 @@ export default function StudentsManagementView({
   // Filters state
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "");
+  const [batchFilter, setBatchFilter] = useState(searchParams.get("batch") || "");
   const [deviceFilter, setDeviceFilter] = useState(searchParams.get("device") || "");
   const [courseFilter, setCourseFilter] = useState(searchParams.get("course") || "");
   const [page, setPage] = useState(initialPage);
+  const [batchesList, setBatchesList] = useState(initialBatches || []);
 
   // Data state
   const [students, setStudents] = useState(initialStudents);
   const [total, setTotal] = useState(initialTotal);
   const [totalPages, setTotalPages] = useState(initialTotalPages);
   const [loading, setLoading] = useState(false);
+
+  // Selection state for bulk actions
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
   // Modals state
   const [addModalOpen, setAddModalOpen] = useState(searchParams.get("add") === "1");
@@ -71,6 +86,7 @@ export default function StudentsManagementView({
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [deleteConfirmStudent, setDeleteConfirmStudent] = useState(null);
   const [resetConfirmStudent, setResetConfirmStudent] = useState(null);
+  const [sendCredentialsConfirmStudent, setSendCredentialsConfirmStudent] = useState(null);
 
   // Single action feedback credentials modal (shown ONCE)
   const [credentialsModal, setCredentialsModal] = useState(null);
@@ -80,21 +96,42 @@ export default function StudentsManagementView({
     name: "",
     email: "",
     phone: "",
+    batch: "",
     loginId: "",
     maxDevices: 1,
     status: "active",
     courseIds: [],
+    sendEmail: true,
   });
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Bulk Credentials Sending Modal state
+  const [bulkCredentialsModal, setBulkCredentialsModal] = useState(null);
+  // { isOpen: boolean, inProgress: boolean, total: number, processed: number, stopped: boolean, results: [], error: null }
+
   // Import flow state
   const [importFile, setImportFile] = useState(null);
   const [importCourseId, setImportCourseId] = useState("");
+  const [importSendEmail, setImportSendEmail] = useState(true);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResults, setImportResults] = useState(null);
+  const [acceptedTypoFixes, setAcceptedTypoFixes] = useState({}); // rowNumber -> true
+  const [importingChunk, setImportingChunk] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, percent: 0, interrupted: false, reason: null });
+  const [importResults, setImportResults] = useState(null); // { created: [], skipped: [], interrupted: false }
+
+  // Danger Zone state
+  const [dangerZoneOpen, setDangerZoneOpen] = useState(false);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [dryRunData, setDryRunData] = useState(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupInfo, setBackupInfo] = useState(null);
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+  const [wipeAdminPassword, setWipeAdminPassword] = useState("");
+  const [wipeLoading, setWipeLoading] = useState(false);
+  const [wipeResult, setWipeResult] = useState(null);
+  const [wipeError, setWipeError] = useState("");
 
   // Copied state indicator
   const [copiedKey, setCopiedKey] = useState(null);
@@ -109,9 +146,11 @@ export default function StudentsManagementView({
     let cancelled = false;
     async function load() {
       try {
+        setLoading(true);
         const q = new URLSearchParams();
         if (search.trim()) q.set("search", search.trim());
         if (statusFilter) q.set("status", statusFilter);
+        if (batchFilter) q.set("batch", batchFilter);
         if (deviceFilter) q.set("device", deviceFilter);
         if (courseFilter) q.set("course", courseFilter);
         q.set("page", String(page));
@@ -123,9 +162,12 @@ export default function StudentsManagementView({
           setStudents(data.students || []);
           setTotal(data.total || 0);
           setTotalPages(data.totalPages || 1);
+          if (Array.isArray(data.batches)) {
+            setBatchesList(data.batches);
+          }
         }
       } catch (e) {
-        console.error(e);
+        console.error("Failed to load students:", e);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -136,7 +178,7 @@ export default function StudentsManagementView({
     return () => {
       cancelled = true;
     };
-  }, [search, statusFilter, deviceFilter, courseFilter, page, refreshIndex]);
+  }, [search, statusFilter, batchFilter, deviceFilter, courseFilter, page, refreshIndex]);
 
   const copyToClipboard = (text, key) => {
     navigator.clipboard.writeText(text);
@@ -145,8 +187,14 @@ export default function StudentsManagementView({
   };
 
   const getWhatsAppTemplate = (cred) => {
-    const site = typeof window !== "undefined" ? window.location.origin : "https://rd-classes.in";
+    const site = typeof window !== "undefined" ? window.location.origin : "https://www.rd-classes.in";
     return `Hi ${cred.name}, your RD Classes login ID is ${cred.loginId} and password is ${cred.password}. Login at ${site}/student-login. Your account works on one approved device.`;
+  };
+
+  const getWhatsAppUrl = (phone, text) => {
+    const cleanPhone = String(phone || "").replace(/\D/g, "");
+    const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    return `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;
   };
 
   // Open Add Student Modal
@@ -155,10 +203,12 @@ export default function StudentsManagementView({
       name: "",
       email: "",
       phone: "",
+      batch: "",
       loginId: "",
       maxDevices: 1,
       status: "active",
       courseIds: [],
+      sendEmail: true,
     });
     setFormError("");
     setAddModalOpen(true);
@@ -179,11 +229,13 @@ export default function StudentsManagementView({
       name: student.name || "",
       email: student.email || "",
       phone: student.phone || "",
+      batch: student.batch || "",
       loginId: student.loginId || "",
       maxDevices: student.maxDevices || 1,
       status: student.status || "active",
       validUntil: validDate,
       courseIds: (student.enrolledCourses || []).map((c) => c._id),
+      sendEmail: false,
     });
     setFormError("");
   };
@@ -240,7 +292,28 @@ export default function StudentsManagementView({
     }
   };
 
-  // Reset Password Action
+  // Single Action: Send credentials (resets password and emails)
+  const handleConfirmSendCredentials = async () => {
+    if (!sendCredentialsConfirmStudent) return;
+    try {
+      const res = await fetch(`/api/admin/students/${sendCredentialsConfirmStudent._id}/send-credentials`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send credentials");
+
+      setSendCredentialsConfirmStudent(null);
+      setCredentialsModal({
+        title: "New Credentials Generated & Sent",
+        credentials: [data.credentials],
+      });
+      fetchStudents();
+    } catch (err) {
+      alert("Send credentials error: " + err.message);
+    }
+  };
+
+  // Legacy reset password without email
   const handleConfirmResetPassword = async () => {
     if (!resetConfirmStudent) return;
     try {
@@ -260,6 +333,64 @@ export default function StudentsManagementView({
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  // Bulk Send Credentials in chunks of 5
+  const handleStartBulkSendCredentials = async () => {
+    if (selectedStudentIds.length === 0) return;
+
+    setBulkCredentialsModal({
+      isOpen: true,
+      inProgress: true,
+      total: selectedStudentIds.length,
+      processed: 0,
+      stopped: false,
+      results: [],
+      error: null,
+    });
+
+    const chunkSize = 5;
+    const allIds = [...selectedStudentIds];
+    const collectedResults = [];
+    let stopped = false;
+
+    for (let i = 0; i < allIds.length; i += chunkSize) {
+      // Check if user requested stop
+      if (window.__bulkStopRequested) {
+        stopped = true;
+        break;
+      }
+
+      const chunk = allIds.slice(i, i + chunkSize);
+      try {
+        const res = await fetch("/api/admin/students/bulk-send-credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ studentIds: chunk }),
+        });
+        const data = await res.json();
+        if (data.results) {
+          collectedResults.push(...data.results);
+        }
+      } catch (err) {
+        console.error("Chunk error:", err);
+      }
+
+      setBulkCredentialsModal((prev) => ({
+        ...prev,
+        processed: Math.min(i + chunkSize, allIds.length),
+        results: [...collectedResults],
+      }));
+    }
+
+    window.__bulkStopRequested = false;
+    setBulkCredentialsModal((prev) => ({
+      ...prev,
+      inProgress: false,
+      stopped,
+      results: collectedResults,
+    }));
+    fetchStudents();
   };
 
   // Toggle Block / Unblock
@@ -348,7 +479,7 @@ export default function StudentsManagementView({
     }
   };
 
-  // Unlock student login (clear rate limit locks)
+  // Unlock student login
   const handleUnlockLogin = async (student) => {
     try {
       const res = await fetch(`/api/admin/students/${student._id}/unlock-login`, {
@@ -372,6 +503,7 @@ export default function StudentsManagementView({
     setImportFile(file);
     setPreviewLoading(true);
     setPreviewData(null);
+    setAcceptedTypoFixes({});
 
     const fd = new FormData();
     fd.append("file", file);
@@ -391,44 +523,148 @@ export default function StudentsManagementView({
     }
   };
 
-  // Import: Confirm Import
-  const handleConfirmImport = async () => {
-    if (!previewData || previewData.validCount === 0) return;
-    setImporting(true);
-
-    const validRows = previewData.rows.filter((r) => r.valid);
-
-    try {
-      const res = await fetch("/api/admin/students/import/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          validRows,
-          courseId: importCourseId || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to import students");
-
-      setImportResults(data.credentials || []);
-      setPreviewData(null);
-      fetchStudents();
-    } catch (err) {
-      alert("Import error: " + err.message);
-    } finally {
-      setImporting(false);
-    }
+  // Toggle typo fix acceptance
+  const toggleTypoFix = (rowNumber) => {
+    setAcceptedTypoFixes((prev) => ({
+      ...prev,
+      [rowNumber]: !prev[rowNumber],
+    }));
   };
 
-  // Download Credentials CSV from results
+  // Get active valid rows from preview including accepted typo fixes
+  const getComputedImportRows = () => {
+    if (!previewData?.rows) return { validRows: [], errorRows: [] };
+
+    const validRows = [];
+    const errorRows = [];
+
+    for (const r of previewData.rows) {
+      const isTypoAccepted = acceptedTypoFixes[r.rowNumber] && r.suggestedEmail;
+      if (r.valid) {
+        validRows.push(r);
+      } else if (isTypoAccepted) {
+        validRows.push({
+          ...r,
+          email: r.suggestedEmail,
+          valid: true,
+        });
+      } else {
+        errorRows.push(r);
+      }
+    }
+
+    return { validRows, errorRows };
+  };
+
+  // Download "Needs Fix CSV"
+  const handleDownloadNeedsFixCsv = () => {
+    const { errorRows } = getComputedImportRows();
+    if (errorRows.length === 0) return;
+
+    const headers = ["Row", "Serial", "Name", "Phone", "Email", "Batch", "Errors"];
+    const lines = errorRows.map((r) => [
+      r.rowNumber,
+      `"${r.serial || ""}"`,
+      `"${r.name || r.rawName || ""}"`,
+      `"${r.phone || r.rawPhone || ""}"`,
+      `"${r.email || r.rawEmail || ""}"`,
+      `"${r.batch || r.rawBatch || ""}"`,
+      `"${r.errors.join("; ")}"`,
+    ]);
+
+    const csvContent = [headers.join(","), ...lines.map((l) => l.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `import_needs_fix_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Import: Confirm Import in 10-row chunks
+  const handleConfirmChunkedImport = async () => {
+    const { validRows } = getComputedImportRows();
+    if (validRows.length === 0) return;
+
+    setImportingChunk(true);
+    const chunkSize = 10;
+    const totalCount = validRows.length;
+    const allResults = [];
+    const allSkipped = [];
+    let isInterrupted = false;
+    let interruptedReason = null;
+
+    setImportProgress({
+      current: 0,
+      total: totalCount,
+      percent: 0,
+      interrupted: false,
+      reason: null,
+    });
+
+    for (let i = 0; i < totalCount; i += chunkSize) {
+      if (window.__importStopRequested) {
+        break;
+      }
+
+      const chunk = validRows.slice(i, i + chunkSize);
+      try {
+        const res = await fetch("/api/admin/students/import/execute-chunk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rows: chunk,
+            courseId: importCourseId || null,
+            sendEmail: importSendEmail,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.results) allResults.push(...data.results);
+        if (data.skipped) allSkipped.push(...data.skipped);
+
+        if (data.emailInterrupted) {
+          isInterrupted = true;
+          interruptedReason = data.interruptedReason;
+          break;
+        }
+      } catch (err) {
+        console.error("Chunk import error:", err);
+      }
+
+      const processedCount = Math.min(i + chunkSize, totalCount);
+      setImportProgress({
+        current: processedCount,
+        total: totalCount,
+        percent: Math.round((processedCount / totalCount) * 100),
+        interrupted: isInterrupted,
+        reason: interruptedReason,
+      });
+    }
+
+    window.__importStopRequested = false;
+    setImportingChunk(false);
+    setImportResults({
+      created: allResults,
+      skipped: allSkipped,
+      interrupted: isInterrupted,
+      reason: interruptedReason,
+    });
+    setPreviewData(null);
+    fetchStudents();
+  };
+
+  // Download Credentials CSV from results (Login ID, Name, Phone, Password, Email Status)
   const downloadCredentialsCsv = (creds) => {
-    const headers = ["Name", "Login ID", "Password", "Phone", "Email"];
+    const headers = ["Login ID", "Name", "Phone", "Password", "Email Status"];
     const rows = creds.map((c) => [
-      `"${c.name}"`,
       `"${c.loginId}"`,
-      `"${c.password}"`,
+      `"${c.name}"`,
       `"${c.phone}"`,
-      `"${c.email}"`,
+      `"${c.password}"`,
+      `"${c.emailStatus || "not_sent"}"`,
     ]);
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -441,7 +677,94 @@ export default function StudentsManagementView({
     document.body.removeChild(link);
   };
 
-  // Format last login on one line, like "30 Oct, 3:37 AM"
+  // Danger Zone Step 1: Dry Run
+  const handleDryRun = async () => {
+    setDryRunLoading(true);
+    setDryRunData(null);
+    setWipeError("");
+    try {
+      const res = await fetch("/api/admin/students/delete-all/dry-run", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to calculate dry run impact");
+      setDryRunData(data.report);
+    } catch (err) {
+      setWipeError(err.message);
+    } finally {
+      setDryRunLoading(false);
+    }
+  };
+
+  // Danger Zone Step 2: Backup Archive & JSON download
+  const handleBackup = async () => {
+    setBackupLoading(true);
+    setWipeError("");
+    try {
+      const res = await fetch("/api/admin/students/delete-all/backup", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create archive backup");
+
+      setBackupInfo(data);
+
+      // Trigger sanitized JSON download (NO password hashes!)
+      const jsonContent = JSON.stringify(data.sanitizedStudents || [], null, 2);
+      const blob = new Blob([jsonContent], { type: "application/json;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `students_backup_${data.timestamp}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      setWipeError(err.message);
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  // Danger Zone Step 3: Confirm Wipe
+  const handleExecuteWipe = async () => {
+    if (wipeConfirmText !== "DELETE ALL STUDENTS") {
+      setWipeError("Confirmation text must match 'DELETE ALL STUDENTS' exactly.");
+      return;
+    }
+    if (!wipeAdminPassword) {
+      setWipeError("Admin password is required to authorize deletion.");
+      return;
+    }
+
+    setWipeLoading(true);
+    setWipeError("");
+    try {
+      const res = await fetch("/api/admin/students/delete-all/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmationText: wipeConfirmText,
+          adminPassword: wipeAdminPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to wipe students");
+
+      setWipeResult(data);
+      setDryRunData(null);
+      setBackupInfo(null);
+      setWipeConfirmText("");
+      setWipeAdminPassword("");
+      fetchStudents();
+    } catch (err) {
+      setWipeError(err.message);
+    } finally {
+      setWipeLoading(false);
+    }
+  };
+
+  // Format last login timestamp
   const formatLastLogin = (dateStr) => {
     if (!dateStr) return "Never";
     const d = new Date(dateStr);
@@ -457,8 +780,45 @@ export default function StudentsManagementView({
     return `${day} ${month}, ${time}`;
   };
 
+  // Toggle selection for all visible students
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedStudentIds(students.map((s) => s._id));
+    } else {
+      setSelectedStudentIds([]);
+    }
+  };
+
+  const handleToggleSelectStudent = (id) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const { validRows, errorRows } = getComputedImportRows();
+
   // DataTable columns definition
   const columns = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          checked={students.length > 0 && selectedStudentIds.length === students.length}
+          onChange={handleSelectAll}
+          className="rounded border-slate-300 text-[#0A192F] focus:ring-[#FFB800] cursor-pointer"
+        />
+      ),
+      field: "_select",
+      accessor: "_id",
+      render: (student) => (
+        <input
+          type="checkbox"
+          checked={selectedStudentIds.includes(student._id)}
+          onChange={() => handleToggleSelectStudent(student._id)}
+          className="rounded border-slate-300 text-[#0A192F] focus:ring-[#FFB800] cursor-pointer"
+        />
+      ),
+    },
     {
       header: "Student",
       field: "name",
@@ -469,10 +829,17 @@ export default function StudentsManagementView({
             {student.name ? student.name.charAt(0).toUpperCase() : "S"}
           </div>
           <div className="min-w-0">
-            <div className="font-semibold text-slate-900 truncate max-w-[115px]" title={student.name}>
+            <div className="font-semibold text-slate-900 truncate max-w-[130px]" title={student.name}>
               {student.name}
             </div>
-            <div className="text-[11px] text-slate-500 font-mono">{student.loginId}</div>
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+              <span className="text-[11px] text-slate-500 font-mono">{student.loginId}</span>
+              {student.batch && (
+                <span className="inline-block rounded bg-amber-500/10 text-amber-800 text-[10px] font-bold px-1.5 py-0.2 border border-amber-500/20">
+                  {student.batch}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       ),
@@ -489,6 +856,48 @@ export default function StudentsManagementView({
           </div>
         </div>
       ),
+    },
+    {
+      header: "Email Status",
+      field: "emailStatus",
+      accessor: "emailStatus",
+      render: (student) => {
+        const status = student.emailStatus || (student.email ? "not_sent" : "no_email");
+        if (status === "sent") {
+          return (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200"
+              title={student.emailSentAt ? `Sent: ${new Date(student.emailSentAt).toLocaleString()}` : "Delivered"}
+            >
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              Sent
+            </span>
+          );
+        }
+        if (status === "failed") {
+          return (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 border border-red-200"
+              title={student.emailError ? `Error: ${student.emailError}` : "Delivery failed"}
+            >
+              <XCircle className="w-3 h-3 text-red-600" />
+              Failed
+            </span>
+          );
+        }
+        if (status === "not_sent") {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 border border-amber-200">
+              Not sent
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+            No email
+          </span>
+        );
+      },
     },
     {
       header: "Courses",
@@ -543,7 +952,6 @@ export default function StudentsManagementView({
                 {fd ? formatDeviceLabel(fd.label, { os: fd.os, deviceType: fd.type }) : "None"}
               </span>
             </div>
-            {/* Merged Device Status badge under device label */}
             <div className="mt-1">
               {student.deviceStatus === "pending" ? (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
@@ -603,6 +1011,13 @@ export default function StudentsManagementView({
       render: (student) => (
         <div className="flex items-center justify-end gap-0.5 whitespace-nowrap">
           <button
+            onClick={() => setSendCredentialsConfirmStudent(student)}
+            title="Send credentials (resets password & emails)"
+            className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+          <button
             onClick={() => handleOpenDevicesDrawer(student)}
             title="View Devices"
             className="p-1.5 text-slate-500 hover:text-[#0A192F] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
@@ -618,7 +1033,7 @@ export default function StudentsManagementView({
           </button>
           <button
             onClick={() => setResetConfirmStudent(student)}
-            title="Reset Password"
+            title="Reset Password (legacy)"
             className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
           >
             <KeyRound className="w-3.5 h-3.5" />
@@ -658,10 +1073,10 @@ export default function StudentsManagementView({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       <PageHeader
         title="Students Management"
-        description="View registered students, manage course enrollments, reset passwords, and oversee device approvals."
+        description="View registered students, manage batch assignments, reset & email credentials, and oversee device approvals."
         breadcrumbs={[
           { label: "Dashboard", href: "/admin" },
           { label: "Students", href: "/admin/students" },
@@ -699,6 +1114,31 @@ export default function StudentsManagementView({
         }
       />
 
+      {/* Floating Bulk Action Bar when students are selected */}
+      {selectedStudentIds.length > 0 && (
+        <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in duration-150">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-[#FFB800] animate-pulse" />
+            <span>{selectedStudentIds.length} student{selectedStudentIds.length === 1 ? "" : "s"} selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleStartBulkSendCredentials}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FFB800] hover:bg-[#e5a600] text-[#0A192F] text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              Send credentials ({selectedStudentIds.length})
+            </button>
+            <button
+              onClick={() => setSelectedStudentIds([])}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-medium rounded-xl transition-colors cursor-pointer"
+            >
+              Clear selection
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
         <div className="relative flex-1 max-w-md">
@@ -710,12 +1150,30 @@ export default function StudentsManagementView({
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by name, email, phone or login ID..."
+            placeholder="Search by name, email, phone, batch or login ID..."
             className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]/40 focus:border-[#FFB800] transition-all"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Batches Filter */}
+          <select
+            value={batchFilter}
+            onChange={(e) => {
+              setBatchFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]/40"
+          >
+            <option value="">All Batches</option>
+            {batchesList.map((b) => (
+              <option key={b} value={b}>
+                Batch {b}
+              </option>
+            ))}
+          </select>
+
+          {/* Courses Filter */}
           <select
             value={courseFilter}
             onChange={(e) => {
@@ -732,6 +1190,7 @@ export default function StudentsManagementView({
             ))}
           </select>
 
+          {/* Status Filter */}
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -745,6 +1204,7 @@ export default function StudentsManagementView({
             <option value="blocked">Blocked</option>
           </select>
 
+          {/* Device Filter */}
           <select
             value={deviceFilter}
             onChange={(e) => {
@@ -772,31 +1232,225 @@ export default function StudentsManagementView({
           page,
           totalPages,
           total,
-          limit: 20,
-          onPageChange: (newPage) => setPage(newPage),
-        }}
-        emptyState={{
-          title: "No students found",
-          message:
-            search || statusFilter || deviceFilter || courseFilter
-              ? "No students match your filter criteria. Try clearing filters."
-              : "No students exist in RD Classes yet. Click 'Add Student' or 'Import from Excel' to create student accounts.",
-          actionLabel: "Add Student",
-          onAction: handleOpenAdd,
+          onPageChange: (p) => setPage(p),
         }}
       />
+
+      {/* ================= DANGER ZONE SECTION (COLLAPSIBLE) ================= */}
+      <div className="rounded-2xl border border-red-200 bg-red-50/40 p-5 sm:p-6 shadow-xs">
+        <div
+          onClick={() => setDangerZoneOpen(!dangerZoneOpen)}
+          className="flex items-center justify-between cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-100 text-red-600 border border-red-200 shrink-0">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-red-950 flex items-center gap-2">
+                Danger Zone: Wipe All Students & Restart Sequence
+              </h3>
+              <p className="text-xs text-red-700">
+                Safeguarded 3-step destructive flow: Dry-run impact analysis &rarr; Archive backup &rarr; Confirmation.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="p-1.5 text-red-700 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+          >
+            {dangerZoneOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {dangerZoneOpen && (
+          <div className="mt-6 pt-5 border-t border-red-200/80 space-y-6 animate-in fade-in duration-150">
+            {wipeError && (
+              <div className="flex items-center gap-2 rounded-xl bg-red-100 p-3 text-xs font-semibold text-red-800 border border-red-300">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{wipeError}</span>
+              </div>
+            )}
+
+            {wipeResult && (
+              <div className="rounded-xl bg-emerald-50 p-4 text-xs font-semibold text-emerald-800 border border-emerald-300 space-y-1">
+                <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Wipe Operation Successful
+                </div>
+                <p>Deleted {wipeResult.deletedCount} student accounts and dependents.</p>
+                <p className="font-mono text-emerald-950">Next student login ID sequence reset to: {wipeResult.nextLoginId}</p>
+              </div>
+            )}
+
+            {/* Stepper Guide */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Step 1: Dry Run */}
+              <div className="bg-white rounded-xl border border-red-200 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700 text-[11px]">1</span>
+                  Dry Run Impact
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Read-only calculation of exact student records to be wiped vs protected institute content.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDryRun}
+                  disabled={dryRunLoading}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {dryRunLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                  Calculate Impact
+                </button>
+              </div>
+
+              {/* Step 2: Backup */}
+              <div className={`bg-white rounded-xl border p-4 space-y-3 ${dryRunData?.toDelete?.students > 0 ? "border-red-200" : "border-slate-200 opacity-60"}`}>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700 text-[11px]">2</span>
+                  Archive & Download
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Clones records to timestamped archive collections and downloads sanitized JSON (no passwords).
+                </p>
+                <button
+                  type="button"
+                  onClick={handleBackup}
+                  disabled={backupLoading || !dryRunData || dryRunData.toDelete.students === 0}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {backupLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                  Archive & Download JSON
+                </button>
+              </div>
+
+              {/* Step 3: Confirmation */}
+              <div className={`bg-white rounded-xl border p-4 space-y-3 ${backupInfo ? "border-red-300 bg-red-50/20" : "border-slate-200 opacity-60"}`}>
+                <div className="flex items-center gap-2 text-xs font-bold text-red-950 uppercase tracking-wider">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white text-[11px]">3</span>
+                  Confirm & Wipe
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Requires confirmation phrase and your admin password before resetting counter to RD-2026-001.
+                </p>
+                <div className="text-[11px] font-semibold text-red-700">
+                  {backupInfo ? "Ready for confirmation" : "Complete Steps 1 & 2 first"}
+                </div>
+              </div>
+            </div>
+
+            {/* Dry Run Detailed Results View */}
+            {dryRunData && (
+              <div className="bg-white rounded-2xl border border-red-200 p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Database className="w-4 h-4 text-red-600" />
+                  Wipe Impact Report
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  {/* To Delete Column */}
+                  <div className="rounded-xl border border-red-200 bg-red-50/50 p-4 space-y-2">
+                    <div className="font-bold text-red-950 border-b border-red-200 pb-1.5 flex justify-between">
+                      <span>Will Be Permanently Deleted</span>
+                      <span className="text-red-700 font-mono">({dryRunData.toDelete.students} Students)</span>
+                    </div>
+                    <ul className="space-y-1 text-red-900 font-medium text-[11px]">
+                      <li>&bull; Students (role: student): <strong>{dryRunData.toDelete.students}</strong></li>
+                      <li>&bull; Registered Devices: <strong>{dryRunData.toDelete.devices}</strong></li>
+                      <li>&bull; Active Sessions: <strong>{dryRunData.toDelete.sessions}</strong></li>
+                      <li>&bull; Course Enrollments: <strong>{dryRunData.toDelete.enrollments}</strong></li>
+                      <li>&bull; Lecture Progress Logs: <strong>{dryRunData.toDelete.lectureProgress}</strong></li>
+                      <li>&bull; Student Notifications: <strong>{dryRunData.toDelete.studentNotifications}</strong></li>
+                    </ul>
+                  </div>
+
+                  {/* Guaranteed Safe Column */}
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                    <div className="font-bold text-emerald-950 border-b border-emerald-200 pb-1.5 flex justify-between">
+                      <span>Guaranteed Safe (Never Touched)</span>
+                      <span className="text-emerald-700 font-mono">Preserved</span>
+                    </div>
+                    <ul className="space-y-1 text-emerald-900 font-medium text-[11px]">
+                      <li>&bull; Admin Accounts: <strong>{dryRunData.toStay.adminAccounts}</strong> (can still log in)</li>
+                      <li>&bull; Courses & Lectures: <strong>{dryRunData.toStay.courses} Courses, {dryRunData.toStay.lectures} Lectures</strong></li>
+                      <li>&bull; Books & Chapters: <strong>{dryRunData.toStay.books} Books, {dryRunData.toStay.chapters} Chapters</strong></li>
+                      <li>&bull; Notes & Study PDFs: <strong>{dryRunData.toStay.notes}</strong></li>
+                      <li>&bull; Tests & Results: <strong>{dryRunData.toStay.tests} Tests, {dryRunData.toStay.results} Results</strong></li>
+                      <li>&bull; Gallery, Announcements & Settings: <strong>Preserved</strong></li>
+                    </ul>
+                  </div>
+                </div>
+
+                {dryRunData.toDelete.students === 0 && (
+                  <p className="text-xs text-amber-700 font-medium italic">
+                    There are currently 0 students in the database. Deletion is disabled.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Step 3 Form when Backup is Ready */}
+            {backupInfo && (
+              <div className="bg-red-100/60 rounded-2xl border border-red-300 p-5 space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-red-950">
+                  <ShieldAlert className="w-4 h-4 text-red-700" />
+                  Authorization Required to Execute Deletion
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-red-900 mb-1">
+                      Type <span className="font-mono bg-red-200 px-1 py-0.5 rounded text-red-950 select-all">DELETE ALL STUDENTS</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={wipeConfirmText}
+                      onChange={(e) => setWipeConfirmText(e.target.value)}
+                      placeholder="DELETE ALL STUDENTS"
+                      className="w-full text-xs font-mono font-bold px-3 py-2 bg-white border border-red-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-red-900 mb-1">
+                      Enter Your Admin Password
+                    </label>
+                    <input
+                      type="password"
+                      value={wipeAdminPassword}
+                      onChange={(e) => setWipeAdminPassword(e.target.value)}
+                      placeholder="Admin password"
+                      className="w-full text-xs px-3 py-2 bg-white border border-red-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={handleExecuteWipe}
+                    disabled={wipeLoading || wipeConfirmText !== "DELETE ALL STUDENTS" || !wipeAdminPassword}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {wipeLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Permanently Delete All Students & Restart Sequence
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ================= MODAL: ADD STUDENT ================= */}
       <Modal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         title="Add New Student"
-        description="Create a student account. Login credentials will be generated automatically and shown once."
-        maxWidth="max-w-xl"
+        description="Creates student account, generates strong credentials, and optionally emails login details."
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
           {formError && (
-            <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
+            <div className="p-3 text-xs bg-red-50 text-red-700 border border-red-200 rounded-xl">
               {formError}
             </div>
           )}
@@ -808,62 +1462,86 @@ export default function StudentsManagementView({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. Rahul Sharma"
-              className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+              className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
             />
           </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Phone Number" required hint="10-digit mobile number">
+            <FormField label="Phone Number" helper="10 digits Indian mobile">
               <input
                 type="tel"
-                required
-                maxLength={10}
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "") })}
-                placeholder="e.g. 9876543210"
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="9811122334"
+                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
               />
             </FormField>
 
-            <FormField label="Email Address" hint="Optional">
+            <FormField label="Batch (Optional)" helper="e.g. 4-5 or 5-6">
               <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="e.g. student@example.com"
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+                type="text"
+                value={formData.batch}
+                onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+                placeholder="4-5"
+                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
               />
             </FormField>
           </div>
 
-          <FormField label="Custom Login ID" hint="Leave blank to auto-generate RD-YYYY-xxx">
+          <FormField label="Email ID (Optional)" helper="For sending credentials">
             <input
-              type="text"
-              value={formData.loginId}
-              onChange={(e) => setFormData({ ...formData, loginId: e.target.value.toUpperCase() })}
-              placeholder="Auto-generated if left empty"
-              className="w-full px-3.5 py-2 text-sm font-mono border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="student@example.com"
+              className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
             />
           </FormField>
 
+          {/* Email credentials toggle */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={formData.sendEmail && Boolean(formData.email && formData.email.includes("@"))}
+                disabled={!formData.email || !formData.email.includes("@")}
+                onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
+                className="rounded border-slate-300 text-[#0A192F] focus:ring-[#FFB800]"
+              />
+              <span>Email login details to the student immediately</span>
+            </label>
+            {(!formData.email || !formData.email.includes("@")) && (
+              <p className="text-[11px] text-slate-500 pl-5">
+                Enter a valid email address above to enable automatic email delivery.
+              </p>
+            )}
+          </div>
+
           {availableCourses.length > 0 && (
-            <FormField label="Enroll in Courses">
-              <div className="max-h-40 overflow-y-auto space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <FormField label="Enroll in Course(s)">
+              <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 rounded-xl p-2.5">
                 {availableCourses.map((c) => (
                   <label
                     key={c._id}
-                    className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer"
+                    className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 p-1 rounded"
                   >
                     <input
                       type="checkbox"
                       checked={formData.courseIds.includes(c._id)}
                       onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...formData.courseIds, c._id]
-                          : formData.courseIds.filter((id) => id !== c._id);
-                        setFormData({ ...formData, courseIds: next });
+                        if (e.target.checked) {
+                          setFormData({
+                            ...formData,
+                            courseIds: [...formData.courseIds, c._id],
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            courseIds: formData.courseIds.filter((id) => id !== c._id),
+                          });
+                        }
                       }}
-                      className="rounded text-[#0A192F] focus:ring-[#FFB800]"
+                      className="rounded border-slate-300 text-[#0A192F] focus:ring-[#FFB800]"
                     />
                     <span>{c.title}</span>
                   </label>
@@ -872,7 +1550,7 @@ export default function StudentsManagementView({
             </FormField>
           )}
 
-          <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
+          <div className="flex justify-end gap-2.5 pt-3">
             <button
               type="button"
               onClick={() => setAddModalOpen(false)}
@@ -892,199 +1570,292 @@ export default function StudentsManagementView({
       </Modal>
 
       {/* ================= MODAL: EDIT STUDENT ================= */}
-      <Modal
-        isOpen={!!editStudent}
-        onClose={() => setEditStudent(null)}
-        title="Edit Student"
-        description={`Updating profile and enrollments for ${editStudent?.loginId}`}
-        maxWidth="max-w-xl"
-      >
-        <form onSubmit={handleEditSubmit} className="space-y-4">
-          {formError && (
-            <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
-              {formError}
-            </div>
-          )}
+      {editStudent && (
+        <Modal
+          isOpen={true}
+          onClose={() => setEditStudent(null)}
+          title={`Edit Student: ${editStudent.name}`}
+          description="Update student contact information, batch assignment, and device limit."
+        >
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            {formError && (
+              <div className="p-3 text-xs bg-red-50 text-red-700 border border-red-200 rounded-xl">
+                {formError}
+              </div>
+            )}
 
-          <FormField label="Full Name" required>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
-            />
-          </FormField>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Phone Number" required>
+            <FormField label="Full Name" required>
               <input
-                type="tel"
+                type="text"
                 required
-                maxLength={10}
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "") })}
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
               />
             </FormField>
 
-            <FormField label="Email Address">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Phone Number">
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
+                />
+              </FormField>
+
+              <FormField label="Batch" helper="e.g. 4-5 or 5-6">
+                <input
+                  type="text"
+                  value={formData.batch}
+                  onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+                  placeholder="4-5"
+                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
+                />
+              </FormField>
+            </div>
+
+            <FormField label="Email ID">
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
               />
             </FormField>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Account Status">
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Device Limit">
+                <input
+                  type="number"
+                  min="1"
+                  max="5"
+                  value={formData.maxDevices}
+                  onChange={(e) => setFormData({ ...formData, maxDevices: e.target.value })}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
+                />
+              </FormField>
+
+              <FormField label="Status">
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FFB800]"
+                >
+                  <option value="active">Active</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </FormField>
+            </div>
+
+            {availableCourses.length > 0 && (
+              <FormField label="Enrolled Courses">
+                <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 rounded-xl p-2.5">
+                  {availableCourses.map((c) => (
+                    <label
+                      key={c._id}
+                      className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 p-1 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.courseIds.includes(c._id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData,
+                              courseIds: [...formData.courseIds, c._id],
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              courseIds: formData.courseIds.filter((id) => id !== c._id),
+                            });
+                          }
+                        }}
+                        className="rounded border-slate-300 text-[#0A192F] focus:ring-[#FFB800]"
+                      />
+                      <span>{c.title}</span>
+                    </label>
+                  ))}
+                </div>
+              </FormField>
+            )}
+
+            <div className="flex justify-end gap-2.5 pt-3">
+              <button
+                type="button"
+                onClick={() => setEditStudent(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
-                <option value="active">Active (Can Login)</option>
-                <option value="blocked">Blocked (Login Suspended)</option>
-              </select>
-            </FormField>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2 text-sm font-semibold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                {submitting ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
-            <FormField label="Allowed Devices Limit" hint="Default is 1 device">
-              <input
-                type="number"
-                min={1}
-                max={5}
-                value={formData.maxDevices}
-                onChange={(e) => setFormData({ ...formData, maxDevices: parseInt(e.target.value, 10) || 1 })}
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
-              />
-            </FormField>
-          </div>
-
-          <FormField label="Valid Until" hint="Account & course validity date. Leave empty for unlimited.">
-            <input
-              type="date"
-              value={formData.validUntil || ""}
-              onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
-              className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#FFB800]"
-            />
-          </FormField>
-
-          {availableCourses.length > 0 && (
-            <FormField label="Enrolled Courses">
-              <div className="max-h-40 overflow-y-auto space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                {availableCourses.map((c) => (
-                  <label
-                    key={c._id}
-                    className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={formData.courseIds.includes(c._id)}
-                      onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...formData.courseIds, c._id]
-                          : formData.courseIds.filter((id) => id !== c._id);
-                        setFormData({ ...formData, courseIds: next });
-                      }}
-                      className="rounded text-[#0A192F] focus:ring-[#FFB800]"
-                    />
-                    <span>{c.title}</span>
-                  </label>
-                ))}
+      {/* ================= MODAL: BULK CREDENTIALS SENDING ================= */}
+      {bulkCredentialsModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            if (!bulkCredentialsModal.inProgress) setBulkCredentialsModal(null);
+          }}
+          title="Bulk Send Credentials"
+          description="Sends updated credentials in chunks of 5 with 1-second delay."
+          maxWidth="max-w-xl"
+        >
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-semibold text-slate-700">
+                <span>
+                  {bulkCredentialsModal.inProgress
+                    ? `Processing ${bulkCredentialsModal.processed} of ${bulkCredentialsModal.total}...`
+                    : bulkCredentialsModal.stopped
+                    ? "Sending stopped by user"
+                    : "Completed"}
+                </span>
+                <span>{Math.round((bulkCredentialsModal.processed / bulkCredentialsModal.total) * 100)}%</span>
               </div>
-            </FormField>
-          )}
+              <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#0A192F] transition-all duration-300"
+                  style={{ width: `${Math.round((bulkCredentialsModal.processed / bulkCredentialsModal.total) * 100)}%` }}
+                />
+              </div>
+            </div>
 
-          <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setEditStudent(null)}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-5 py-2 text-sm font-semibold text-white bg-[#0A192F] hover:bg-[#1E293B] rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-            >
-              {submitting ? "Saving..." : "Save Changes"}
-            </button>
+            {bulkCredentialsModal.inProgress && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.__bulkStopRequested = true;
+                  }}
+                  className="px-4 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  Stop Sending
+                </button>
+              </div>
+            )}
+
+            {!bulkCredentialsModal.inProgress && (
+              <div className="space-y-3 pt-2">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold">
+                  Processed {bulkCredentialsModal.results.length} students.
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const creds = bulkCredentialsModal.results.map((r) => r.student).filter(Boolean);
+                      downloadCredentialsCsv(creds);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Credentials CSV
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkCredentialsModal(null)}
+                    className="px-5 py-2 text-xs font-bold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </form>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* ================= MODAL: EXCEL IMPORT ================= */}
+      {/* ================= MODAL: IMPORT FROM EXCEL / CSV ================= */}
       <Modal
         isOpen={importModalOpen}
         onClose={() => setImportModalOpen(false)}
-        title={importResults ? "Import Results & Credentials" : "Import Students from Excel / CSV"}
-        description={
-          importResults
-            ? "Credentials generated for imported students. Copy WhatsApp messages or download CSV now."
-            : "Upload an Excel (.xlsx) or CSV file with Name, Email, and Phone columns."
-        }
+        title="Import Students from Excel / CSV"
+        description="Upload student spreadsheet (.xlsx, .csv). Cleans names, validates 10-digit mobiles, detects typos, and emails credentials."
         maxWidth="max-w-4xl"
       >
         {importResults ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-xs text-amber-900 leading-relaxed">
-                <span className="font-bold">Important Security Notice:</span> Passwords cannot be viewed again. Please download the credentials CSV or copy the WhatsApp message for each student now. Later, you can only reset the password to generate a new one.
+          <div className="space-y-5">
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                Import Complete: {importResults.created.length} students created
               </div>
+              <p className="text-xs text-emerald-700">
+                {importResults.interrupted
+                  ? `Note: Email delivery paused due to Gmail rate limit (${importResults.reason}). Remaining rows marked 'Not sent'.`
+                  : "All students processed successfully."}
+              </p>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-bold text-slate-800">
-                {importResults.length} Students Successfully Imported
+            <div className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl">
+              <div className="space-y-1">
+                <div className="text-sm font-bold">Download Credentials CSV</div>
+                <p className="text-xs text-amber-300">
+                  Save this file safely. Passwords cannot be shown again.
+                </p>
               </div>
               <button
-                onClick={() => downloadCredentialsCsv(importResults)}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+                type="button"
+                onClick={() => downloadCredentialsCsv(importResults.created)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#FFB800] hover:bg-[#e5a600] text-[#0A192F] text-xs font-extrabold rounded-xl transition-colors cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5" />
-                Download Credentials (CSV)
+                <Download className="w-4 h-4" />
+                Download Credentials CSV
               </button>
             </div>
 
-            <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-2xl">
+            {/* Imported Students Quick Table */}
+            <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-2xl">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
                   <tr>
-                    <th className="p-3">Student</th>
-                    <th className="p-3">Login ID</th>
-                    <th className="p-3">Generated Password</th>
-                    <th className="p-3">Phone</th>
-                    <th className="p-3 text-right">Action</th>
+                    <th className="p-2.5">Login ID</th>
+                    <th className="p-2.5">Name</th>
+                    <th className="p-2.5">Batch</th>
+                    <th className="p-2.5">Phone</th>
+                    <th className="p-2.5">Email Status</th>
+                    <th className="p-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {importResults.map((cred) => (
-                    <tr key={cred.id} className="hover:bg-slate-50/50">
-                      <td className="p-3 font-medium text-slate-900">{cred.name}</td>
-                      <td className="p-3 font-mono font-semibold text-[#0A192F]">{cred.loginId}</td>
-                      <td className="p-3 font-mono text-emerald-700 font-bold bg-emerald-50/50 rounded">{cred.password}</td>
-                      <td className="p-3 text-slate-600">{cred.phone}</td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => copyToClipboard(getWhatsAppTemplate(cred), `wa-${cred.id}`)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-semibold rounded-lg transition-colors cursor-pointer"
+                  {importResults.created.map((st) => (
+                    <tr key={st.id || st.loginId} className="hover:bg-slate-50/50">
+                      <td className="p-2.5 font-mono font-bold text-slate-900">{st.loginId}</td>
+                      <td className="p-2.5 font-medium">{st.name}</td>
+                      <td className="p-2.5">{st.batch || "—"}</td>
+                      <td className="p-2.5 font-mono">{st.phone || "—"}</td>
+                      <td className="p-2.5">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                          st.emailStatus === "sent" ? "bg-emerald-100 text-emerald-800" :
+                          st.emailStatus === "failed" ? "bg-red-100 text-red-800" :
+                          st.emailStatus === "no_email" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {st.emailStatus?.toUpperCase() || "NOT_SENT"}
+                        </span>
+                      </td>
+                      <td className="p-2.5 text-right whitespace-nowrap">
+                        <a
+                          href={getWhatsAppUrl(st.phone, getWhatsAppTemplate(st))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#128C7E] hover:underline"
                         >
-                          {copiedKey === `wa-${cred.id}` ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              Copied!
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              Copy WhatsApp Msg
-                            </>
-                          )}
-                        </button>
+                          WhatsApp &rarr;
+                        </a>
                       </td>
                     </tr>
                   ))}
@@ -1092,9 +1863,13 @@ export default function StudentsManagementView({
               </table>
             </div>
 
-            <div className="flex justify-end pt-3">
+            <div className="flex justify-end pt-2">
               <button
-                onClick={() => setImportModalOpen(false)}
+                type="button"
+                onClick={() => {
+                  setImportModalOpen(false);
+                  setImportResults(null);
+                }}
                 className="px-5 py-2 text-sm font-semibold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors cursor-pointer"
               >
                 Done
@@ -1107,7 +1882,7 @@ export default function StudentsManagementView({
             <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
               <div className="flex items-center gap-2.5 text-xs text-slate-600">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span>Need formatting reference? Download our pre-filled template.</span>
+                <span>Columns: Serial Number, Name, Email ID, Phone Number, Batch (e.g. 4-5, 5-6).</span>
               </div>
               <a
                 href="/api/admin/students/import/template"
@@ -1115,7 +1890,7 @@ export default function StudentsManagementView({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
               >
                 <Download className="w-3.5 h-3.5" />
-                Download Template (.xlsx)
+                Template (.xlsx)
               </a>
             </div>
 
@@ -1134,10 +1909,10 @@ export default function StudentsManagementView({
               >
                 <FileSpreadsheet className="w-10 h-10 text-slate-400 mb-2" />
                 <span className="text-sm font-semibold text-slate-800">
-                  {importFile ? importFile.name : "Click to select .xlsx or .csv file"}
+                  {importFile ? importFile.name : "Click to select .xlsx or .csv spreadsheet"}
                 </span>
                 <span className="text-xs text-slate-500 mt-1">
-                  Required columns: Name, Email (optional), Phone Number
+                  Handles mixed-case names, phone spaces/prefixes, batch variations &amp; sibling contacts.
                 </span>
               </label>
             </div>
@@ -1145,89 +1920,164 @@ export default function StudentsManagementView({
             {previewLoading && (
               <div className="text-center py-6 text-sm text-slate-500 flex items-center justify-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin text-[#FFB800]" />
-                Validating and parsing rows on server...
+                Parsing spreadsheet and validating contacts...
+              </div>
+            )}
+
+            {/* Progress Screen when importing */}
+            {importingChunk && (
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex justify-between text-xs font-semibold text-slate-700">
+                  <span>Importing students in chunks of 10 with email delivery...</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#0A192F] transition-all duration-300"
+                    style={{ width: `${importProgress.percent}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Generating sequential login IDs and emailing credentials (1 mail/sec throttle).
+                </p>
               </div>
             )}
 
             {/* Preview Table */}
-            {previewData && (
+            {previewData && !importingChunk && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-slate-600 font-medium">Total: {previewData.totalCount} rows</span>
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      {previewData.validCount} valid
+                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      {validRows.length} valid
                     </span>
-                    {previewData.invalidCount > 0 && (
-                      <span className="text-red-600 font-semibold flex items-center gap-1">
-                        <XCircle className="w-3.5 h-3.5 text-red-500" />
-                        {previewData.invalidCount} invalid (will be skipped)
+                    {previewData.warningCount > 0 && (
+                      <span className="inline-flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        {previewData.warningCount} with warnings (allowed)
+                      </span>
+                    )}
+                    {errorRows.length > 0 && (
+                      <span className="inline-flex items-center gap-1 font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                        <XCircle className="w-3 h-3 text-red-500" />
+                        {errorRows.length} needs fix / errors
                       </span>
                     )}
                   </div>
 
-                  {availableCourses.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-600">Enroll all in:</span>
-                      <select
-                        value={importCourseId}
-                        onChange={(e) => setImportCourseId(e.target.value)}
-                        className="px-2.5 py-1 text-xs font-medium border border-slate-200 rounded-lg bg-white"
+                  <div className="flex items-center gap-3">
+                    {availableCourses.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-600 text-[11px]">Enroll all in:</span>
+                        <select
+                          value={importCourseId}
+                          onChange={(e) => setImportCourseId(e.target.value)}
+                          className="px-2 py-1 text-xs font-medium border border-slate-200 rounded-lg bg-white"
+                        >
+                          <option value="">None (skip enrollment)</option>
+                          {availableCourses.map((c) => (
+                            <option key={c._id} value={c._id}>
+                              {c.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {errorRows.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleDownloadNeedsFixCsv}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
                       >
-                        <option value="">None (skip enrollment)</option>
-                        {availableCourses.map((c) => (
-                          <option key={c._id} value={c._id}>
-                            {c.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                        <FileDown className="w-3 h-3" />
+                        Download Needs Fix CSV
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-2xl">
+                {/* Email Immediate Sending Toggle */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-amber-950">
+                    <input
+                      type="checkbox"
+                      checked={importSendEmail}
+                      onChange={(e) => setImportSendEmail(e.target.checked)}
+                      className="rounded border-amber-300 text-[#0A192F] focus:ring-[#FFB800]"
+                    />
+                    <span>Email login details to every student immediately</span>
+                  </label>
+                  <span className="text-amber-700 text-[11px]">Throttled 1 mail/sec</span>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-2xl">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
                       <tr>
                         <th className="p-2.5">Row</th>
-                        <th className="p-2.5">Name</th>
-                        <th className="p-2.5">Phone</th>
+                        <th className="p-2.5">Cleaned Name</th>
+                        <th className="p-2.5">Cleaned Phone</th>
                         <th className="p-2.5">Email</th>
-                        <th className="p-2.5">Status</th>
-                        <th className="p-2.5">Reason / Validation</th>
+                        <th className="p-2.5">Batch</th>
+                        <th className="p-2.5">Status & Validation</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {previewData.rows.map((row) => (
-                        <tr
-                          key={row.rowNumber}
-                          className={row.valid ? "hover:bg-slate-50/50" : "bg-red-50/40 text-red-900"}
-                        >
-                          <td className="p-2.5 font-mono text-slate-500">{row.rowNumber}</td>
-                          <td className="p-2.5 font-medium">{row.name || "—"}</td>
-                          <td className="p-2.5 font-mono">{row.phone || "—"}</td>
-                          <td className="p-2.5">{row.email || "—"}</td>
-                          <td className="p-2.5">
-                            {row.valid ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                                Valid
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded">
-                                Invalid
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2.5 text-xs">
-                            {row.errors.length > 0 ? (
-                              <span className="text-red-600">{row.errors.join(", ")}</span>
-                            ) : (
-                              <span className="text-emerald-600 font-medium">Ready to import</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {previewData.rows.map((row) => {
+                        const isTypo = row.hasTypoSuggestion;
+                        const isAccepted = acceptedTypoFixes[row.rowNumber];
+                        const isCurrentlyValid = row.valid || isAccepted;
+
+                        return (
+                          <tr
+                            key={row.rowNumber}
+                            className={isCurrentlyValid ? "hover:bg-slate-50/50" : "bg-red-50/40 text-red-950"}
+                          >
+                            <td className="p-2.5 font-mono text-slate-500">{row.rowNumber}</td>
+                            <td className="p-2.5 font-medium">{row.name || "—"}</td>
+                            <td className="p-2.5 font-mono">{row.phone || "—"}</td>
+                            <td className="p-2.5">
+                              {isTypo ? (
+                                <div className="space-y-1">
+                                  <div className="line-through text-red-600">{row.rawEmail}</div>
+                                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(isAccepted)}
+                                      onChange={() => toggleTypoFix(row.rowNumber)}
+                                      className="rounded border-blue-300 text-blue-600"
+                                    />
+                                    Fix to {row.suggestedEmail}
+                                  </label>
+                                </div>
+                              ) : (
+                                row.email || "—"
+                              )}
+                            </td>
+                            <td className="p-2.5 font-medium">{row.batch || "—"}</td>
+                            <td className="p-2.5 text-xs">
+                              {isCurrentlyValid ? (
+                                <div className="space-y-0.5">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                    Ready to import
+                                  </span>
+                                  {row.warnings.map((w, idx) => (
+                                    <div key={idx} className="text-[10px] text-amber-700 font-medium">
+                                      &bull; {w}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-red-600 font-medium">
+                                  {row.errors.join(", ")}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1241,11 +2091,11 @@ export default function StudentsManagementView({
                     Cancel
                   </button>
                   <button
-                    onClick={handleConfirmImport}
-                    disabled={importing || previewData.validCount === 0}
+                    onClick={handleConfirmChunkedImport}
+                    disabled={importingChunk || validRows.length === 0}
                     className="px-5 py-2 text-sm font-semibold text-[#0A192F] bg-[#FFB800] hover:bg-[#e5a600] rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                   >
-                    {importing ? "Importing..." : `Confirm Import (${previewData.validCount} Students)`}
+                    Import {validRows.length} Valid Rows
                   </button>
                 </div>
               </div>
@@ -1274,7 +2124,18 @@ export default function StudentsManagementView({
             {credentialsModal.credentials.map((cred) => (
               <div key={cred.id || cred.loginId} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold text-slate-900">{cred.name}</div>
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-bold text-slate-900">{cred.name}</div>
+                    {cred.emailStatus && (
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                        cred.emailStatus === "sent" ? "bg-emerald-100 text-emerald-800" :
+                        cred.emailStatus === "failed" ? "bg-red-100 text-red-800" :
+                        cred.emailStatus === "no_email" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-800"
+                      }`}>
+                        Email: {cred.emailStatus.toUpperCase()} {cred.emailError ? `(${cred.emailError})` : ""}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -1293,23 +2154,14 @@ export default function StudentsManagementView({
                         </>
                       )}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(getWhatsAppTemplate(cred), `wa-cred-${cred.loginId}`)}
+                    <a
+                      href={getWhatsAppUrl(cred.phone, getWhatsAppTemplate(cred))}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     >
-                      {copiedKey === `wa-cred-${cred.loginId}` ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          Copy WhatsApp message
-                        </>
-                      )}
-                    </button>
+                      Share on WhatsApp
+                    </a>
                   </div>
                 </div>
 
@@ -1338,29 +2190,60 @@ export default function StudentsManagementView({
         </Modal>
       )}
 
+      {/* ================= CONFIRM DIALOG: SEND CREDENTIALS ================= */}
+      <ConfirmDialog
+        isOpen={!!sendCredentialsConfirmStudent}
+        onClose={() => setSendCredentialsConfirmStudent(null)}
+        onConfirm={handleConfirmSendCredentials}
+        title="Reset & Email New Credentials"
+        message={`This will reset ${sendCredentialsConfirmStudent?.name}'s password to a newly generated 10-character password and email it immediately to ${sendCredentialsConfirmStudent?.email || "their registered email"}. Old sessions will be revoked.`}
+        confirmText="Reset & Email Password"
+        variant="warning"
+      />
+
+      {/* ================= CONFIRM DIALOG: RESET PASSWORD (LEGACY) ================= */}
+      <ConfirmDialog
+        isOpen={!!resetConfirmStudent}
+        onClose={() => setResetConfirmStudent(null)}
+        onConfirm={handleConfirmResetPassword}
+        title="Reset Student Password"
+        message={`Are you sure you want to reset password for ${resetConfirmStudent?.name} (${resetConfirmStudent?.loginId})? All existing sessions will be logged out and a new 10-character password will be generated.`}
+        confirmText="Generate New Password"
+        variant="warning"
+      />
+
+      {/* ================= CONFIRM DIALOG: DELETE STUDENT ================= */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmStudent}
+        onClose={() => setDeleteConfirmStudent(null)}
+        onConfirm={handleConfirmDelete}
+        title="Permanently Delete Student"
+        message={`Are you sure you want to delete ${deleteConfirmStudent?.name} (${deleteConfirmStudent?.loginId})? This will permanently delete the student, course enrollments, registered devices, active sessions, and video progress. This cannot be undone.`}
+        confirmText="Permanently Delete"
+        variant="danger"
+      />
+
       {/* ================= DRAWER: STUDENT DEVICES ================= */}
       {devicesDrawerStudent && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
           <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
-            {/* Drawer Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">
                   {devicesDrawerStudent.name}
                 </h3>
                 <p className="text-xs text-slate-500 font-mono">
-                  {devicesDrawerStudent.loginId} • Allowed Devices: {devicesDrawerStudent.maxDevices || 1}
+                  {devicesDrawerStudent.loginId} &bull; Allowed Devices: {devicesDrawerStudent.maxDevices || 1}
                 </p>
               </div>
               <button
                 onClick={() => setDevicesDrawerStudent(null)}
                 className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                ✕
+                &times;
               </button>
             </div>
 
-            {/* Drawer Devices List */}
             <div className="p-5 flex-1 overflow-y-auto space-y-3">
               {devicesLoading ? (
                 <div className="text-center py-10 text-slate-500 text-sm">
@@ -1424,7 +2307,6 @@ export default function StudentsManagementView({
               )}
             </div>
 
-            {/* Drawer Footer Actions */}
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
               <button
                 onClick={handleLogoutEverywhere}
@@ -1443,28 +2325,6 @@ export default function StudentsManagementView({
           </div>
         </div>
       )}
-
-      {/* ================= CONFIRM DIALOG: RESET PASSWORD ================= */}
-      <ConfirmDialog
-        isOpen={!!resetConfirmStudent}
-        onClose={() => setResetConfirmStudent(null)}
-        onConfirm={handleConfirmResetPassword}
-        title="Reset Student Password"
-        message={`Are you sure you want to reset password for ${resetConfirmStudent?.name} (${resetConfirmStudent?.loginId})? All existing sessions will be logged out and a new 10-character password will be generated.`}
-        confirmText="Generate New Password"
-        variant="warning"
-      />
-
-      {/* ================= CONFIRM DIALOG: DELETE STUDENT ================= */}
-      <ConfirmDialog
-        isOpen={!!deleteConfirmStudent}
-        onClose={() => setDeleteConfirmStudent(null)}
-        onConfirm={handleConfirmDelete}
-        title="Permanently Delete Student"
-        message={`Are you sure you want to delete ${deleteConfirmStudent?.name} (${deleteConfirmStudent?.loginId})? This will permanently delete the student, course enrollments, registered devices, active sessions, and video progress. This cannot be undone.`}
-        confirmText="Permanently Delete"
-        variant="danger"
-      />
     </div>
   );
 }

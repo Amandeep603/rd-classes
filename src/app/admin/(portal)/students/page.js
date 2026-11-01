@@ -16,16 +16,18 @@ async function StudentsContent({ searchParams }) {
 
   const search = params?.search || "";
   const status = params?.status || "";
+  const batch = params?.batch || "";
   const device = params?.device || "";
   const course = params?.course || "";
   const page = parseInt(params?.page || "1", 10) || 1;
 
   await connectDB();
 
-  const [{ students, total, totalPages }, availableCourses] = await Promise.all([
+  const [{ students, total, totalPages, batches }, availableCourses] = await Promise.all([
     getStudentsListPaginated({
       search,
       status,
+      batch,
       deviceFilter: device,
       courseId: course,
       page,
@@ -47,6 +49,7 @@ async function StudentsContent({ searchParams }) {
       initialPage={page}
       initialTotalPages={totalPages}
       availableCourses={serializedCourses}
+      initialBatches={batches || []}
     />
   );
 }

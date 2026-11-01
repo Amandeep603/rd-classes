@@ -38,6 +38,30 @@ const userSchema = new Schema(
       default: "12",
       trim: true,
     },
+    batch: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
+    importSerial: {
+      type: Number,
+      default: undefined,
+    },
+    emailStatus: {
+      type: String,
+      enum: ["not_sent", "sent", "failed", "no_email"],
+      default: "not_sent",
+      index: true,
+    },
+    emailSentAt: {
+      type: Date,
+      default: null,
+    },
+    emailError: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     loginId: {
       type: String,
       required: true,
@@ -113,11 +137,10 @@ const userSchema = new Schema(
   }
 );
 
-userSchema.index(
-  { email: 1 },
-  { unique: true, partialFilterExpression: { email: { $type: "string", $gt: "" } } }
-);
+userSchema.index({ email: 1 });
 userSchema.index({ role: 1, status: 1 });
+userSchema.index({ role: 1, batch: 1 });
+userSchema.index({ name: 1, phone: 1 });
 
 userSchema.pre("validate", function () {
   if (this.email === "" || this.email === null) {
@@ -125,6 +148,9 @@ userSchema.pre("validate", function () {
   }
   if (this.phone === "" || this.phone === null) {
     this.phone = undefined;
+  }
+  if (this.batch === "" || this.batch === null) {
+    this.batch = undefined;
   }
   if (this.maxDevices !== undefined && this.deviceLimit === undefined) {
     this.deviceLimit = this.maxDevices;

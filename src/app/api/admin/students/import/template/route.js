@@ -1,26 +1,33 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/server/auth/session.js";
+import { requireAdminApi } from "@/server/auth/session.js";
 import * as XLSX from "xlsx";
 
 export async function GET() {
-  try {
-    await requireAdmin();
+  const auth = await requireAdminApi();
+  if (!auth.authenticated) return auth.response;
 
+  try {
     const sampleData = [
       {
-        "Full Name": "Rahul Sharma",
-        "Email Address": "rahul.sharma@example.com",
+        "Serial Number": 1,
+        "Name": "Rahul Sharma",
+        "Email ID": "rahul.sharma@gmail.com",
+        "Phone Number": "9811122334",
+        "Batch": "4-5",
+      },
+      {
+        "Serial Number": 2,
+        "Name": "Priya Gupta",
+        "Email ID": "priya.gupta@gmail.com",
         "Phone Number": "9876543210",
+        "Batch": "5-6",
       },
       {
-        "Full Name": "Pooja Verma",
-        "Email Address": "pooja.verma@example.com",
-        "Phone Number": "9812345678",
-      },
-      {
-        "Full Name": "Aman Deep",
-        "Email Address": "aman.deep@example.com",
+        "Serial Number": 3,
+        "Name": "Amit Kumar",
+        "Email ID": "amit.kumar@gmail.com",
         "Phone Number": "9898989898",
+        "Batch": "4-5",
       },
     ];
 
@@ -39,7 +46,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    const status = error.message === "Unauthorized" ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
