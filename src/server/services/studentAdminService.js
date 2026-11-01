@@ -15,6 +15,7 @@ import {
   Notification,
   Book,
   Chapter,
+  Lecture,
   Note,
   Test,
   ResultPdf,
