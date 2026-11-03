@@ -116,7 +116,7 @@ export default function CourseForm({ course = null, mode = "new" }) {
   const [featured, setFeatured] = useState(course ? !!course.featured : false);
   const [order, setOrder] = useState(course?.order ?? 0);
 
-  // Phase C1 Fields
+  // Additional course fields
   const [titleHighlight, setTitleHighlight] = useState(course?.titleHighlight || course?.subtitle || "");
   const [heroBooks, setHeroBooks] = useState(
     course?.heroBooks && course.heroBooks.length > 0
@@ -276,7 +276,7 @@ export default function CourseForm({ course = null, mode = "new" }) {
       fd.append("order", String(order));
     }
 
-    // Phase C1 Fields & Course Page Content
+    // Course page content
     fd.append("titleHighlight", titleHighlight);
     fd.append("heroBooks", JSON.stringify(heroBooks.filter(Boolean)));
     fd.append("whatsappMessageNote", whatsappMessageNote);

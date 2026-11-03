@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+test-results/
+playwright-report/
 
 # next.js
 /.next/
@@ -33,6 +35,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+.env.local
 
 # vercel
 .vercel
@@ -40,25 +43,34 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent and tool folders
+.agent/
+.agents/
+.gemini/
+.cursor/
+.claude/
+.windsurf/
+.antigravity/
+brain/
 /scratch/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+# temporary and local test artifacts
+/tmp/
+tmp/
+.tmp/
+/.local-uploads/
+/.local-emails/
 /reference/
 /docs/compare/
-/.local-uploads/
-/.local-emails/
-/backups/
-backup-lectures-*.json
 
-
-
-/.local-emails/
-/.local-uploads/
+# backups, imports, and data files
 /backups/
 /imports/
 *.csv
 *.xlsx
 *.xls
-.env.local
-backup-lectures-*.json
-/scratch/
-/reference/
-/docs/compare/
+backup-*.json
