@@ -68,13 +68,32 @@ const settingSchema = new Schema(
     },
     deviceLockMode: {
       type: String,
-      enum: ["smart", "basic", "strict", "relaxed"],
-      default: "smart",
+      enum: ["strict", "smart", "basic", "off", "relaxed"],
+      default: "strict",
     },
     sessionMode: {
       type: String,
-      enum: ["tab", "browser"],
-      default: "tab",
+      enum: ["browser", "tab"],
+      default: "browser",
+    },
+    recoveryMode: {
+      type: String,
+      enum: ["otp", "off"],
+      default: "otp",
+    },
+    maxBrowsersPerDevice: {
+      type: Number,
+      default: 5,
+      min: 1,
+    },
+    maxSelfRecoveriesPer30Days: {
+      type: Number,
+      default: 3,
+      min: 1,
+    },
+    recoveryBlockIfConcurrent: {
+      type: Boolean,
+      default: true,
     },
     workspaceName: {
       type: String,

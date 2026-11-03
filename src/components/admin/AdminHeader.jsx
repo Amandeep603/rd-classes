@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -15,11 +16,8 @@ import { logoutAdminAction } from "@/server/actions/auth.actions.js";
 
 export default function AdminHeader({ admin, pendingCount = 0 }) {
   const pathname = usePathname();
-  const [livePendingCount, setLivePendingCount] = useState(pendingCount);
-
-  useEffect(() => {
-    setLivePendingCount(pendingCount);
-  }, [pendingCount]);
+  const [polledCount, setPolledCount] = useState(null);
+  const livePendingCount = polledCount !== null ? polledCount : pendingCount;
 
   useEffect(() => {
     let cancelled = false;
@@ -30,7 +28,7 @@ export default function AdminHeader({ admin, pendingCount = 0 }) {
         if (res.ok && !cancelled) {
           const data = await res.json();
           if (typeof data.count === "number") {
-            setLivePendingCount(data.count);
+            setPolledCount(data.count);
           }
         }
       } catch { }

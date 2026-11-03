@@ -82,10 +82,10 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
   const [deviceLockMode, setDeviceLockMode] = useState(
     initialSettings.deviceLockMode === "relaxed"
       ? "smart"
-      : initialSettings.deviceLockMode || "smart"
+      : initialSettings.deviceLockMode || "strict"
   );
   const [sessionMode, setSessionMode] = useState(
-    initialSettings.sessionMode || "tab"
+    initialSettings.sessionMode || "browser"
   );
 
   const [savingSettings, setSavingSettings] = useState(false);
@@ -548,12 +548,13 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
                     onChange={(e) => setDeviceLockMode(e.target.value)}
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-[#111827] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
                   >
-                    <option value="smart">Smart (Default: Hardware Profile + Screen 3% + Token)</option>
+                    <option value="strict">Strict (Default: Strict Token-Only Security, zero hardware spoofing)</option>
+                    <option value="smart">Smart (Hardware Profile + Token Continuity)</option>
                     <option value="basic">Basic (OS Family + Device Type Only)</option>
-                    <option value="strict">Strict (Per-Browser Cookie Token Required)</option>
+                    <option value="off">Off (No Device Lock)</option>
                   </select>
                   <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed italic">
-                    Note: A website cannot tell apart two phones of the same model, or two laptops with the same screen. Use Reject or Revoke if you suspect account sharing.
+                    Strict Mode locks each student to their exact approved browser token. A different device or browser cannot log in without admin approval, even with identical hardware or IP.
                   </p>
                 </FormField>
 
@@ -566,8 +567,8 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
                     onChange={(e) => setSessionMode(e.target.value)}
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-[#111827] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-hidden"
                   >
-                    <option value="tab">Tab Mode (Default: Log out on tab close; watch & refresh safe)</option>
-                    <option value="browser">Browser Mode (Session remains active across tabs)</option>
+                    <option value="browser">Browser Mode (Default: Session remains active across tabs)</option>
+                    <option value="tab">Tab Mode (Logs out when browser tab is closed)</option>
                   </select>
                 </FormField>
               </div>

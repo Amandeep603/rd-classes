@@ -170,6 +170,24 @@ const deviceRequestSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    targetDeviceId: {
+      type: String,
+      default: null,
+    },
+    pendingId: {
+      type: String,
+      default: "",
+      index: true,
+      trim: true,
+    },
+    fulfilledAt: {
+      type: Date,
+      default: null,
+    },
+    escalationReason: {
+      type: String,
+      default: null,
+    },
     demo: {
       type: Boolean,
       default: false,

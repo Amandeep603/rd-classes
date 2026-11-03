@@ -16,6 +16,28 @@ const aliasSchema = new Schema(
     model: { type: String, default: null },
     addedAt: { type: Date, default: Date.now },
     reason: { type: String, default: "admin_alias" },
+    browserName: { type: String, default: "" },
+    ip: { type: String, default: "" },
+    city: { type: String, default: "" },
+    lastSeenAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const selfRecoverySchema = new Schema(
+  {
+    at: { type: Date, default: Date.now },
+    ip: { type: String, default: "" },
+    city: { type: String, default: "" },
+    browserName: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
+const graceTokenSchema = new Schema(
+  {
+    hash: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
   },
   { _id: false }
 );
@@ -93,6 +115,18 @@ const deviceSchema = new Schema(
     },
     browserTokenHashes: {
       type: [String],
+      default: [],
+    },
+    backupTokenHashes: {
+      type: [String],
+      default: [],
+    },
+    graceTokenHashes: {
+      type: [graceTokenSchema],
+      default: [],
+    },
+    selfRecoveries: {
+      type: [selfRecoverySchema],
       default: [],
     },
     city: {
@@ -229,6 +263,7 @@ deviceSchema.index({ studentId: 1, status: 1 });
 deviceSchema.index({ studentId: 1, deviceId: 1 }, { unique: true });
 deviceSchema.index({ studentId: 1, coarseKey: 1 });
 deviceSchema.index({ browserTokenHashes: 1 });
+deviceSchema.index({ backupTokenHashes: 1 });
 
 export const Device = mongoose.models.Device || mongoose.model("Device", deviceSchema);
 export default Device;

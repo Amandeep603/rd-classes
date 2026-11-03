@@ -282,112 +282,68 @@ export function matchProfilePair(p1, p2) {
 
 /**
  * Matches a login attempt against approved devices.
+ * STRICT TOKEN-ONLY SYSTEM:
+ * A login matches ONLY if cookieTokenHash is found in browserTokenHashes
+ * or non-expired graceTokenHashes of an approved, non-revoked device.
+ * All hardware, screen, OS, and missing-hint fallbacks are completely removed.
  */
 export function matchDevice({
   signals,
   profile,
   cookieTokenHash = null,
   approvedDevices = [],
-  deviceLockMode = "smart",
+  deviceLockMode = "strict",
 }) {
-  const mode = deviceLockMode === "relaxed" ? "smart" : deviceLockMode || "smart";
+  const mode = deviceLockMode === "relaxed" ? "strict" : deviceLockMode || "strict";
 
-  // Tier 1: Token Hash Continuity (if cookie token hash matches)
+  if (mode === "off") {
+    if (approvedDevices.length > 0) {
+      return {
+        matched: true,
+        device: approvedDevices[0],
+        reason: "lock_disabled",
+      };
+    }
+  }
+
+  // Token Hash matching (Active token or 10-minute multi-tab grace token)
   if (cookieTokenHash) {
-    const tokenMatch = approvedDevices.find((d) =>
-      Array.isArray(d.browserTokenHashes) && d.browserTokenHashes.includes(cookieTokenHash)
-    );
-    if (tokenMatch) {
-      return {
-        matched: true,
-        device: tokenMatch,
-        reason: "token_hash_match",
-        isCookieMatch: true,
-      };
-    }
-  }
+    const now = new Date();
+    for (const d of approvedDevices) {
+      if (d.status !== "approved") continue;
 
-  // If strict mode is enabled, cookie match was required
-  if (mode === "strict") {
-    return {
-      matched: false,
-      reason: "strict_cookie_mismatch",
-    };
-  }
-
-  // Filter candidates by coarseKey OR alias profile match
-  const candidates = approvedDevices.filter((d) => {
-    if (d.coarseKey === signals.coarseKey) return true;
-    if (profile && Array.isArray(d.aliases)) {
-      return d.aliases.some((alias) => matchProfilePair(profile, alias));
-    }
-    return false;
-  });
-
-  if (candidates.length === 0) {
-    return {
-      matched: false,
-      reason: "coarse_mismatch",
-    };
-  }
-
-  // If basic mode is enabled, candidate match is sufficient
-  if (mode === "basic") {
-    return {
-      matched: true,
-      device: candidates[0],
-      reason: "basic_coarse_match",
-    };
-  }
-
-  // Smart mode: Profile matching
-  // If login has no hints, fail open and log hints_missing
-  if (!profile) {
-    return {
-      matched: true,
-      device: candidates[0],
-      reason: "hints_missing",
-      failOpen: true,
-    };
-  }
-
-  // Check candidates for stored profile match, alias match, or legacy learning
-  for (const candidate of candidates) {
-    // If candidate has no stored profile, it's a legacy device: MATCH and learn profile once!
-    if (!candidate.profile || !candidate.profile.screenMajor) {
-      return {
-        matched: true,
-        device: candidate,
-        reason: "legacy_learn_profile",
-        shouldLearnProfile: true,
-      };
-    }
-
-    // Match main profile
-    if (matchProfilePair(profile, candidate.profile)) {
-      return {
-        matched: true,
-        device: candidate,
-        reason: "profile_match",
-      };
-    }
-
-    // Match any alias
-    if (Array.isArray(candidate.aliases)) {
-      const aliasMatch = candidate.aliases.some((alias) => matchProfilePair(profile, alias));
-      if (aliasMatch) {
+      // 1. Direct active token match
+      if (Array.isArray(d.browserTokenHashes) && d.browserTokenHashes.includes(cookieTokenHash)) {
         return {
           matched: true,
-          device: candidate,
-          reason: "alias_match",
+          device: d,
+          reason: "token_hash_match",
+          isCookieMatch: true,
         };
+      }
+
+      // 2. Grace token match (valid for 10 minutes after rotation)
+      if (Array.isArray(d.graceTokenHashes)) {
+        const graceMatch = d.graceTokenHashes.find(
+          (g) => g.hash === cookieTokenHash && new Date(g.expiresAt).getTime() > now.getTime()
+        );
+        if (graceMatch) {
+          return {
+            matched: true,
+            device: d,
+            reason: "grace_token_match",
+            isCookieMatch: true,
+            isGraceMatch: true,
+          };
+        }
       }
     }
   }
 
+  // Strict Token-Only: All other attempts fail
   return {
     matched: false,
-    reason: "profile_mismatch",
+    reason: "strict_token_mismatch",
   };
 }
 

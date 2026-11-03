@@ -2878,6 +2878,18 @@ export default function StudentsManagementView({
                             ? d.browsersSeen.join(", ")
                             : d.browserName || d.browser || "Browser"}
                         </div>
+                        {Array.isArray(d.aliases) && d.aliases.length > 0 && (
+                          <div className="col-span-2 text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                            <strong>Approved Aliases ({d.aliases.length}):</strong>
+                            <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                              {d.aliases.map((al, alIdx) => (
+                                <li key={alIdx}>
+                                  Alias: {al.model || "Browser"} ({al.screenMajor}x{al.screenMinor}) &bull; Added: {al.addedAt ? new Date(al.addedAt).toLocaleDateString() : "—"}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         <div className="col-span-2">
                           <strong>IP:</strong> First: {d.firstIp || d.ip || "—"} &bull; Last: {d.lastIp || d.ip || "—"}
                         </div>

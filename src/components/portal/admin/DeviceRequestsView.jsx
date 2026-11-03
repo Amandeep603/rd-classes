@@ -219,11 +219,10 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
         <div className="flex items-center gap-2 border-b md:border-b-0 pb-3 md:pb-0 border-slate-100 overflow-x-auto">
           <button
             onClick={() => setCurrentTab("pending")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              currentTab === "pending"
-                ? "bg-[#0A192F] text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${currentTab === "pending"
+              ? "bg-[#0A192F] text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100"
+              }`}
           >
             <Clock className="w-3.5 h-3.5" />
             Pending
@@ -236,11 +235,10 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
           <button
             onClick={() => setCurrentTab("approved")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              currentTab === "approved"
-                ? "bg-[#0A192F] text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${currentTab === "approved"
+              ? "bg-[#0A192F] text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100"
+              }`}
           >
             <Check className="w-3.5 h-3.5" />
             Approved
@@ -249,11 +247,10 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
           <button
             onClick={() => setCurrentTab("rejected")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              currentTab === "rejected"
-                ? "bg-[#0A192F] text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${currentTab === "rejected"
+              ? "bg-[#0A192F] text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100"
+              }`}
           >
             <X className="w-3.5 h-3.5" />
             Rejected
@@ -262,11 +259,10 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
           <button
             onClick={() => setCurrentTab("all")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              currentTab === "all"
-                ? "bg-[#0A192F] text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${currentTab === "all"
+              ? "bg-[#0A192F] text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100"
+              }`}
           >
             <Layers className="w-3.5 h-3.5" />
             All Requests
@@ -344,13 +340,12 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
 
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                        req.status === "pending"
-                          ? "bg-amber-100 text-amber-800 animate-pulse"
-                          : req.status === "approved"
+                      className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${req.status === "pending"
+                        ? "bg-amber-100 text-amber-800 animate-pulse"
+                        : req.status === "approved"
                           ? "bg-emerald-100 text-emerald-800"
                           : "bg-rose-100 text-rose-800"
-                      }`}
+                        }`}
                     >
                       {req.status?.toUpperCase()}
                     </span>
@@ -431,6 +426,21 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                               {[ad.city, ad.country].filter(Boolean).join(", ") || "—"} &bull; Last used:{" "}
                               {ad.lastUsedAt ? new Date(ad.lastUsedAt).toLocaleDateString() : "—"}
                             </div>
+                            {(() => {
+                              const lastUsed = ad.lastUsedAt ? new Date(ad.lastUsedAt).getTime() : 0;
+                              const diffMins = Math.floor((Date.now() - lastUsed) / 60000);
+                              if (lastUsed > 0 && diffMins <= 15) {
+                                return (
+                                  <div className="mt-1 px-2 py-1 rounded-md bg-amber-50 border border-amber-300 text-amber-900 font-semibold text-[11px] flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>
+                                      Approved device active {diffMins <= 0 ? "just now" : `${diffMins} min ago`} from {ad.city || ad.country || "registered location"}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         ))}
                       </div>

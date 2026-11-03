@@ -200,143 +200,41 @@ export const getCurrentStudent = cache(async () => {
     return null;
   }
 
-  // Device check & Adoption rule
-  if (session.deviceId) {
-    // Session is bound to deviceId -> verify device is still approved
-    let approvedDevice = null;
-    try {
-      approvedDevice = await Device.findOne({
-        studentId: user._id,
-        $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
-        status: "approved",
-      }).lean();
-    } catch (devErr) {
-      console.error("[SESSION_ERROR] Transient DB error checking device:", devErr?.message);
-      // On transient DB error, do NOT kill active session
-      approvedDevice = { deviceId: session.deviceId };
-    }
+  // Strict device validation: session MUST point to an approved, non-revoked device
+  if (!session.deviceId) {
+    // Session without a valid device binding is rejected (adoption rule removed)
+    await Session.updateOne(
+      { _id: session._id },
+      { $set: { revoked: true, revokedReason: "device_unbound" } }
+    ).catch(() => {});
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    return null;
+  }
 
-    if (!approvedDevice) {
-      // Device was explicitly revoked or replaced by admin
-      await Session.updateOne(
-        { _id: session._id },
-        { $set: { revoked: true, revokedReason: "device_removed" } }
-      ).catch(() => {});
-      await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
-      await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
-      return null;
-    }
-  } else {
-    // ADOPTION RULE for existing sessions without deviceId (e.g. after Reset Devices):
-    try {
-      const headerList = await headers();
-      const rawHintsCookie = await getCookie(COOKIE_NAMES.HINTS);
-      const clientHints = parseClientHints(rawHintsCookie);
-      const signals = parseServerSignals(
-        headerList.get("user-agent") || "",
-        headerList,
-        clientHints
-      );
-      const profile = computeProfile(signals, clientHints);
+  // Verify device is still approved and not revoked
+  let approvedDevice = null;
+  try {
+    approvedDevice = await Device.findOne({
+      studentId: user._id,
+      $or: [{ deviceId: session.deviceId }, { deviceKey: session.deviceId }],
+      status: "approved",
+    }).lean();
+  } catch (devErr) {
+    console.error("[SESSION_ERROR] Transient DB error checking device:", devErr?.message);
+    // On transient DB error, fail safe (do NOT kill active session)
+    approvedDevice = { deviceId: session.deviceId };
+  }
 
-      const approvedDevices = await Device.find({
-        studentId: user._id,
-        status: "approved",
-      });
-
-      if (approvedDevices.length === 0) {
-        // Auto-register current device as approved
-        const rawDeviceCookie = await getCookie(COOKIE_NAMES.DEVICE);
-        const deviceToken = rawDeviceCookie || crypto.randomUUID();
-        const devTokenHash = crypto
-          .createHash("sha256")
-          .update(deviceToken)
-          .digest("hex");
-        const newDeviceId = "dev_" + crypto.randomBytes(8).toString("hex");
-
-        await Device.create({
-          studentId: user._id,
-          userId: user._id,
-          deviceId: newDeviceId,
-          deviceKey: newDeviceId,
-          coarseKey: signals.coarseKey,
-          deviceType: signals.deviceType,
-          osFamily: signals.osFamily,
-          os: signals.osName,
-          osVersion: signals.osVersion,
-          browser: signals.browserName,
-          browserName: signals.browserName,
-          browserVersion: signals.browserVersion,
-          browsersSeen: [signals.browserName],
-          model: signals.model,
-          profile: profile || null,
-          aliases: [],
-          browserTokenHashes: [devTokenHash],
-          city: signals.city,
-          region: signals.region,
-          country: signals.country,
-          timezone: signals.timezone,
-          firstIp: signals.ip,
-          lastIp: signals.ip,
-          ip: signals.ip,
-          firstLoginAt: now,
-          lastUsedAt: now,
-          approvedAt: now,
-          decidedAt: now,
-          loginAttempts: 1,
-          deviceLabel: signals.label,
-          label: signals.label,
-          userAgent: signals.userAgent,
-          status: "approved",
-        });
-
-        await setCookie(
-          COOKIE_NAMES.DEVICE,
-          deviceToken,
-          COOKIE_DURATIONS.DEVICE
-        );
-
-        // Bind session to newDeviceId
-        session.deviceId = newDeviceId;
-        await Session.updateOne(
-          { _id: session._id },
-          { $set: { deviceId: newDeviceId } }
-        ).catch(() => {});
-      } else {
-        // MATCH check against approved devices
-        const rawDeviceCookie = await getCookie(COOKIE_NAMES.DEVICE);
-        const cookieTokenHash = rawDeviceCookie
-          ? crypto.createHash("sha256").update(rawDeviceCookie).digest("hex")
-          : null;
-
-        const matchResult = matchDevice({
-          signals,
-          profile,
-          cookieTokenHash,
-          approvedDevices,
-          deviceLockMode: "smart",
-        });
-
-        if (matchResult.matched && matchResult.device) {
-          session.deviceId = matchResult.device.deviceId;
-          await Session.updateOne(
-            { _id: session._id },
-            { $set: { deviceId: matchResult.device.deviceId } }
-          ).catch(() => {});
-        } else {
-          // Unmatched legacy session -> end session
-          await Session.updateOne(
-            { _id: session._id },
-            { $set: { revoked: true, revokedReason: "device_pending" } }
-          ).catch(() => {});
-          await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
-          await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
-          return null;
-        }
-      }
-    } catch (adoptErr) {
-      console.warn("[SESSION_ADOPTION_ERROR]", adoptErr?.message);
-    }
+  if (!approvedDevice) {
+    // Device was explicitly revoked or replaced by admin
+    await Session.updateOne(
+      { _id: session._id },
+      { $set: { revoked: true, revokedReason: "device_removed" } }
+    ).catch(() => {});
+    await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
+    await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    return null;
   }
 
   // Update lastSeenAt throttled to once per 5 minutes; sliding renewal extends expiresAt

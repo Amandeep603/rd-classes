@@ -9,13 +9,17 @@ export const COOKIE_NAMES = {
   SESSION: "rd_student_session",
   LEGACY_SESSION: "rd_session",
   DEVICE: "rd_device",
+  BACKUP: "rd_backup",
+  BACKUP_SYNC: "rd_backup_sync",
+  PENDING: "rd_pending",
   HINTS: "rd_hints",
 };
 
 export const COOKIE_DURATIONS = {
   SESSION: 30 * 24 * 60 * 60, // 30 days sliding safety cap
   ADMIN_SESSION: 7 * 24 * 60 * 60, // 7 days
-  DEVICE: 365 * 24 * 60 * 60, // 1 year
+  DEVICE: 400 * 24 * 60 * 60, // 400 days
+  PENDING: 30 * 24 * 60 * 60, // 30 days
 };
 
 export async function getCookie(name) {

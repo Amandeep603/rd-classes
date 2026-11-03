@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import crypto from "crypto";
+import { execSync } from "child_process";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
@@ -25,7 +26,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("next/server", () => ({
-  connection: async () => { },
+  connection: async () => {},
   NextResponse: {
     json: (data, init) => ({ data, status: init?.status || 200 }),
   },
@@ -40,11 +41,10 @@ let mongod = null;
 let assertTestDatabase;
 let User, Device, DeviceRequest, Session, Setting, ActivityLog;
 let studentLogin, hashPassword, comparePassword;
-let parseServerSignals, parseClientHints, computeProfile, matchDevice, computeDedupeKey;
-let approveDeviceRequest, rejectDeviceRequest, reconsiderDeviceRequest, removeDevice;
+let approveDeviceRequest, rejectDeviceRequest, removeDevice;
 let getCurrentStudent;
 
-function setMockContext({ userAgent, ip, hints, deviceCookie, city, country, region, timezone }) {
+function setMockContext({ userAgent, ip, hints, deviceCookie, pendingCookie, city, country, region, timezone } = {}) {
   currentHeaders.clear();
   currentCookies.clear();
 
@@ -61,14 +61,17 @@ function setMockContext({ userAgent, ip, hints, deviceCookie, city, country, reg
   if (deviceCookie) {
     currentCookies.set("rd_device", deviceCookie);
   }
+  if (pendingCookie) {
+    currentCookies.set("rd_pending", pendingCookie);
+  }
 }
 
-describe("Step 7: Comprehensive Device & Auth Test Matrix", () => {
+describe("Strict Token-Only Device Auth Test Matrix (16 Cases)", () => {
   beforeAll(async () => {
     process.env.AUTH_SECRET = "super_secure_auth_secret_for_testing_purposes_123456789";
     process.env.NODE_ENV = "test";
 
-    // 1. Setup MongoMemoryServer with guarded test db name
+    // Setup MongoMemoryServer with guarded test db name
     mongod = await MongoMemoryServer.create();
     const testUri = mongod.getUri() + "rdclasses_test_matrix";
     process.env.MONGODB_URI = testUri;
@@ -99,17 +102,9 @@ describe("Step 7: Comprehensive Device & Auth Test Matrix", () => {
     hashPassword = pwMod.hashPassword;
     comparePassword = pwMod.comparePassword;
 
-    const identityMod = await import("../src/server/auth/deviceIdentity.js");
-    parseServerSignals = identityMod.parseServerSignals;
-    parseClientHints = identityMod.parseClientHints;
-    computeProfile = identityMod.computeProfile;
-    matchDevice = identityMod.matchDevice;
-    computeDedupeKey = identityMod.computeDedupeKey;
-
     const devSvc = await import("../src/server/auth/deviceService.js");
     approveDeviceRequest = devSvc.approveDeviceRequest;
     rejectDeviceRequest = devSvc.rejectDeviceRequest;
-    reconsiderDeviceRequest = devSvc.reconsiderDeviceRequest;
     removeDevice = devSvc.removeDevice;
 
     const sessSvc = await import("../src/server/auth/session.js");
@@ -130,460 +125,562 @@ describe("Step 7: Comprehensive Device & Auth Test Matrix", () => {
     await Session.deleteMany({});
   });
 
-  // TEST 1: Existing credentials log in without password changes
-  it("1. Verifies existing credentials created by old/new path log in and passwords are unchanged", async () => {
-    const rawPassword = "StudentSecret@123";
-    const passwordHash = await hashPassword(rawPassword);
-
-    const oldStudent = await User.create({
-      name: "TEST_Aman Old",
-      loginId: "RD-2026-001",
-      email: "test.aman@example.com",
-      phone: "9876543210",
-      role: "student",
-      status: "active",
-      passwordHash,
-      batch: "class-12",
-      enrollments: [{ courseId: new mongoose.Types.ObjectId(), status: "active" }],
-      emailStatus: "sent",
-    });
-
-    const initialHash = oldStudent.passwordHash;
-
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-      ip: "103.21.244.1",
-      city: "Faridabad",
-      country: "IN",
-      region: "HR",
-      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
-    });
-
-    const res = await studentLogin({ loginId: "RD-2026-001", password: rawPassword });
-    expect(res.success).toBe(true);
-
-    const reloaded = await User.findById(oldStudent._id);
-    expect(reloaded.passwordHash).toBe(initialHash);
-    expect(await comparePassword(rawPassword, reloaded.passwordHash)).toBe(true);
-  });
-
-  // TEST 2: First login registers device with all fields AND location/screen/model
-  it("2. Registers first device with complete hardware, IP, location, and screen metrics", async () => {
+  // TEST 1: First login auto-approves and sets rd_device
+  it("1. First login auto-approves and sets rd_device cookie and creates session", async () => {
     const passwordHash = await hashPassword("TestPass@2026");
     const student = await User.create({
-      name: "TEST_First Device Student",
-      loginId: "RD-2026-002",
+      name: "Student One",
+      loginId: "RD-2026-101",
       role: "student",
       status: "active",
       passwordHash,
     });
 
     setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
-      ip: "49.36.120.55",
-      city: "New Delhi",
-      country: "IN",
-      region: "DL",
-      timezone: "Asia/Kolkata",
-      hints: { v: 1, sw: 1536, sh: 864, dpr: 1.25, tp: 0, pf: "Win32", md: "" },
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "103.21.244.1",
+      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
     });
 
-    const res = await studentLogin({ loginId: "RD-2026-002", password: "TestPass@2026" });
+    const res = await studentLogin({ loginId: "RD-2026-101", password: "TestPass@2026" });
     expect(res.success).toBe(true);
 
+    const deviceToken = currentCookies.get("rd_device");
+    expect(deviceToken).toBeDefined();
+
+    const tokenHash = crypto.createHash("sha256").update(deviceToken).digest("hex");
     const devices = await Device.find({ studentId: student._id });
     expect(devices.length).toBe(1);
-    const d = devices[0];
-
-    expect(d.status).toBe("approved");
-    expect(d.osFamily).toBe("Windows");
-    expect(d.browserName).toBe("Chrome");
-    expect(d.deviceType).toBe("desktop");
-    expect(d.firstIp).toBe("49.36.120.55");
-    expect(d.lastIp).toBe("49.36.120.55");
-    expect(d.city).toBe("New Delhi");
-    expect(d.country).toBe("IN");
-    expect(d.timezone).toBe("Asia/Kolkata");
-    expect(d.profile).toBeDefined();
-    expect(d.profile.screenMajor).toBe(Math.round(1536 * 1.25));
-    expect(d.profile.screenMinor).toBe(Math.round(864 * 1.25));
-    expect(d.browsersSeen).toContain("Chrome");
-    expect(d.browserTokenHashes.length).toBeGreaterThan(0);
+    expect(devices[0].status).toBe("approved");
+    expect(devices[0].browserTokenHashes).toContain(tokenHash);
 
     const session = await Session.findOne({ userId: student._id });
     expect(session).toBeDefined();
-    expect(session.deviceId).toBe(d.deviceId);
+    expect(session.deviceId).toBe(devices[0].deviceId);
   });
 
-  // TEST 3: Same laptop in Chrome -> Edge -> Firefox from different IPs all MATCH
-  it("3. Same Windows laptop in Chrome, Edge, and Firefox from different IPs all MATCH (browsersSeen lists all 3)", async () => {
-    const passwordHash = await hashPassword("MultiBrowser@2026");
+  // TEST 2: Same browser, different IP / WiFi / mobile data => login ok
+  it("2. Same browser, different IP / WiFi / mobile data => login ok and rotates token with grace", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
     const student = await User.create({
-      name: "TEST_Multi Browser Student",
-      loginId: "RD-2026-003",
+      name: "Student Two",
+      loginId: "RD-2026-102",
       role: "student",
       status: "active",
       passwordHash,
     });
 
-    const hints = { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" };
-
-    // 1. Chrome login from IP 1.1.1.1
+    // 1. Initial login on WiFi
     setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-      ip: "1.1.1.1",
-      hints,
-    });
-    const res1 = await studentLogin({ loginId: "RD-2026-003", password: "MultiBrowser@2026" });
-    expect(res1.success).toBe(true);
-
-    // 2. Edge login from IP 2.2.2.2 (no cookie carried)
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/120.0.0.0",
-      ip: "2.2.2.2",
-      hints,
-    });
-    const res2 = await studentLogin({ loginId: "RD-2026-003", password: "MultiBrowser@2026" });
-    expect(res2.success).toBe(true);
-
-    // 3. Firefox login from IP 3.3.3.3 (no cookie carried)
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-      ip: "3.3.3.3",
-      hints,
-    });
-    const res3 = await studentLogin({ loginId: "RD-2026-003", password: "MultiBrowser@2026" });
-    expect(res3.success).toBe(true);
-
-    // Verify exactly 1 approved device and NO device requests
-    const devices = await Device.find({ studentId: student._id });
-    expect(devices.length).toBe(1);
-    const requests = await DeviceRequest.find({ studentId: student._id });
-    expect(requests.length).toBe(0);
-
-    const dev = devices[0];
-    expect(dev.browsersSeen).toContain("Chrome");
-    expect(dev.browsersSeen).toContain("Edge");
-    expect(dev.browsersSeen).toContain("Firefox");
-    expect(dev.lastIp).toBe("3.3.3.3");
-  });
-
-  // TEST 4: Different devices get pending message and deduplicated request with difference flags
-  it("4. Different devices get pending message and deduplicated requests with flags after repeated attempts", async () => {
-    const passwordHash = await hashPassword("SecondDevice@2026");
-    const student = await User.create({
-      name: "TEST_Device Lock Student",
-      loginId: "RD-2026-004",
-      role: "student",
-      status: "active",
-      passwordHash,
-    });
-
-    // Register Windows laptop first
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "103.1.1.1",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "103.21.244.1",
       hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
     });
-    await studentLogin({ loginId: "RD-2026-004", password: "SecondDevice@2026" });
+    const res1 = await studentLogin({ loginId: "RD-2026-102", password: "TestPass@2026" });
+    expect(res1.success).toBe(true);
+    const token1 = currentCookies.get("rd_device");
 
-    // Attempt from Android Phone (Pixel 8) 5 times
-    const androidUA = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36";
-    const androidHints = { v: 1, sw: 412, sh: 915, dpr: 2.625, tp: 5, pf: "Linux armv8l", md: "Pixel 8" };
+    // 2. Next login from Mobile Data IP with same browser token
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "49.36.120.99",
+      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
+      deviceCookie: token1,
+    });
+    const res2 = await studentLogin({ loginId: "RD-2026-102", password: "TestPass@2026" });
+    expect(res2.success).toBe(true);
 
-    for (let i = 1; i <= 5; i++) {
-      setMockContext({
-        userAgent: androidUA,
-        ip: `103.2.2.${i}`,
-        hints: androidHints,
-      });
-      const res = await studentLogin({ loginId: "RD-2026-004", password: "SecondDevice@2026" });
-      expect(res.success).toBe(false);
-      expect(res.pendingApproval).toBe(true);
-      expect(res.error).toContain("This account is registered on another device");
-    }
+    const dev = await Device.findOne({ studentId: student._id });
+    expect(dev.lastIp).toBe("49.36.120.99");
+    const token2 = currentCookies.get("rd_device");
+    expect(token2).toBeDefined();
+    expect(token2).not.toBe(token1);
 
-    // Verify deduplication: exactly 1 DeviceRequest with attemptCount = 5
+    const hash1 = crypto.createHash("sha256").update(token1).digest("hex");
+    expect(dev.graceTokenHashes.some((g) => g.hash === hash1)).toBe(true);
+  });
+
+  // TEST 3: SECOND LAPTOP with identical specs, same IP, correct password, no token => BLOCKED
+  it("3. Second laptop with identical specs, same IP, correct password, no token => BLOCKED with exact Hindi-English message", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Three",
+      loginId: "RD-2026-103",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    const laptopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36";
+    const laptopHints = { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" };
+    const sharedIp = "103.21.244.50";
+
+    // 1. Laptop 1 logs in and auto-registers
+    setMockContext({ userAgent: laptopUA, ip: sharedIp, hints: laptopHints });
+    const res1 = await studentLogin({ loginId: "RD-2026-103", password: "TestPass@2026" });
+    expect(res1.success).toBe(true);
+
+    // 2. Laptop 2 with IDENTICAL hardware and same IP, but no cookie
+    setMockContext({ userAgent: laptopUA, ip: sharedIp, hints: laptopHints, deviceCookie: null });
+    const res2 = await studentLogin({ loginId: "RD-2026-103", password: "TestPass@2026" });
+    expect(res2.success).toBe(false);
+    expect(res2.pendingApproval).toBe(true);
+    expect(res2.message).toBe("Ye naya device hai. Request admin ko bhej di gayi hai. Approval ke baad dobara login karein.");
+
+    // Exactly 1 pending request created
     const reqs = await DeviceRequest.find({ studentId: student._id });
     expect(reqs.length).toBe(1);
-    const r = reqs[0];
-    expect(r.attemptCount).toBe(5);
-    expect(r.status).toBe("pending");
-    expect(r.deviceType).toBe("mobile");
-    expect(r.osFamily).toBe("Android");
-    expect(r.flags.length).toBeGreaterThan(0);
-    expect(r.flags.some((f) => f.includes("OS family differs"))).toBe(true);
+    expect(reqs[0].status).toBe("pending");
+
+    // rd_pending cookie is set
+    expect(currentCookies.get("rd_pending")).toBeDefined();
+
+    // No second session created
+    const sessions = await Session.find({ userId: student._id });
+    expect(sessions.length).toBe(1);
   });
 
-  // TEST 5: Admin actions: Approve additional, Replace, Reject, Reconsider, Revoke, Alias
-  it("5. Admin actions: Approve as additional, Replace old device, Reject, Reconsider, Revoke, Alias", async () => {
-    const passwordHash = await hashPassword("AdminActions@2026");
+  // TEST 4: Same as 3 but identical phone model (iPhone 13) => BLOCKED
+  it("4. Second identical phone model (iPhone 13) with no token => BLOCKED", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
     const student = await User.create({
-      name: "TEST_Admin Actions Student",
-      loginId: "RD-2026-005",
+      name: "Student Four",
+      loginId: "RD-2026-104",
       role: "student",
       status: "active",
       passwordHash,
-      maxDevices: 1,
     });
 
-    // 1. Initial Device 1 (Windows laptop)
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "10.0.0.1",
-      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
-    });
-    await studentLogin({ loginId: "RD-2026-005", password: "AdminActions@2026" });
-    const [initialDev] = await Device.find({ studentId: student._id });
-    expect(initialDev).toBeDefined();
-
-    // 2. Pending Request for iPhone
-    const iphoneUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148";
+    const iphoneUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
     const iphoneHints = { v: 1, sw: 390, sh: 844, dpr: 3, tp: 5, pf: "iPhone", md: "" };
-    setMockContext({ userAgent: iphoneUA, ip: "10.0.0.2", hints: iphoneHints });
-    await studentLogin({ loginId: "RD-2026-005", password: "AdminActions@2026" });
+    const sharedIp = "103.21.244.60";
 
-    const [req1] = await DeviceRequest.find({ studentId: student._id, status: "pending" });
-    expect(req1).toBeDefined();
-
-    // 2a. Approve as additional device
-    const approveRes = await approveDeviceRequest(req1._id, { mode: "additional" }, null, "TestAdmin");
-    expect(approveRes.success).toBe(true);
-
-    const approvedDevices = await Device.find({ studentId: student._id, status: "approved" });
-    expect(approvedDevices.length).toBe(2);
-
-    // Both devices can log in now
-    setMockContext({ userAgent: iphoneUA, ip: "10.0.0.2", hints: iphoneHints });
-    const iphoneLogin = await studentLogin({ loginId: "RD-2026-005", password: "AdminActions@2026" });
-    expect(iphoneLogin.success).toBe(true);
-
-    // 2b. Revoke device
-    const iphoneDev = approvedDevices.find((d) => d.deviceType === "mobile");
-    await removeDevice(student._id, iphoneDev.deviceId, null, "TestAdmin");
-
-    const reloadedIphoneDev = await Device.findOne({ deviceId: iphoneDev.deviceId });
-    expect(reloadedIphoneDev.status).toBe("revoked");
-
-    // 2c. New device request for MacBook
-    const macUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
-    const macHints = { v: 1, sw: 1440, sh: 900, dpr: 2, tp: 0, pf: "MacIntel", md: "" };
-    setMockContext({ userAgent: macUA, ip: "10.0.0.3", hints: macHints });
-    await studentLogin({ loginId: "RD-2026-005", password: "AdminActions@2026" });
-
-    const [macReq] = await DeviceRequest.find({ studentId: student._id, status: "pending" });
-
-    // 2d. Reject
-    await rejectDeviceRequest(macReq._id, "Unverified device", null, "TestAdmin");
-    const rejectedReq = await DeviceRequest.findById(macReq._id);
-    expect(rejectedReq.status).toBe("rejected");
-
-    // Rejected device gets declined message
-    setMockContext({ userAgent: macUA, ip: "10.0.0.3", hints: macHints });
-    const declRes = await studentLogin({ loginId: "RD-2026-005", password: "AdminActions@2026" });
-    expect(declRes.success).toBe(false);
-    expect(declRes.error).toContain("declined");
-
-    // 2e. Reconsider
-    await reconsiderDeviceRequest(macReq._id, null, "TestAdmin");
-    const reconsideredReq = await DeviceRequest.findById(macReq._id);
-    expect(reconsideredReq.status).toBe("pending");
-
-    // 2f. Approve as same_device (alias) to initialDev
-    await approveDeviceRequest(macReq._id, { mode: "same_device", targetDeviceId: initialDev.deviceId }, null, "TestAdmin");
-    const devWithAlias = await Device.findOne({ deviceId: initialDev.deviceId });
-    expect(devWithAlias.aliases.length).toBeGreaterThan(0);
-
-    // Next login from MacBook profile matches alias
-    setMockContext({ userAgent: macUA, ip: "10.0.0.3", hints: macHints });
-    const aliasLogin = await studentLogin({ loginId: "RD-2026-005", password: "AdminActions@2026" });
-    expect(aliasLogin.success).toBe(true);
-  });
-
-  // TEST 6: Screen resize continuity via cookie, legacy device profile learning, hints_missing fail open
-  it("6. Continuity via rd_device cookie, legacy profile learning, and fail-open on missing hints", async () => {
-    const passwordHash = await hashPassword("Continuity@2026");
-    const student = await User.create({
-      name: "TEST_Continuity Student",
-      loginId: "RD-2026-006",
-      role: "student",
-      status: "active",
-      passwordHash,
-    });
-
-    // 1. Initial Login with random cookie
-    const deviceToken = "rd_test_token_" + crypto.randomBytes(16).toString("hex");
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "10.1.1.1",
-      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
-      deviceCookie: deviceToken,
-    });
-    const res1 = await studentLogin({ loginId: "RD-2026-006", password: "Continuity@2026" });
+    // iPhone 1 logs in
+    setMockContext({ userAgent: iphoneUA, ip: sharedIp, hints: iphoneHints });
+    const res1 = await studentLogin({ loginId: "RD-2026-104", password: "TestPass@2026" });
     expect(res1.success).toBe(true);
 
-    // 2. Screen size changes completely (e.g. plugged into external monitor) but same browser cookie
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "10.1.1.2",
-      hints: { v: 1, sw: 3840, sh: 2160, dpr: 1.5, tp: 0, pf: "Win32", md: "" },
-      deviceCookie: deviceToken,
-    });
-    const res2 = await studentLogin({ loginId: "RD-2026-006", password: "Continuity@2026" });
-    expect(res2.success).toBe(true);
-
-    // 3. Login without hints fails open (MATCHes existing device with hints_missing log)
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "10.1.1.3",
-      hints: null, // No hints cookie
-      deviceCookie: null,
-    });
-    const res3 = await studentLogin({ loginId: "RD-2026-006", password: "Continuity@2026" });
-    expect(res3.success).toBe(true);
+    // iPhone 2 with identical UA and screen, no token
+    setMockContext({ userAgent: iphoneUA, ip: sharedIp, hints: iphoneHints, deviceCookie: null });
+    const res2 = await studentLogin({ loginId: "RD-2026-104", password: "TestPass@2026" });
+    expect(res2.success).toBe(false);
+    expect(res2.pendingApproval).toBe(true);
+    expect(res2.message).toBe("Ye naya device hai. Request admin ko bhej di gayi hai. Approval ke baad dobara login karein.");
   });
 
-  // TEST 7: iPad vs Mac classification
-  it("7. Classifies Macintosh UA with tp > 1 as iPad and Macintosh UA without touch as MacBook", () => {
-    const macUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
-
-    // iPad: Macintosh UA + touch points > 1
-    const ipadHints = { v: 1, sw: 1024, sh: 1366, dpr: 2, tp: 5, pf: "MacIntel", md: "" };
-    const ipadSignals = parseServerSignals(macUA, new Map(), ipadHints);
-    expect(ipadSignals.deviceType).toBe("tablet");
-    expect(ipadSignals.osFamily).toBe("iPadOS");
-    expect(ipadSignals.label).toContain("iPad");
-
-    // MacBook: Macintosh UA + touch points = 0
-    const macbookHints = { v: 1, sw: 1440, sh: 900, dpr: 2, tp: 0, pf: "MacIntel", md: "" };
-    const macbookSignals = parseServerSignals(macUA, new Map(), macbookHints);
-    expect(macbookSignals.deviceType).toBe("desktop");
-    expect(macbookSignals.osFamily).toBe("macOS");
-    expect(macbookSignals.label).toContain("MacBook");
-  });
-
-  // TEST 8: Session validity & DB error resilience
-  it("8. Validates session and ensures transient DB errors fail safe without logging student out", async () => {
-    const passwordHash = await hashPassword("SessionTest@2026");
+  // TEST 5: Same as 3 with missing/empty client hints => BLOCKED (no fail open)
+  it("5. Second device with missing/empty client hints => BLOCKED (no fail open)", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
     const student = await User.create({
-      name: "TEST_Session Student",
-      loginId: "RD-2026-008",
+      name: "Student Five",
+      loginId: "RD-2026-105",
       role: "student",
       status: "active",
       passwordHash,
     });
 
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "127.0.0.1",
-      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
-    });
-    const loginRes = await studentLogin({ loginId: "RD-2026-008", password: "SessionTest@2026" });
-    expect(loginRes.success).toBe(true);
+    const laptopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36";
 
-    const sessionCookie = currentCookies.get("rd_student_session");
-    expect(sessionCookie).toBeDefined();
+    // Device 1 registers
+    setMockContext({ userAgent: laptopUA, ip: "103.21.244.70", hints: { v: 1, sw: 1920, sh: 1080, dpr: 1 } });
+    await studentLogin({ loginId: "RD-2026-105", password: "TestPass@2026" });
 
-    // Verify session lookup
-    const studentSession = await getCurrentStudent();
-    expect(studentSession).toBeDefined();
-    expect(studentSession.loginId).toBe("RD-2026-008");
+    // Device 2 arrives with NO hints cookie and NO device cookie
+    setMockContext({ userAgent: laptopUA, ip: "103.21.244.70", hints: null, deviceCookie: null });
+    const res = await studentLogin({ loginId: "RD-2026-105", password: "TestPass@2026" });
+    expect(res.success).toBe(false);
+    expect(res.pendingApproval).toBe(true);
+    expect(res.message).toBe("Ye naya device hai. Request admin ko bhej di gayi hai. Approval ke baad dobara login karein.");
   });
 
-  // TEST 9: Reset devices maintenance tool
-  it("9. Reset devices archives collections, leaves passwords/enrollments byte-identical, and unbinds sessions for adoption", async () => {
-    const passwordHash = await hashPassword("ResetDevice@2026");
-    const courseId = new mongoose.Types.ObjectId();
+  // TEST 6: 5 repeated attempts => still one pending request, attemptCount = 5
+  it("6. 5 repeated attempts from unapproved browser => still 1 pending request, attemptCount = 5", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
     const student = await User.create({
-      name: "TEST_Reset Student",
-      loginId: "RD-2026-009",
+      name: "Student Six",
+      loginId: "RD-2026-106",
       role: "student",
       status: "active",
       passwordHash,
-      enrollments: [{ courseId, status: "active" }],
-      emailStatus: "sent",
     });
 
-    // Student logs in and registers device
-    setMockContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-      ip: "10.10.10.10",
-      hints: { v: 1, sw: 1920, sh: 1080, dpr: 1, tp: 0, pf: "Win32", md: "" },
-    });
-    await studentLogin({ loginId: "RD-2026-009", password: "ResetDevice@2026" });
+    // 1. Initial Device registers
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "1.1.1.1" });
+    await studentLogin({ loginId: "RD-2026-106", password: "TestPass@2026" });
 
-    const beforeUser = await User.findById(student._id).lean();
+    // 2. First attempt from unapproved browser
+    setMockContext({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0.0.0", ip: "2.2.2.1" });
+    const res1 = await studentLogin({ loginId: "RD-2026-106", password: "TestPass@2026" });
+    const pendingCookie = currentCookies.get("rd_pending");
+    expect(pendingCookie).toBeDefined();
 
-    // Perform maintenance reset
-    const dateStr = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
-    const archiveDevicesName = `devices_archive_${dateStr}`;
-    const archiveRequestsName = `device_requests_archive_${dateStr}`;
-
-    const devices = await Device.find({}).lean();
-    if (devices.length > 0) {
-      await mongoose.connection.collection(archiveDevicesName).insertMany(devices);
+    // 3. Repeated attempts 2..5 with the rd_pending cookie
+    for (let i = 2; i <= 5; i++) {
+      setMockContext({
+        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0.0.0",
+        ip: `2.2.2.${i}`,
+        pendingCookie,
+      });
+      await studentLogin({ loginId: "RD-2026-106", password: "TestPass@2026" });
     }
-    await Device.deleteMany({});
-    await DeviceRequest.deleteMany({});
-    await Session.updateMany({}, { $set: { deviceId: "" } });
 
-    // Verify Archive exists and has records
-    const archivedCount = await mongoose.connection.collection(archiveDevicesName).countDocuments();
-    expect(archivedCount).toBe(devices.length);
+    const reqs = await DeviceRequest.find({ studentId: student._id });
+    expect(reqs.length).toBe(1);
+    expect(reqs[0].attemptCount).toBe(5);
+  });
 
-    // Verify User credentials & enrollments are 100% byte-identical
-    const afterUser = await User.findById(student._id).lean();
-    expect(afterUser.passwordHash).toBe(beforeUser.passwordHash);
-    expect(afterUser.emailStatus).toBe(beforeUser.emailStatus);
-    expect(JSON.stringify(afterUser.enrollments)).toBe(JSON.stringify(beforeUser.enrollments));
+  // TEST 7: Admin approves additional => pending browser (with rd_pending) logs in; different browser => BLOCKED
+  it("7. Admin approves additional => pending browser with rd_pending logs in; 3rd browser still BLOCKED", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Seven",
+      loginId: "RD-2026-107",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
 
-    // Verify Active session was NOT destroyed, only deviceId unbound
-    const session = await Session.findOne({ userId: student._id });
-    expect(session).toBeDefined();
-    expect(session.deviceId).toBe("");
-    expect(session.revoked).toBe(false);
+    const laptopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0";
 
-    // Adoption rule: next request re-registers current device
-    const studentSession = await getCurrentStudent();
-    expect(studentSession).toBeDefined();
+    // 1. Laptop 1 registers
+    setMockContext({ userAgent: laptopUA, ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-107", password: "TestPass@2026" });
 
-    const adoptedDevices = await Device.find({ studentId: student._id });
-    expect(adoptedDevices.length).toBe(1);
-    expect(adoptedDevices[0].status).toBe("approved");
+    // 2. Laptop 2 requests login -> blocked & pending
+    setMockContext({ userAgent: laptopUA, ip: "10.0.0.2" });
+    await studentLogin({ loginId: "RD-2026-107", password: "TestPass@2026" });
+    const pendingCookie = currentCookies.get("rd_pending");
+
+    const req = await DeviceRequest.findOne({ studentId: student._id, status: "pending" });
+    expect(req).toBeDefined();
+
+    // 3. Admin approves as additional
+    const approveRes = await approveDeviceRequest(req._id, { mode: "additional" }, null, "TestAdmin");
+    expect(approveRes.success).toBe(true);
+
+    // 4. Laptop 2 with rd_pending logs in -> SUCCESS
+    setMockContext({ userAgent: laptopUA, ip: "10.0.0.2", pendingCookie });
+    const resApproved = await studentLogin({ loginId: "RD-2026-107", password: "TestPass@2026" });
+    expect(resApproved.success).toBe(true);
+    const laptop2Token = currentCookies.get("rd_device");
+    expect(laptop2Token).toBeDefined();
+
+    // 5. Laptop 3 (identical specs, same IP, but NO token and NO rd_pending) -> BLOCKED
+    setMockContext({ userAgent: laptopUA, ip: "10.0.0.2", deviceCookie: null, pendingCookie: null });
+    const resBlocked = await studentLogin({ loginId: "RD-2026-107", password: "TestPass@2026" });
+    expect(resBlocked.success).toBe(false);
+    expect(resBlocked.pendingApproval).toBe(true);
+  });
+
+  // TEST 8: Admin approves as alias => login ok, device slot count unchanged
+  it("8. Admin approves as alias => login ok, approved device slot count unchanged", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Eight",
+      loginId: "RD-2026-108",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    // 1. Chrome on Windows registers
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-108", password: "TestPass@2026" });
+    const [dev1] = await Device.find({ studentId: student._id });
+
+    // 2. Firefox on same laptop requests login -> blocked
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0", ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-108", password: "TestPass@2026" });
+    const pendingCookie = currentCookies.get("rd_pending");
+    const req = await DeviceRequest.findOne({ studentId: student._id, status: "pending" });
+
+    // 3. Admin approves as same_device (alias) to dev1
+    await approveDeviceRequest(req._id, { mode: "same_device", targetDeviceId: dev1.deviceId }, null, "TestAdmin");
+
+    // Slot count is still 1
+    const approvedDevicesBefore = await Device.find({ studentId: student._id, status: "approved" });
+    expect(approvedDevicesBefore.length).toBe(1);
+
+    // 4. Firefox logs in with rd_pending
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+      ip: "10.0.0.1",
+      pendingCookie,
+    });
+    const ffLogin = await studentLogin({ loginId: "RD-2026-108", password: "TestPass@2026" });
+    expect(ffLogin.success).toBe(true);
+
+    // Slot count remains 1
+    const approvedDevicesAfter = await Device.find({ studentId: student._id, status: "approved" });
+    expect(approvedDevicesAfter.length).toBe(1);
+    expect(approvedDevicesAfter[0].browsersSeen).toContain("Firefox");
+  });
+
+  // TEST 9: Reject => blocked, rejection reason shown
+  it("9. Reject => blocked, rejection reason shown", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Nine",
+      loginId: "RD-2026-109",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    // 1. Initial device
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-109", password: "TestPass@2026" });
+
+    // 2. Unapproved device requests login
+    setMockContext({ userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S918B) Chrome/124.0.0.0", ip: "10.0.0.2" });
+    await studentLogin({ loginId: "RD-2026-109", password: "TestPass@2026" });
+    const pendingCookie = currentCookies.get("rd_pending");
+    const req = await DeviceRequest.findOne({ studentId: student._id, status: "pending" });
+
+    // 3. Admin rejects
+    await rejectDeviceRequest(req._id, "Declined by admin: unverified personal phone", null, "TestAdmin");
+
+    // 4. That phone attempts login again with rd_pending
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S918B) Chrome/124.0.0.0",
+      ip: "10.0.0.2",
+      pendingCookie,
+    });
+    const res = await studentLogin({ loginId: "RD-2026-109", password: "TestPass@2026" });
+    expect(res.success).toBe(false);
+    expect(res.isRejected).toBe(true);
+    expect(res.error).toContain("Declined by admin: unverified personal phone");
+  });
+
+  // TEST 10: Approved device cookie cleared => pending (strict behavior)
+  it("10. Approved device cookie cleared => pending approval (strict behavior)", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Ten",
+      loginId: "RD-2026-110",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    const laptopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0";
+    setMockContext({ userAgent: laptopUA, ip: "10.0.0.1", hints: { v: 1, sw: 1920, sh: 1080, dpr: 1 } });
+    await studentLogin({ loginId: "RD-2026-110", password: "TestPass@2026" });
+
+    // User clears browser cookies (no rd_device)
+    setMockContext({ userAgent: laptopUA, ip: "10.0.0.1", hints: { v: 1, sw: 1920, sh: 1080, dpr: 1 }, deviceCookie: null });
+    const res = await studentLogin({ loginId: "RD-2026-110", password: "TestPass@2026" });
+    expect(res.success).toBe(false);
+    expect(res.pendingApproval).toBe(true);
+    expect(res.message).toBe("Ye naya device hai. Request admin ko bhej di gayi hai. Approval ke baad dobara login karein.");
+  });
+
+  // TEST 11: Token of student A used with student B's ID => BLOCKED
+  it("11. Token of student A used with student B's ID => BLOCKED", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const studentA = await User.create({
+      name: "Student Eleven A",
+      loginId: "RD-2026-111A",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+    const studentB = await User.create({
+      name: "Student Eleven B",
+      loginId: "RD-2026-111B",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    // Student A logs in and gets token
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-111A", password: "TestPass@2026" });
+    const tokenA = currentCookies.get("rd_device");
+
+    // Student B has their own approved device
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.2" });
+    await studentLogin({ loginId: "RD-2026-111B", password: "TestPass@2026" });
+
+    // Now someone uses tokenA while logging in as Student B
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "10.0.0.3",
+      deviceCookie: tokenA,
+    });
+    const res = await studentLogin({ loginId: "RD-2026-111B", password: "TestPass@2026" });
+    expect(res.success).toBe(false);
+    expect(res.pendingApproval).toBe(true);
+  });
+
+  // TEST 12: Revoked device => cannot login, existing sessions die
+  it("12. Revoked device => cannot login, existing sessions die", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Twelve",
+      loginId: "RD-2026-112",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.1" });
+    const res = await studentLogin({ loginId: "RD-2026-112", password: "TestPass@2026" });
+    expect(res.success).toBe(true);
+    const token = currentCookies.get("rd_device");
+    const sessionCookie = currentCookies.get("rd_student_session");
+
+    const dev = await Device.findOne({ studentId: student._id });
+
+    // Revoke device
+    await removeDevice(student._id, dev.deviceId, null, "TestAdmin");
+
+    // Try to login with revoked device token
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "10.0.0.1",
+      deviceCookie: token,
+    });
+    const loginAttempt = await studentLogin({ loginId: "RD-2026-112", password: "TestPass@2026" });
+    expect(loginAttempt.success).toBe(false);
+    expect(loginAttempt.pendingApproval).toBe(true);
+
+    // Existing session verification dies
+    currentCookies.set("rd_student_session", sessionCookie);
+    const sessionUser = await getCurrentStudent();
+    expect(sessionUser).toBeNull();
+  });
+
+  // TEST 13: Rotated old token works only within 10 minutes (grace)
+  it("13. Rotated old token works only within 10 minutes (grace)", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Thirteen",
+      loginId: "RD-2026-113",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    // 1. Initial Login gives Token 1
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-113", password: "TestPass@2026" });
+    const token1 = currentCookies.get("rd_device");
+
+    // 2. Second login rotates to Token 2, placing Token 1 into grace hashes
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "10.0.0.1",
+      deviceCookie: token1,
+    });
+    await studentLogin({ loginId: "RD-2026-113", password: "TestPass@2026" });
+    const token2 = currentCookies.get("rd_device");
+    expect(token2).not.toBe(token1);
+
+    // 3. Tab with Token 1 authenticates immediately (within 10m grace) -> SUCCESS
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "10.0.0.1",
+      deviceCookie: token1,
+    });
+    const graceLogin = await studentLogin({ loginId: "RD-2026-113", password: "TestPass@2026" });
+    expect(graceLogin.success).toBe(true);
+
+    // 4. Simulate grace expiry (expire all grace tokens in DB)
+    await Device.updateOne(
+      { studentId: student._id },
+      { $set: { "graceTokenHashes.$[].expiresAt": new Date(Date.now() - 1000) } }
+    );
+
+    // Tab with Token 1 after expiry -> BLOCKED
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "10.0.0.1",
+      deviceCookie: token1,
+    });
+    const expiredLogin = await studentLogin({ loginId: "RD-2026-113", password: "TestPass@2026" });
+    expect(expiredLogin.success).toBe(false);
+    expect(expiredLogin.pendingApproval).toBe(true);
+  });
+
+  // TEST 14: Session without valid approved device binding is rejected (no adoption)
+  it("14. Session without valid approved device binding is rejected (no adoption)", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Fourteen",
+      loginId: "RD-2026-114",
+      role: "student",
+      status: "active",
+      passwordHash,
+    });
+
+    // Create session without deviceId
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const session = await Session.create({
+      token: tokenHash,
+      tokenHash,
+      userId: student._id,
+      loginId: student.loginId,
+      role: "student",
+      deviceId: "", // unbound session
+      expiresAt: new Date(Date.now() + 86400000),
+      createdAt: new Date(),
+      lastActiveAt: new Date(),
+    });
+
+    currentCookies.set("rd_student_session", rawToken);
+    const sessionUser = await getCurrentStudent();
+    expect(sessionUser).toBeNull();
 
     const reloadedSession = await Session.findById(session._id);
-    expect(reloadedSession.deviceId).toBe(adoptedDevices[0].deviceId);
+    expect(reloadedSession.revoked).toBe(true);
+    expect(["missing_device_binding", "device_unbound"]).toContain(reloadedSession.revokedReason);
   });
 
-  // TEST 10: Deduplication key & Profile tolerance matching
-  it("10. Matches screen within 3% tolerance and enforces orientation-invariance", () => {
-    // 1920x1080 profile: screenMajor = 1920, screenMinor = 1080
-    const profile = { screenMajor: 1920, screenMinor: 1080, model: "" };
-    const approvedDevice = {
-      coarseKey: "mock_key",
-      profile,
-      aliases: [],
-      browserTokenHashes: [],
-    };
-
-    // Candidate 1: Minor 1.5% resize (1895x1065) -> within 3% tolerance -> MATCH
-    const res1 = matchDevice({
-      signals: { coarseKey: "mock_key", browserName: "Chrome" },
-      profile: { screenMajor: 1895, screenMinor: 1065, model: "" },
-      cookieTokenHash: null,
-      approvedDevices: [approvedDevice],
-      deviceLockMode: "smart",
+  // TEST 15: New tab in same browser => still logged in; new login does not revoke other sessions
+  it("15. New tab in same browser remains logged in and new login does not revoke other sessions", async () => {
+    const passwordHash = await hashPassword("TestPass@2026");
+    const student = await User.create({
+      name: "Student Fifteen",
+      loginId: "RD-2026-115",
+      role: "student",
+      status: "active",
+      passwordHash,
     });
-    expect(res1.matched).toBe(true);
 
-    // Candidate 2: Different screen (2560x1440) -> > 3% -> NO MATCH
-    const res2 = matchDevice({
-      signals: { coarseKey: "mock_key", browserName: "Chrome" },
-      profile: { screenMajor: 2560, screenMinor: 1440, model: "" },
-      cookieTokenHash: null,
-      approvedDevices: [approvedDevice],
-      deviceLockMode: "smart",
+    // Login 1
+    setMockContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0", ip: "10.0.0.1" });
+    await studentLogin({ loginId: "RD-2026-115", password: "TestPass@2026" });
+    const deviceToken = currentCookies.get("rd_device");
+
+    // Login 2 from another tab with same device token
+    setMockContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+      ip: "10.0.0.1",
+      deviceCookie: deviceToken,
     });
-    expect(res2.matched).toBe(false);
+    await studentLogin({ loginId: "RD-2026-115", password: "TestPass@2026" });
+
+    // Both sessions exist and are not revoked
+    const sessions = await Session.find({ userId: student._id });
+    expect(sessions.length).toBe(2);
+    expect(sessions[0].revoked).toBe(false);
+    expect(sessions[1].revoked).toBe(false);
+  });
+
+  // TEST 16: Password hash, loginId, and password.js untouched (git diff clean)
+  it("16. Password hash, loginId, User.ts, and password.js untouched (git diff clean)", async () => {
+    const pwDiff = execSync("git diff HEAD src/server/auth/password.js").toString();
+    expect(pwDiff.trim()).toBe("");
+
+    const userDiff = execSync("git diff HEAD src/lib/models/User.ts").toString();
+    expect(userDiff.trim()).toBe("");
+
+    // Verify hashing and verification function correctly
+    const plain = "Verification@Password2026";
+    const hash = await hashPassword(plain);
+    expect(await comparePassword(plain, hash)).toBe(true);
+    expect(await comparePassword("WrongPassword", hash)).toBe(false);
   });
 });

@@ -10,6 +10,8 @@ export const loginSchema = z.object({
     .string()
     .min(1, "Password is required")
     .transform((val) => val.trim()),
+  otp: z.string().optional(),
+  backupToken: z.string().optional(),
 });
 
 export const studentCreateSchema = z.object({
