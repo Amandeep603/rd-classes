@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -58,6 +58,15 @@ export default function AuthScene({
   const urlMessage = searchParams?.get("message");
   const nextParam = searchParams?.get("next") || searchParams?.get("from") || "";
 
+  useEffect(() => {
+    try {
+      if (typeof document !== "undefined") {
+        const isSecure = window.location.protocol === "https:";
+        document.cookie = `rd_cookie_test=1; path=/; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+      }
+    } catch {}
+  }, []);
+
   let urlErrorMessage = null;
   let isExpiredNotice = false;
   if (urlMessage) {
@@ -68,6 +77,8 @@ export default function AuthScene({
     urlErrorMessage = "Please log in as a student";
   } else if (reason === "logged_out") {
     urlErrorMessage = "You have been logged out successfully.";
+  } else if (reason === "device_replaced" || urlError === "device_replaced") {
+    urlErrorMessage = "This device was replaced. Please log in again to request access.";
   } else if (
     reason === "device_removed" ||
     reason === "device_revoked" ||
@@ -274,6 +285,13 @@ export default function AuthScene({
           )}
         </button>
       </form>
+
+      {/* Helper text under login form */}
+      {isStudent && (
+        <p className="mt-3 text-center text-xs text-white/70">
+          Use the same browser every time. Private or incognito mode is not supported.
+        </p>
+      )}
 
       {/* Footer */}
       <div className="mt-5 pt-3.5 border-t border-white/10 text-center">

@@ -224,8 +224,9 @@ export const lectureUpdateSchema = z.object({
 });
 
 export const deviceApproveSchema = z.object({
-  mode: z.enum(["add", "replace", "raise-and-add"]).default("add"),
+  mode: z.enum(["add", "additional", "approve", "replace", "raise-and-add", "same_device", "rebind"]).default("add"),
   replaceDeviceId: z.string().optional().nullable(),
+  targetDeviceId: z.string().optional().nullable(),
 });
 
 export const progressSaveSchema = z.object({

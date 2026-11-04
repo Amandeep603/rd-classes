@@ -67,6 +67,12 @@ const deviceSchema = new Schema(
       index: true,
       default: "",
     },
+    slot: {
+      type: String,
+      enum: ["handheld", "computer"],
+      index: true,
+      default: "computer",
+    },
     deviceType: {
       type: String,
       enum: ["desktop", "mobile", "tablet", "unknown"],
@@ -114,6 +120,10 @@ const deviceSchema = new Schema(
       default: [],
     },
     browserTokenHashes: {
+      type: [String],
+      default: [],
+    },
+    tokenHashes: {
       type: [String],
       default: [],
     },
@@ -182,9 +192,17 @@ const deviceSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["approved", "pending", "rejected", "revoked", "active"],
+      enum: ["approved", "pending", "rejected", "revoked", "active", "replaced"],
       default: "approved",
       index: true,
+    },
+    replacedAt: {
+      type: Date,
+      default: null,
+    },
+    replacedByDeviceId: {
+      type: String,
+      default: null,
     },
     requestedAt: {
       type: Date,
@@ -257,12 +275,29 @@ deviceSchema.pre("validate", function () {
   if (this.status === "approved" && !this.decidedAt && this.approvedAt) {
     this.decidedAt = this.approvedAt;
   }
+  if (!this.slot) {
+    const isHandheld =
+      this.deviceType === "mobile" ||
+      this.deviceType === "tablet" ||
+      (this.osFamily &&
+        (this.osFamily.toLowerCase().includes("ipad") ||
+          this.osFamily.toLowerCase().includes("ios") ||
+          this.osFamily.toLowerCase().includes("android")));
+    this.slot = isHandheld ? "handheld" : "computer";
+  }
+  if (Array.isArray(this.tokenHashes) && this.tokenHashes.length > 0 && (!Array.isArray(this.browserTokenHashes) || this.browserTokenHashes.length === 0)) {
+    this.browserTokenHashes = this.tokenHashes;
+  } else if (Array.isArray(this.browserTokenHashes) && this.browserTokenHashes.length > 0 && (!Array.isArray(this.tokenHashes) || this.tokenHashes.length === 0)) {
+    this.tokenHashes = this.browserTokenHashes;
+  }
 });
 
 deviceSchema.index({ studentId: 1, status: 1 });
+deviceSchema.index({ studentId: 1, slot: 1, status: 1 });
 deviceSchema.index({ studentId: 1, deviceId: 1 }, { unique: true });
 deviceSchema.index({ studentId: 1, coarseKey: 1 });
 deviceSchema.index({ browserTokenHashes: 1 });
+deviceSchema.index({ tokenHashes: 1 });
 deviceSchema.index({ backupTokenHashes: 1 });
 
 export const Device = mongoose.models.Device || mongoose.model("Device", deviceSchema);

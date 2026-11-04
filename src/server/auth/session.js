@@ -500,3 +500,64 @@ export async function requireStudentApi() {
   }
   return { authenticated: true, user: status.user, session: status.session };
 }
+
+/**
+ * Atomically creates or replaces an existing session for a (userId, deviceId) pair.
+ * Uses a single findOneAndUpdate with upsert keyed by { userId, deviceId }.
+ * Updates tokenHash, timestamps, expiresAt, and sets revoked: false.
+ * Overwriting tokenHash automatically invalidates the old session token.
+ * Catches rare duplicate key race (E11000) on simultaneous insert and retries once as an update.
+ */
+export async function createOrReplaceSession({
+  userId,
+  deviceId,
+  tokenHash,
+  expiresAt,
+  role = "student",
+  ip = "",
+  userAgent = "",
+  lastSeenAt = new Date(),
+}) {
+  await connectDB();
+  const now = new Date();
+  const filter = { userId, deviceId };
+  const update = {
+    $set: {
+      tokenHash,
+      expiresAt,
+      role,
+      ip: ip || "",
+      userAgent: userAgent || "",
+      lastSeenAt: lastSeenAt || now,
+      revoked: false,
+      revokedReason: "",
+      updatedAt: now,
+    },
+    $setOnInsert: {
+      createdAt: now,
+    },
+  };
+  const options = {
+    upsert: true,
+    returnDocument: "after",
+    setDefaultsOnInsert: true,
+  };
+
+  try {
+    const doc = await Session.findOneAndUpdate(filter, update, options);
+    return doc;
+  } catch (err) {
+    const isE11000 =
+      err &&
+      (err.code === 11000 ||
+        err.codeName === "DuplicateKey" ||
+        String(err.message).includes("E11000") ||
+        String(err.message).includes("duplicate key"));
+    if (isE11000) {
+      const retryDoc = await Session.findOneAndUpdate(filter, update, { returnDocument: "after" });
+      if (retryDoc) return retryDoc;
+    }
+    throw err;
+  }
+}
+

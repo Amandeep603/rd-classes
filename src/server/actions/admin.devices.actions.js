@@ -11,6 +11,7 @@ import {
   setDeviceLimit,
   logoutAllSessions,
 } from "../auth/deviceService.js";
+import { formatPublicError } from "@/lib/publicError.js";
 
 export async function approveDeviceRequestAction(requestId, formData) {
   const auth = await requireAdminApi();
@@ -37,7 +38,8 @@ export async function approveDeviceRequestAction(requestId, formData) {
     revalidatePath("/admin/students");
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }
 
@@ -53,7 +55,8 @@ export async function rejectDeviceRequestAction(requestId, formData) {
     revalidatePath("/admin/device-requests");
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }
 
@@ -68,7 +71,8 @@ export async function removeDeviceAction(userId, deviceId) {
     revalidatePath("/admin/students");
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }
 
@@ -83,7 +87,8 @@ export async function resetAllDevicesAction(userId) {
     revalidatePath("/admin/students");
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }
 
@@ -98,7 +103,8 @@ export async function setDeviceLimitAction(userId, limit) {
     revalidatePath("/admin/students");
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }
 
@@ -112,6 +118,7 @@ export async function logoutAllSessionsAction(userId) {
     revalidatePath(`/admin/students/${userId}`);
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }

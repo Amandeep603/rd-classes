@@ -13,12 +13,13 @@ export const COOKIE_NAMES = {
   BACKUP_SYNC: "rd_backup_sync",
   PENDING: "rd_pending",
   HINTS: "rd_hints",
+  TEST: "rd_cookie_test",
 };
 
 export const COOKIE_DURATIONS = {
   SESSION: 30 * 24 * 60 * 60, // 30 days sliding safety cap
   ADMIN_SESSION: 7 * 24 * 60 * 60, // 7 days
-  DEVICE: 400 * 24 * 60 * 60, // 400 days
+  DEVICE: 365 * 24 * 60 * 60, // 1 year (365 days)
   PENDING: 30 * 24 * 60 * 60, // 30 days
 };
 

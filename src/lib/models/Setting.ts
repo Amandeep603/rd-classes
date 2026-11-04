@@ -66,6 +66,11 @@ const settingSchema = new Schema(
       default: 1,
       min: 1,
     },
+    deviceBinding: {
+      type: String,
+      enum: ["browser", "smart"],
+      default: "browser",
+    },
     deviceLockMode: {
       type: String,
       enum: ["strict", "smart", "basic", "off", "relaxed"],
@@ -140,6 +145,9 @@ settingSchema.pre("validate", function () {
     this.whatsappNumber = this.whatsapp;
   } else if (this.whatsappNumber && !this.whatsapp) {
     this.whatsapp = this.whatsappNumber;
+  }
+  if (!this.deviceBinding) {
+    this.deviceBinding = "browser";
   }
 });
 

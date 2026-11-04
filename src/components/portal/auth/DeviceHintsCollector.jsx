@@ -139,6 +139,8 @@ export default function DeviceHintsCollector() {
 
         // Session cookie (no max-age/expires), SameSite=Lax
         document.cookie = `rd_hints=${cookieValue}; path=/; SameSite=Lax${secureFlag}`;
+        // Test cookie to verify cookie support
+        document.cookie = `rd_cookie_test=1; path=/; SameSite=Lax${secureFlag}`;
       } catch (err) {
         // Must never throw or block
       }

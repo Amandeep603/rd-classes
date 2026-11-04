@@ -7,9 +7,17 @@ import mongoose from "mongoose";
 export function assertTestDatabase(customUri) {
   const uri = customUri || process.env.MONGODB_URI_TEST || process.env.MONGODB_URI || "";
   
-  // Extract database name from connection or URI
+  // Extract database name from URI or connection
   let dbName = "";
-  if (mongoose.connection && mongoose.connection.readyState === 1 && mongoose.connection.name) {
+  if (customUri) {
+    try {
+      const parsed = new URL(customUri.replace("mongodb+srv://", "http://").replace("mongodb://", "http://"));
+      dbName = parsed.pathname.replace(/^\//, "").split("?")[0];
+    } catch {
+      const match = customUri.match(/\/([^/?]+)(\?|$)/);
+      if (match) dbName = match[1];
+    }
+  } else if (mongoose.connection && mongoose.connection.readyState === 1 && mongoose.connection.name) {
     dbName = mongoose.connection.name;
   } else if (uri) {
     try {

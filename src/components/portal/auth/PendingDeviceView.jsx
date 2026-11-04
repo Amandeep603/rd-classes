@@ -32,16 +32,15 @@ export default function PendingDeviceView({
 
   const deviceId = initialRequest?.deviceId || "";
 
-  // Poll status every 10s while tab is visible
+  // Poll status every 15s while tab is visible
   useEffect(() => {
     if (status !== "pending") return;
 
     const checkStatus = async () => {
       if (document.hidden) return;
       try {
-        const res = await fetch(
-          `/api/student/device-status?deviceId=${encodeURIComponent(deviceId)}`
-        );
+        const query = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : "";
+        const res = await fetch(`/api/student/device-status${query}`);
         if (res.ok) {
           const data = await res.json();
           if (data.status && data.status !== "pending") {
@@ -55,7 +54,7 @@ export default function PendingDeviceView({
       }
     };
 
-    const interval = setInterval(checkStatus, 10000);
+    const interval = setInterval(checkStatus, 15000);
     const handleVis = () => {
       if (!document.hidden) checkStatus();
     };
@@ -110,10 +109,10 @@ export default function PendingDeviceView({
               </div>
               <div>
                 <h1 className="text-2xl font-extrabold text-[#111827]">
-                  Device Approved!
+                  Approved. Please log in again.
                 </h1>
                 <p className="mt-1.5 text-sm text-[#4B5563]">
-                  Sir has approved this device for your account. You can now log in to the learning portal.
+                  Your device request has been approved. Please log in again to access your account.
                 </p>
               </div>
               <Link

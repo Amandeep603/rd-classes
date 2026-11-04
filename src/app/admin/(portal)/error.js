@@ -25,6 +25,12 @@ export default function AdminPortalError({ error, reset }) {
         An error occurred while processing this admin request. No changes were corrupted.
       </p>
 
+      {error?.digest && (
+        <p className="mt-2 text-[11px] font-mono text-neutral-400">
+          Reference: {error.digest}
+        </p>
+      )}
+
       <div className="mt-6 flex items-center gap-3">
         <button
           onClick={() => reset()}

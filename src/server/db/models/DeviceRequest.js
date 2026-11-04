@@ -38,6 +38,12 @@ const deviceRequestSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    slot: {
+      type: String,
+      enum: ["handheld", "computer"],
+      index: true,
+      default: "computer",
+    },
     deviceType: {
       type: String,
       default: "desktop",
@@ -80,6 +86,10 @@ const deviceRequestSchema = new mongoose.Schema(
       default: "",
     },
     tokenHash: {
+      type: String,
+      default: "",
+    },
+    requestTokenHash: {
       type: String,
       default: "",
     },
@@ -170,6 +180,10 @@ const deviceRequestSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    previousDeviceId: {
+      type: String,
+      default: null,
+    },
     targetDeviceId: {
       type: String,
       default: null,
@@ -220,9 +234,26 @@ deviceRequestSchema.pre("validate", function () {
   } else if (this.note && !this.rejectionReason) {
     this.rejectionReason = this.note;
   }
+  if (!this.slot) {
+    const isHandheld =
+      this.deviceType === "mobile" ||
+      this.deviceType === "tablet" ||
+      (this.osFamily &&
+        (this.osFamily.toLowerCase().includes("ipad") ||
+          this.osFamily.toLowerCase().includes("ios") ||
+          this.osFamily.toLowerCase().includes("android")));
+    this.slot = isHandheld ? "handheld" : "computer";
+  }
+  if (this.tokenHash && !this.requestTokenHash) {
+    this.requestTokenHash = this.tokenHash;
+  } else if (this.requestTokenHash && !this.tokenHash) {
+    this.tokenHash = this.requestTokenHash;
+  }
 });
 
 deviceRequestSchema.index({ studentId: 1, dedupeKey: 1, status: 1 });
+deviceRequestSchema.index({ studentId: 1, slot: 1, status: 1 });
+deviceRequestSchema.index({ requestTokenHash: 1 });
 deviceRequestSchema.index({ status: 1, createdAt: -1 });
 
 export const DeviceRequest =

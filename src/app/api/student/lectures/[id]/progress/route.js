@@ -2,6 +2,7 @@ import { requireStudentApi } from "@/server/auth/session.js";
 import connectDB from "@/server/db/connect.js";
 import { LectureProgress } from "@/lib/models/LectureProgress";
 import { Lecture } from "@/lib/models/Lecture";
+import { formatPublicError } from "@/lib/publicError.js";
 
 export async function POST(request, { params }) {
   const auth = await requireStudentApi();
@@ -46,6 +47,10 @@ export async function POST(request, { params }) {
 
     return Response.json({ success: true, progress });
   } catch (err) {
-    return Response.json({ error: err?.message }, { status: 500 });
+    const { userMessage, refCode, isKnown } = formatPublicError(err);
+    return Response.json(
+      { error: userMessage, reference: refCode },
+      { status: isKnown ? 400 : 500 }
+    );
   }
 }

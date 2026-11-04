@@ -7,6 +7,7 @@ import {
   adminLogin,
   logoutUser,
 } from "../auth/authService.js";
+import { formatPublicError } from "@/lib/publicError.js";
 
 function getSafeRedirectUrl(url, fallback) {
   if (
@@ -39,9 +40,11 @@ export async function loginStudentAction(prevState, formData) {
   try {
     result = await studentLogin(parsed.data);
   } catch (err) {
+    const { userMessage, refCode } = formatPublicError(err, { loginId: parsed.data.loginId });
     return {
       success: false,
-      error: err.message || "An unexpected error occurred during login.",
+      error: userMessage,
+      ref: refCode,
     };
   }
 
@@ -53,7 +56,8 @@ export async function loginStudentAction(prevState, formData) {
         message: result.message,
       };
     }
-    return { success: false, error: result.error };
+    const { userMessage, refCode } = formatPublicError(result.error, { loginId: parsed.data.loginId });
+    return { success: false, error: userMessage, ref: refCode };
   }
 
   const destination = getSafeRedirectUrl(nextParam, result.redirectTo || "/student");
@@ -79,14 +83,17 @@ export async function loginAdminAction(prevState, formData) {
   try {
     result = await adminLogin(parsed.data);
   } catch (err) {
+    const { userMessage, refCode } = formatPublicError(err, { loginId: parsed.data.loginId });
     return {
       success: false,
-      error: err.message || "An unexpected error occurred during admin login.",
+      error: userMessage,
+      ref: refCode,
     };
   }
 
   if (!result.success) {
-    return { success: false, error: result.error };
+    const { userMessage, refCode } = formatPublicError(result.error, { loginId: parsed.data.loginId });
+    return { success: false, error: userMessage, ref: refCode };
   }
 
   const destination = getSafeRedirectUrl(nextParam, result.redirectTo || "/admin");
@@ -117,6 +124,7 @@ export async function updateStudentDeviceNoteAction(requestId, note) {
     });
     return { success: true };
   } catch (err) {
-    return { success: false, error: err.message };
+    const { userMessage, refCode } = formatPublicError(err);
+    return { success: false, error: userMessage, ref: refCode };
   }
 }

@@ -136,6 +136,26 @@ const userSchema = new Schema(
       ciphertext: { type: String, default: null },
       keyVersion: { type: Number, default: 1 },
     },
+    handheldSwaps: {
+      type: Number,
+      default: 0,
+    },
+    computerSwaps: {
+      type: Number,
+      default: 0,
+    },
+    deviceAlert: {
+      type: Boolean,
+      default: false,
+    },
+    deviceAlertReason: {
+      type: String,
+      default: "",
+    },
+    lastDeviceAlertAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

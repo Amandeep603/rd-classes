@@ -7,13 +7,46 @@ import { Device } from "../../lib/models/Device.ts";
 import { DeviceRequest } from "../db/models/DeviceRequest.js";
 import { Session } from "../../lib/models/Session.ts";
 import { ActivityLog } from "../../lib/models/ActivityLog.ts";
+import { DeviceHistory } from "../../lib/models/DeviceHistory.ts";
+import { deriveSlot } from "./deviceIdentity.js";
+import { createAdminNotification } from "@/server/services/notificationService.js";
 
 /**
- * Approves a pending device request.
- * Modes:
- * - "additional" / "add": creates approved device, increments student's maxDevices to approved count
- * - "replace": marks selected old device 'revoked' and kills its sessions; creates approved device
- * - "same_device": adds request profile and tokenHash to an existing approved device as an alias
+ * Checks and triggers non-blocking alert on student (at most 1 per student per day, dismissible).
+ */
+export async function checkAndTriggerAlert(studentId, alertType, reason) {
+  try {
+    const student = await User.findById(studentId);
+    if (!student) return;
+    const now = new Date();
+    if (student.lastDeviceAlertAt) {
+      const diffHours =
+        (now.getTime() - new Date(student.lastDeviceAlertAt).getTime()) / (1000 * 60 * 60);
+      if (diffHours < 24) return;
+    }
+    student.deviceAlert = true;
+    student.deviceAlertReason = reason;
+    student.lastDeviceAlertAt = now;
+    await student.save();
+
+    await createAdminNotification({
+      type: "device_alert",
+      title: `Device Alert (${alertType}): ${student.name}`,
+      message: `${student.name} (${student.loginId}) triggered alert: ${reason}`,
+      link: `/admin/students?search=${encodeURIComponent(student.loginId)}`,
+      meta: { studentId: student._id.toString(), alertType, reason },
+    });
+  } catch (err) {
+    // Non-blocking
+  }
+}
+
+/**
+ * Approves a pending device request according to policy:
+ * - If slot is free: creates device in that slot from request (profile, token, browser)
+ * - If slot is occupied: replaces the old device, revokes its sessions immediately, marks it 'replaced',
+ *   increments student's swap counter for that slot, and writes history event.
+ * - Mode 'rebind': replaces existing device's token(s) with request token, revokes sessions, does NOT count as a swap.
  */
 export async function approveDeviceRequest(
   requestId,
@@ -24,7 +57,6 @@ export async function approveDeviceRequest(
   await connectDB();
   const now = new Date();
 
-  // Try finding in DeviceRequest first
   let req = await DeviceRequest.findById(requestId);
   let legacyDevice = null;
 
@@ -41,8 +73,11 @@ export async function approveDeviceRequest(
     throw new Error("Student associated with device request not found.");
   }
 
-  // Handle Mode: same_device (alias)
-  if (mode === "same_device") {
+  const slot = deriveSlot(req || legacyDevice);
+  const reqTokenHash = req?.requestTokenHash || req?.tokenHash || legacyDevice?.browserTokenHashes?.[0] || "";
+
+  // 1. Same device, new browser (rebind)
+  if (mode === "rebind" || mode === "same_device") {
     let target = null;
     if (targetDeviceId) {
       const targetCond = mongoose.isValidObjectId(targetDeviceId)
@@ -57,33 +92,25 @@ export async function approveDeviceRequest(
     if (!target) {
       target = await Device.findOne({
         studentId: user._id,
+        slot,
+        status: "approved",
+      });
+    }
+    if (!target) {
+      target = await Device.findOne({
+        studentId: user._id,
         status: "approved",
       });
     }
 
     if (!target) {
-      throw new Error("No approved device found to link alias to.");
+      throw new Error("No approved device found in slot to rebind.");
     }
 
-    const reqProfile = req ? req.profile : legacyDevice?.profile;
-    if (reqProfile && reqProfile.screenMajor) {
-      if (!Array.isArray(target.aliases)) target.aliases = [];
-      target.aliases.push({
-        screenMajor: reqProfile.screenMajor,
-        screenMinor: reqProfile.screenMinor,
-        model: reqProfile.model || null,
-        addedAt: now,
-        reason: "admin_alias",
-      });
-    }
-
-    const tokenHash = req ? req.tokenHash : null;
-    if (tokenHash) {
-      if (!Array.isArray(target.browserTokenHashes)) target.browserTokenHashes = [];
-      if (!target.browserTokenHashes.includes(tokenHash)) {
-        target.browserTokenHashes.push(tokenHash);
-        if (target.browserTokenHashes.length > 10) target.browserTokenHashes.shift();
-      }
+    if (reqTokenHash) {
+      target.browserTokenHashes = [reqTokenHash];
+      target.tokenHashes = [reqTokenHash];
+      target.graceTokenHashes = [];
     }
 
     const bName = req ? req.browserName : legacyDevice?.browserName;
@@ -93,14 +120,23 @@ export async function approveDeviceRequest(
         target.browsersSeen.push(bName);
       }
     }
-
+    target.lastUsedAt = now;
+    if (req?.ip) target.lastIp = req.ip;
+    if (req?.city) target.city = req.city;
     await target.save();
+
+    // Revoke sessions of this device
+    await Session.updateMany(
+      { userId: user._id, deviceId: target.deviceId },
+      { $set: { revoked: true, revokedReason: "device_rebound" } }
+    );
+    await Session.deleteMany({ userId: user._id, deviceId: target.deviceId });
 
     if (req) {
       req.status = "approved";
       req.decidedAt = now;
       req.decidedBy = adminName;
-      req.mode = "same_device";
+      req.mode = "rebind";
       await req.save();
     }
 
@@ -108,65 +144,118 @@ export async function approveDeviceRequest(
       await Device.deleteOne({ _id: legacyDevice._id });
     }
 
-    // Log Activity
-    await ActivityLog.create({
-      actorId: adminId || user._id,
-      action: "device.alias_approved",
-      entity: "Device",
-      entityId: target._id,
-      meta: {
-        studentId: user._id.toString(),
-        studentName: user.name,
-        loginId: user.loginId,
-        targetDeviceId: target.deviceId,
-        mode: "same_device",
-        adminName,
-      },
-      createdAt: now,
+    await DeviceHistory.create({
+      studentId: user._id,
+      slot,
+      event: "rebind",
+      deviceId: target.deviceId,
+      deviceLabel: target.deviceLabel || target.label,
+      ip: req?.ip || "127.0.0.1",
+      city: req?.city || "",
+      adminName,
     }).catch(() => {});
 
-    return { success: true, mode: "same_device" };
+    return { success: true, mode: "rebind", deviceId: target.deviceId };
   }
 
-  // Handle Mode: replace
-  if (mode === "replace") {
-    if (!replaceDeviceId) {
-      throw new Error("A device to replace must be specified.");
+  // 2. Check occupied devices in this slot
+  const occupiedDevices = await Device.find({
+    studentId: user._id,
+    slot,
+    status: "approved",
+  }).sort({ createdAt: 1 });
+
+  const isSlotOccupied = occupiedDevices.length > 0;
+  const newDeviceId = "dev_" + crypto.randomBytes(8).toString("hex");
+
+  if (isSlotOccupied || mode === "replace") {
+    // If replaceDeviceId specified, find it, else replace oldest in slot
+    let oldDev = null;
+    if (replaceDeviceId) {
+      oldDev = occupiedDevices.find(
+        (d) => d.deviceId === replaceDeviceId || d._id.toString() === replaceDeviceId
+      );
+    }
+    if (!oldDev) {
+      oldDev = occupiedDevices[0];
     }
 
-    // Revoke old device
-    const replaceCond = mongoose.isValidObjectId(replaceDeviceId)
-      ? [{ deviceId: replaceDeviceId }, { _id: replaceDeviceId }]
-      : [{ deviceId: replaceDeviceId }];
-    await Device.updateMany(
-      {
-        studentId: user._id,
-        $or: replaceCond,
-      },
-      {
-        $set: {
-          status: "revoked",
-          decidedAt: now,
-          decidedBy: adminName,
-        },
-      }
-    );
+    if (oldDev) {
+      oldDev.status = "replaced";
+      oldDev.replacedAt = now;
+      oldDev.replacedByDeviceId = newDeviceId;
+      oldDev.decidedAt = now;
+      oldDev.decidedBy = adminName;
+      await oldDev.save();
 
-    // Terminate all sessions for replaced device
-    await Session.updateMany(
-      { userId: user._id, deviceId: replaceDeviceId },
-      { $set: { revoked: true, revokedReason: "device_revoked" } }
-    );
-    await Session.deleteMany({ userId: user._id, deviceId: replaceDeviceId });
+      // Revoke all sessions for replaced device immediately
+      await Session.updateMany(
+        { userId: user._id, deviceId: oldDev.deviceId },
+        { $set: { revoked: true, revokedReason: "device_replaced" } }
+      );
+      await Session.deleteMany({ userId: user._id, deviceId: oldDev.deviceId });
+
+      // Increment student's swap counter for that slot
+      if (slot === "handheld") {
+        await User.updateOne({ _id: user._id }, { $inc: { handheldSwaps: 1 } });
+      } else {
+        await User.updateOne({ _id: user._id }, { $inc: { computerSwaps: 1 } });
+      }
+
+      // Write history event
+      await DeviceHistory.create({
+        studentId: user._id,
+        slot,
+        event: "replaced",
+        deviceId: newDeviceId,
+        deviceLabel: req?.label || legacyDevice?.label || "Approved Device",
+        ip: req?.ip || legacyDevice?.ip || "127.0.0.1",
+        city: req?.city || legacyDevice?.city || "",
+        adminName,
+        details: {
+          replacedDeviceId: oldDev.deviceId,
+          replacedDeviceLabel: oldDev.deviceLabel || oldDev.label,
+        },
+      }).catch(() => {});
+
+      // Check Alert S1: same slot replaced >= 3 times in 14 days
+      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const recentSwaps = await DeviceHistory.countDocuments({
+        studentId: user._id,
+        slot,
+        event: "replaced",
+        createdAt: { $gte: fourteenDaysAgo },
+      });
+      if (recentSwaps >= 3) {
+        await checkAndTriggerAlert(
+          user._id,
+          "S1",
+          `The ${slot} slot was replaced ${recentSwaps} times in the last 14 days.`
+        );
+      }
+    }
+  } else {
+    // Free slot approval
+    await DeviceHistory.create({
+      studentId: user._id,
+      slot,
+      event: "approved",
+      deviceId: newDeviceId,
+      deviceLabel: req?.label || legacyDevice?.label || "Approved Device",
+      ip: req?.ip || legacyDevice?.ip || "127.0.0.1",
+      city: req?.city || legacyDevice?.city || "",
+      adminName,
+    }).catch(() => {});
   }
 
   // Create new approved device from request
-  const newDeviceId = "dev_" + crypto.randomBytes(8).toString("hex");
+  const tokenHash = req?.requestTokenHash || req?.tokenHash || "";
   const deviceData = {
     studentId: user._id,
     userId: user._id,
     deviceId: newDeviceId,
     deviceKey: newDeviceId,
+    slot,
     coarseKey: req ? req.coarseKey : legacyDevice?.coarseKey || "",
     deviceType: req ? req.deviceType : legacyDevice?.deviceType || "desktop",
     osFamily: req ? req.osFamily : legacyDevice?.osFamily || "",
@@ -179,7 +268,8 @@ export async function approveDeviceRequest(
     model: req ? req.model : legacyDevice?.model || "",
     profile: req ? req.profile : legacyDevice?.profile || null,
     aliases: [],
-    browserTokenHashes: req?.tokenHash ? [req.tokenHash] : legacyDevice?.browserTokenHashes || [],
+    browserTokenHashes: tokenHash ? [tokenHash] : legacyDevice?.browserTokenHashes || [],
+    tokenHashes: tokenHash ? [tokenHash] : legacyDevice?.tokenHashes || [],
     city: req ? req.city : legacyDevice?.city || "",
     region: req ? req.region : legacyDevice?.region || "",
     country: req ? req.country : legacyDevice?.country || "",
@@ -199,15 +289,31 @@ export async function approveDeviceRequest(
     status: "approved",
   };
 
-  const createdDevice = await Device.create(deviceData);
+  let createdDevice;
+  try {
+    createdDevice = await Device.findOneAndUpdate(
+      { studentId: user._id, deviceId: deviceData.deviceId },
+      { $set: deviceData },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+    );
+  } catch (devErr) {
+    if (devErr && (devErr.code === 11000 || String(devErr.message).includes("E11000"))) {
+      createdDevice = await Device.findOneAndUpdate(
+        { studentId: user._id, deviceId: deviceData.deviceId },
+        { $set: deviceData },
+        { returnDocument: "after" }
+      );
+    } else {
+      throw devErr;
+    }
+  }
 
-  // Update request record
   if (req) {
     req.status = "approved";
     req.decidedAt = now;
     req.decidedBy = adminName;
-    req.mode = mode;
-    req.replacedDeviceId = replaceDeviceId;
+    req.mode = isSlotOccupied ? "replace" : "approve";
+    req.replacedDeviceId = isSlotOccupied ? (replaceDeviceId || occupiedDevices[0]?.deviceId) : null;
     await req.save();
   }
 
@@ -218,22 +324,17 @@ export async function approveDeviceRequest(
     await legacyDevice.save();
   }
 
-  // Count approved devices and update student
   const approvedCount = await Device.countDocuments({
     studentId: user._id,
     status: "approved",
   });
-
-  if (mode === "additional" || mode === "add") {
-    user.maxDevices = Math.max(user.maxDevices || 1, approvedCount);
-  }
   user.deviceCount = approvedCount;
+  user.maxDevices = Math.max(user.maxDevices || 1, approvedCount);
   await user.save();
 
-  // Activity Log
   await ActivityLog.create({
     actorId: adminId || user._id,
-    action: "device.approved",
+    action: isSlotOccupied ? "device.replaced" : "device.approved",
     entity: "Device",
     entityId: createdDevice._id,
     meta: {
@@ -241,9 +342,7 @@ export async function approveDeviceRequest(
       studentName: user.name,
       loginId: user.loginId,
       deviceId: createdDevice.deviceId,
-      label: createdDevice.deviceLabel,
-      mode,
-      replacedDeviceId: replaceDeviceId,
+      slot,
       adminName,
     },
     createdAt: now,
@@ -271,6 +370,7 @@ export async function rejectDeviceRequest(requestId, note = "", adminId = null, 
 
   const userId = req ? req.studentId || req.userId : legacyDevice.studentId || legacyDevice.userId;
   const user = await User.findById(userId);
+  const slot = deriveSlot(req || legacyDevice);
 
   if (req) {
     req.status = "rejected";
@@ -286,6 +386,33 @@ export async function rejectDeviceRequest(requestId, note = "", adminId = null, 
     legacyDevice.decidedAt = now;
     legacyDevice.decidedBy = adminName;
     await legacyDevice.save();
+  }
+
+  await DeviceHistory.create({
+    studentId: userId,
+    slot,
+    event: "rejected",
+    deviceId: req?.deviceId || legacyDevice?.deviceId || "",
+    deviceLabel: req?.label || legacyDevice?.label || "Device",
+    ip: req?.ip || legacyDevice?.ip || "127.0.0.1",
+    city: req?.city || legacyDevice?.city || "",
+    adminName,
+    details: { note },
+  }).catch(() => {});
+
+  // Check Alert S2: 5 or more new or declined requests within 7 days
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const recentReqs = await DeviceRequest.countDocuments({
+    studentId: userId,
+    $or: [{ status: "pending" }, { status: "rejected" }],
+    createdAt: { $gte: sevenDaysAgo },
+  });
+  if (recentReqs >= 5) {
+    await checkAndTriggerAlert(
+      userId,
+      "S2",
+      `${recentReqs} device requests were made or declined within the last 7 days.`
+    );
   }
 
   await ActivityLog.create({
@@ -360,7 +487,7 @@ export async function reconsiderDeviceRequest(requestId, adminId = null, adminNa
 }
 
 /**
- * Revokes / removes an approved device and kills all its active sessions.
+ * Revokes / removes an approved device and kills all its active sessions. Frees the slot.
  */
 export async function removeDevice(userId, deviceId, adminId = null, adminName = "admin") {
   await connectDB();
@@ -370,21 +497,29 @@ export async function removeDevice(userId, deviceId, adminId = null, adminName =
     ? [{ deviceId }, { _id: deviceId }]
     : [{ deviceId }];
 
-  await Device.updateMany(
-    {
-      studentId: userId,
-      $or: removeCond,
-    },
-    {
-      $set: {
-        status: "revoked",
-        decidedAt: now,
-        decidedBy: adminName,
-      },
-    }
-  );
+  const dev = await Device.findOne({
+    studentId: userId,
+    $or: removeCond,
+  });
 
-  // Terminate all sessions for that device with distinct reason
+  if (dev) {
+    dev.status = "revoked";
+    dev.decidedAt = now;
+    dev.decidedBy = adminName;
+    await dev.save();
+
+    await DeviceHistory.create({
+      studentId: userId,
+      slot: deriveSlot(dev),
+      event: "revoked",
+      deviceId: dev.deviceId,
+      deviceLabel: dev.deviceLabel || dev.label,
+      ip: dev.lastIp || dev.ip || "127.0.0.1",
+      city: dev.city || "",
+      adminName,
+    }).catch(() => {});
+  }
+
   await Session.updateMany(
     {
       userId,
@@ -399,14 +534,12 @@ export async function removeDevice(userId, deviceId, adminId = null, adminName =
   );
   await Session.deleteMany({ userId, deviceId });
 
-  // Update student deviceCount
   const approvedCount = await Device.countDocuments({
     studentId: userId,
     status: "approved",
   });
   await User.updateOne({ _id: userId }, { $set: { deviceCount: approvedCount } });
 
-  // Activity Log
   await ActivityLog.create({
     actorId: adminId || userId,
     action: "device.revoked",
@@ -436,9 +569,29 @@ export async function resetAllDevices(userId, adminId = null, adminName = "admin
   await DeviceRequest.deleteMany({ studentId: userId });
   await Session.updateMany(
     { userId },
-    { $set: { deviceId: "" } }
+    { $set: { revoked: true, revokedReason: "device_reset_all" } }
   );
-  await User.updateOne({ _id: userId }, { $set: { deviceCount: 0 } });
+  await Session.deleteMany({ userId });
+  await User.updateOne(
+    { _id: userId },
+    {
+      $set: {
+        deviceCount: 0,
+        handheldSwaps: 0,
+        computerSwaps: 0,
+        deviceAlert: false,
+        deviceAlertReason: "",
+      },
+    }
+  );
+
+  await DeviceHistory.create({
+    studentId: userId,
+    slot: "computer",
+    event: "revoked",
+    deviceLabel: "All Devices Reset",
+    adminName,
+  }).catch(() => {});
 
   await ActivityLog.create({
     actorId: adminId || userId,

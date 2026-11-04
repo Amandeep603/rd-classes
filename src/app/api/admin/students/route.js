@@ -4,6 +4,7 @@ import {
   getStudentsListPaginated,
   createStudent,
 } from "@/server/services/studentAdminService.js";
+import { formatPublicError } from "@/lib/publicError.js";
 
 export async function GET(request) {
   const auth = await requireAdminApi();
@@ -32,7 +33,11 @@ export async function GET(request) {
 
     return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const { userMessage, refCode, isKnown } = formatPublicError(error);
+    return NextResponse.json(
+      { error: userMessage, reference: refCode },
+      { status: isKnown ? 400 : 500 }
+    );
   }
 }
 
@@ -57,6 +62,10 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, credentials: result });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const { userMessage, refCode, isKnown } = formatPublicError(error);
+    return NextResponse.json(
+      { error: userMessage, reference: refCode },
+      { status: isKnown ? 400 : 500 }
+    );
   }
 }

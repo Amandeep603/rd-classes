@@ -646,18 +646,26 @@ export async function createStudent({
   const passwordHash = await bcrypt.hash(plainPassword, 10);
   const initialEmailStatus = cleanEmail ? (sendEmail ? "not_sent" : "not_sent") : "no_email";
 
-  const student = await User.create({
-    name: cleanName,
-    email: cleanEmail || undefined,
-    phone: cleanPhone,
-    batch: normalizedBatch || undefined,
-    loginId,
-    passwordHash,
-    role: "student",
-    status: "active",
-    maxDevices: 1,
-    emailStatus: initialEmailStatus,
-  });
+  let student;
+  try {
+    student = await User.create({
+      name: cleanName,
+      email: cleanEmail || undefined,
+      phone: cleanPhone,
+      batch: normalizedBatch || undefined,
+      loginId,
+      passwordHash,
+      role: "student",
+      status: "active",
+      maxDevices: 1,
+      emailStatus: initialEmailStatus,
+    });
+  } catch (err) {
+    if (err && (err.code === 11000 || String(err.message).includes("E11000") || String(err.message).includes("duplicate key"))) {
+      throw new Error(`Login ID "${loginId}" is already taken.`);
+    }
+    throw err;
+  }
 
   if (Array.isArray(courseIds) && courseIds.length > 0) {
     const enrollments = courseIds.map((cId) => ({

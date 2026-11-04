@@ -662,11 +662,10 @@ describe("Strict Token-Only Device Auth Test Matrix (16 Cases)", () => {
     });
     await studentLogin({ loginId: "RD-2026-115", password: "TestPass@2026" });
 
-    // Both sessions exist and are not revoked
+    // Session exists, is updated to latest token, and is not revoked
     const sessions = await Session.find({ userId: student._id });
-    expect(sessions.length).toBe(2);
+    expect(sessions.length).toBe(1);
     expect(sessions[0].revoked).toBe(false);
-    expect(sessions[1].revoked).toBe(false);
   });
 
   // TEST 16: Password hash, loginId, and password.js untouched (git diff clean)

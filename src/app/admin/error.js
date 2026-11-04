@@ -32,6 +32,11 @@ export default function AdminError({ error, reset }) {
         <p className="mt-2 text-sm text-neutral-600">
           An unexpected error occurred while loading this administrative section.
         </p>
+        {error?.digest && (
+          <p className="mt-2 text-xs font-mono text-neutral-400">
+            Reference: {error.digest}
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"

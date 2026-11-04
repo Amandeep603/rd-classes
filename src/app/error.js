@@ -30,6 +30,12 @@ export default function GlobalError({ error, reset }) {
         Our team has been notified. Please try refreshing or return to the homepage.
       </p>
 
+      {error?.digest && (
+        <p className="mt-2 text-xs font-mono text-neutral-400">
+          Reference: {error.digest}
+        </p>
+      )}
+
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <button
           onClick={() => reset()}

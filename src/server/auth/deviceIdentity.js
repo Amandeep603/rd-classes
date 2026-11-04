@@ -181,10 +181,28 @@ export function parseServerSignals(userAgentString = "", headerList = null, clie
     .digest("hex")
     .slice(0, 32);
 
+  // Slot assignment:
+  // slot = "handheld" for deviceType mobile or tablet (including iPadOS: a Macintosh user agent with touch points > 1 from the rd_hints cookie)
+  // and "computer" for Windows, macOS without touch, Linux and ChromeOS. A Macintosh user agent with no hints is treated as "computer".
+  let slot = "computer";
+  if (
+    deviceType === "mobile" ||
+    deviceType === "tablet" ||
+    isIPadFromTouch ||
+    osFamily === "iPadOS" ||
+    osFamily === "iOS" ||
+    osFamily === "Android"
+  ) {
+    slot = "handheld";
+  } else {
+    slot = "computer";
+  }
+
   // Raw user agent trimmed to 300 characters
   const trimmedUA = (userAgentString || "").slice(0, 300);
 
   return {
+    slot,
     deviceType,
     osFamily,
     osName,
@@ -202,6 +220,48 @@ export function parseServerSignals(userAgentString = "", headerList = null, clie
     userAgent: trimmedUA,
     coarseKey,
   };
+}
+
+/**
+ * Derives device slot ("handheld" | "computer") in memory for any device or request record.
+ */
+export function deriveSlot(item) {
+  if (!item) return "computer";
+  if (item.slot === "handheld" || item.slot === "computer") {
+    return item.slot;
+  }
+  const type = String(item.deviceType || "").toLowerCase();
+  const os = String(item.osFamily || item.os || "").toLowerCase();
+  if (
+    type === "mobile" ||
+    type === "tablet" ||
+    os.includes("ipad") ||
+    os.includes("ios") ||
+    os.includes("android")
+  ) {
+    return "handheld";
+  }
+  return "computer";
+}
+
+/**
+ * Detects in-app browsers and WebViews from User-Agent.
+ * User agent tokens: FBAN, FBAV, Instagram, Line, Snapchat, Twitter, LinkedInApp, GSA, "; wv)" on Android,
+ * and an iOS Mobile user agent without the "Safari/" token. Fail open when unsure.
+ */
+export function isInAppBrowser(userAgentString = "") {
+  if (!userAgentString || typeof userAgentString !== "string") return false;
+  if (/FBAN|FBAV|Instagram|Line\/|Snapchat|Twitter|LinkedInApp|GSA\//i.test(userAgentString)) {
+    return true;
+  }
+  if (/Android/i.test(userAgentString) && /;\s*wv/i.test(userAgentString)) {
+    return true;
+  }
+  const isIOSMobile = /iPhone|iPod/i.test(userAgentString) || (/iPad/i.test(userAgentString) && /Mobile/i.test(userAgentString));
+  if (isIOSMobile && !/Safari\//i.test(userAgentString)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -243,11 +303,15 @@ export function computeProfileBucket(profile) {
 
 /**
  * Dedupe key for pending device requests:
- * studentId + coarseKey + profileBucket
+ * Dedupe by studentId + request token (fall back to studentId + slot + screen bucket + model if cookies are rejected).
  */
-export function computeDedupeKey(studentId, coarseKey, profile) {
+export function computeDedupeKey(studentId, requestTokenHash, profile, slot = "computer") {
+  if (requestTokenHash) {
+    return `req_${studentId}_${requestTokenHash}`;
+  }
   const bucket = computeProfileBucket(profile);
-  return `${studentId}_${coarseKey}_${bucket}`;
+  const modelPart = profile?.model || "generic";
+  return `req_${studentId}_${slot}_${bucket}_${modelPart}`;
 }
 
 /**
@@ -281,99 +345,193 @@ export function matchProfilePair(p1, p2) {
 }
 
 /**
- * Matches a login attempt against approved devices.
- * STRICT TOKEN-ONLY SYSTEM:
- * A login matches ONLY if cookieTokenHash is found in browserTokenHashes
- * or non-expired graceTokenHashes of an approved, non-revoked device.
- * All hardware, screen, OS, and missing-hint fallbacks are completely removed.
+ * Matches a login attempt against approved devices according to the policy:
+ * - Cookie token hash matches an approved device d AND d.slot === slot AND d.osFamily === osFamily -> MATCH.
+ *   If cookie matches but slot or osFamily differ (copied cookie) -> treat as NO MATCH and log device_cookie_mismatch.
+ * - Grace for old records (Browser mode): approved device in same slot without tokens + profile match -> learns cookie, MATCH.
+ * - Smart mode: soft-matches by coarseKey + screen tolerance within 3% and model equality, missing hints fail open.
  */
 export function matchDevice({
   signals,
   profile,
   cookieTokenHash = null,
   approvedDevices = [],
-  deviceLockMode = "strict",
+  deviceBinding = "browser",
+  deviceLockMode = null,
 }) {
-  const mode = deviceLockMode === "relaxed" ? "strict" : deviceLockMode || "strict";
+  const binding = deviceBinding || (deviceLockMode === "smart" ? "smart" : "browser");
+  const now = new Date();
 
-  if (mode === "off") {
-    if (approvedDevices.length > 0) {
-      return {
-        matched: true,
-        device: approvedDevices[0],
-        reason: "lock_disabled",
-      };
-    }
-  }
-
-  // Token Hash matching (Active token or 10-minute multi-tab grace token)
+  // 1. Direct active token or grace token match
   if (cookieTokenHash) {
-    const now = new Date();
     for (const d of approvedDevices) {
       if (d.status !== "approved") continue;
 
-      // 1. Direct active token match
-      if (Array.isArray(d.browserTokenHashes) && d.browserTokenHashes.includes(cookieTokenHash)) {
-        return {
-          matched: true,
-          device: d,
-          reason: "token_hash_match",
-          isCookieMatch: true,
-        };
-      }
+      const hashes = [
+        ...(Array.isArray(d.browserTokenHashes) ? d.browserTokenHashes : []),
+        ...(Array.isArray(d.tokenHashes) ? d.tokenHashes : []),
+      ];
 
-      // 2. Grace token match (valid for 10 minutes after rotation)
-      if (Array.isArray(d.graceTokenHashes)) {
-        const graceMatch = d.graceTokenHashes.find(
+      const directMatch = hashes.includes(cookieTokenHash);
+      const graceMatch =
+        Array.isArray(d.graceTokenHashes) &&
+        d.graceTokenHashes.some(
           (g) => g.hash === cookieTokenHash && new Date(g.expiresAt).getTime() > now.getTime()
         );
-        if (graceMatch) {
+
+      if (directMatch || graceMatch) {
+        const dSlot = deriveSlot(d);
+        const curSlot = signals.slot;
+        const dOsFamily = d.osFamily || "";
+        const curOsFamily = signals.osFamily || "";
+
+        if (dSlot === curSlot && dOsFamily === curOsFamily) {
           return {
             matched: true,
             device: d,
-            reason: "grace_token_match",
+            reason: directMatch ? "token_hash_match" : "grace_token_match",
             isCookieMatch: true,
-            isGraceMatch: true,
+            isGraceMatch: !directMatch && graceMatch,
+          };
+        } else {
+          return {
+            matched: false,
+            device: d,
+            reason: "device_cookie_mismatch",
+            isCopiedCookie: true,
           };
         }
       }
     }
   }
 
-  // Strict Token-Only: All other attempts fail
+  // 2. Grace for old records (Browser mode)
+  if (binding === "browser") {
+    for (const d of approvedDevices) {
+      if (d.status !== "approved") continue;
+      const dSlot = deriveSlot(d);
+      if (dSlot !== signals.slot) continue;
+
+      const hasTokens =
+        (Array.isArray(d.browserTokenHashes) && d.browserTokenHashes.length > 0) ||
+        (Array.isArray(d.tokenHashes) && d.tokenHashes.length > 0);
+
+      if (!hasTokens) {
+        const sameOs = (d.osFamily || "") === (signals.osFamily || "");
+        const profileMatch = matchProfilePair(profile, d.profile);
+        if (sameOs && profileMatch) {
+          return {
+            matched: true,
+            device: d,
+            reason: "device_cookie_learned",
+            isLearnedMatch: true,
+          };
+        }
+      }
+    }
+  }
+
+  // 3. Smart mode soft match
+  if (binding === "smart") {
+    for (const d of approvedDevices) {
+      if (d.status !== "approved") continue;
+      const dSlot = deriveSlot(d);
+      if (dSlot !== signals.slot) continue;
+
+      const sameCoarse = d.coarseKey === signals.coarseKey;
+      if (sameCoarse) {
+        if (!profile || !profile.screenMajor || !d.profile || !d.profile.screenMajor) {
+          return {
+            matched: true,
+            device: d,
+            reason: "smart_soft_match_missing_hints",
+            isSoftMatch: true,
+          };
+        }
+        if (matchProfilePair(profile, d.profile)) {
+          return {
+            matched: true,
+            device: d,
+            reason: "smart_soft_match",
+            isSoftMatch: true,
+          };
+        }
+      }
+    }
+  }
+
   return {
     matched: false,
-    reason: "strict_token_mismatch",
+    reason: "no_match",
   };
 }
 
 /**
- * Computes diagnostic flags comparing login attempt against closest approved device.
+ * Computes diagnostic flags for pending device request according to policy:
+ * - "Slot occupied by <device label>" or "Slot free"
+ * - "Same specs as the registered <slot> but no cookie: the student switched browser or cleared cookies, or someone else is using the account"
+ * - "Previously replaced on <date>"
+ * - "Cookie copied from another OS"
+ * - "Screen differs"
  */
-export function computeDeviceDifferences(signals, profile, closestDevice) {
+export function computeRequestFlags({
+  signals,
+  profile,
+  occupiedDevice = null,
+  isCopiedCookie = false,
+  replacedDevice = null,
+}) {
   const flags = [];
-  if (!closestDevice) return flags;
 
-  if (signals.osFamily !== closestDevice.osFamily) {
-    flags.push(`OS family differs: ${closestDevice.osFamily || "Unknown"} vs ${signals.osFamily}`);
+  if (occupiedDevice) {
+    const occLabel =
+      occupiedDevice.deviceLabel ||
+      occupiedDevice.label ||
+      (signals.slot === "handheld" ? "phone/tablet" : "laptop/desktop");
+    flags.push(`Slot occupied by ${occLabel}`);
+  } else {
+    flags.push("Slot free");
   }
 
-  if (signals.deviceType !== closestDevice.deviceType) {
-    flags.push(`Device type differs: ${closestDevice.deviceType} vs ${signals.deviceType}`);
+  if (occupiedDevice) {
+    const isSameSlot = deriveSlot(occupiedDevice) === signals.slot;
+    const isSameOs = (occupiedDevice.osFamily || "") === (signals.osFamily || "");
+    const isProfileMatch = matchProfilePair(profile, occupiedDevice.profile);
+
+    if (isSameSlot && isSameOs && isProfileMatch) {
+      flags.push(
+        `Same specs as the registered ${signals.slot} but no cookie: the student switched browser or cleared cookies, or someone else is using the account`
+      );
+    } else if (profile && occupiedDevice.profile?.screenMajor) {
+      const majDiff =
+        Math.abs(profile.screenMajor - occupiedDevice.profile.screenMajor) /
+        Math.max(1, occupiedDevice.profile.screenMajor);
+      const minDiff =
+        Math.abs(profile.screenMinor - occupiedDevice.profile.screenMinor) /
+        Math.max(1, occupiedDevice.profile.screenMinor);
+      if (majDiff > 0.03 || minDiff > 0.03) {
+        flags.push("Screen differs");
+      }
+    }
   }
 
-  if (profile && closestDevice.profile && closestDevice.profile.screenMajor) {
-    const cd = closestDevice.profile;
-    const majDiff = Math.abs(profile.screenMajor - cd.screenMajor);
-    const minDiff = Math.abs(profile.screenMinor - cd.screenMinor);
-    if (majDiff > 30 || minDiff > 30) {
-      flags.push(`Screen differs: ${cd.screenMajor}x${cd.screenMinor} vs ${profile.screenMajor}x${profile.screenMinor}`);
-    }
-    if (profile.model && cd.model && profile.model.toLowerCase() !== cd.model.toLowerCase()) {
-      flags.push(`Model differs: ${cd.model} vs ${profile.model}`);
-    }
+  if (replacedDevice && replacedDevice.replacedAt) {
+    const dateStr = new Date(replacedDevice.replacedAt).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    flags.push(`Previously replaced on ${dateStr}`);
+  }
+
+  if (isCopiedCookie) {
+    flags.push("Cookie copied from another OS");
   }
 
   return flags;
+}
+
+export function computeDeviceDifferences(signals, profile, closestDevice) {
+  return computeRequestFlags({ signals, profile, occupiedDevice: closestDevice });
 }
 

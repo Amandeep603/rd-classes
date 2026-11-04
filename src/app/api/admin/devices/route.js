@@ -3,6 +3,7 @@ import { requireAdminApi } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
 import { Device, User } from "@/lib/models";
 import { removeDevice } from "@/server/auth/deviceService.js";
+import { formatPublicError } from "@/lib/publicError.js";
 
 export async function GET(request) {
   const auth = await requireAdminApi();
@@ -61,7 +62,11 @@ export async function GET(request) {
       totalCount: results.length,
     });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const { userMessage, refCode, isKnown } = formatPublicError(error);
+    return NextResponse.json(
+      { error: userMessage, reference: refCode },
+      { status: isKnown ? 400 : 500 }
+    );
   }
 }
 
@@ -87,7 +92,11 @@ export async function POST(request) {
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const { userMessage, refCode, isKnown } = formatPublicError(error);
+    return NextResponse.json(
+      { error: userMessage, reference: refCode },
+      { status: isKnown ? 400 : 500 }
+    );
   }
 }
 

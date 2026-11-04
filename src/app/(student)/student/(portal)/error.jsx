@@ -22,6 +22,11 @@ export default function StudentPortalError({ error, reset }) {
         <p className="text-sm text-[#6B7280]">
           We encountered an issue loading this study module. Please click Retry below to reload.
         </p>
+        {error?.digest && (
+          <p className="text-xs font-mono text-neutral-400">
+            Reference: {error.digest}
+          </p>
+        )}
       </div>
 
       <div className="mt-4 flex items-center gap-3">

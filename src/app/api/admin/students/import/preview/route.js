@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/server/auth/session.js";
 import { parseAndValidateImport } from "@/server/services/studentAdminService.js";
+import { formatPublicError } from "@/lib/publicError.js";
 
 export async function POST(request) {
   const auth = await requireAdminApi();
@@ -20,6 +21,10 @@ export async function POST(request) {
     const result = await parseAndValidateImport(buffer);
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const { userMessage, refCode, isKnown } = formatPublicError(error);
+    return NextResponse.json(
+      { error: userMessage, reference: refCode },
+      { status: isKnown ? 400 : 500 }
+    );
   }
 }

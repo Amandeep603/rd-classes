@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { logoutUser } from "@/server/auth/authService.js";
+import { formatPublicError } from "@/lib/publicError.js";
 
 export async function POST() {
   try {
     await logoutUser("student");
     return NextResponse.json({ success: true, redirectTo: "/student-login" });
   } catch (err) {
-    return NextResponse.json({ error: err?.message || "Failed to log out" }, { status: 500 });
+    const { userMessage, refCode } = formatPublicError(err);
+    return NextResponse.json({ error: userMessage, reference: refCode }, { status: 500 });
   }
 }
 
