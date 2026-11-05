@@ -245,23 +245,56 @@ export function deriveSlot(item) {
 }
 
 /**
+ * Derives osFamily string in memory for legacy device records lacking osFamily.
+ */
+export function deriveOsFamily(item) {
+  if (!item) return "Unknown";
+  if (item.osFamily && typeof item.osFamily === "string" && item.osFamily.trim() !== "") {
+    return item.osFamily.trim();
+  }
+  const raw = String(item.os || item.osName || item.deviceType || "");
+  if (/ipad/i.test(raw)) return "iPadOS";
+  if (/ios|iphone|ipod/i.test(raw)) return "iOS";
+  if (/windows/i.test(raw)) return "Windows";
+  if (/mac/i.test(raw)) return "macOS";
+  if (/android/i.test(raw)) return "Android";
+  if (/cros|chrome\s*os/i.test(raw)) return "ChromeOS";
+  if (/linux/i.test(raw)) return "Linux";
+  return "Unknown";
+}
+
+/**
  * Detects in-app browsers and WebViews from User-Agent.
- * User agent tokens: FBAN, FBAV, Instagram, Line, Snapchat, Twitter, LinkedInApp, GSA, "; wv)" on Android,
- * and an iOS Mobile user agent without the "Safari/" token. Fail open when unsure.
+ * Explicit in-app tokens: FBAN, FBAV, Instagram, WhatsApp, Line, Snapchat, Twitter, LinkedInApp, GSA (Google App on iOS),
+ * and Android WebViews ("; wv)"). Android Chrome Custom Tabs must not be blocked. Fail open when unsure.
  */
 export function isInAppBrowser(userAgentString = "") {
   if (!userAgentString || typeof userAgentString !== "string") return false;
-  if (/FBAN|FBAV|Instagram|Line\/|Snapchat|Twitter|LinkedInApp|GSA\//i.test(userAgentString)) {
+  if (/FBAN|FBAV|Instagram|WhatsApp|Line\/|Snapchat|Twitter|LinkedInApp|GSA\/|WKWebView|MicroMessenger/i.test(userAgentString)) {
     return true;
   }
   if (/Android/i.test(userAgentString) && /;\s*wv/i.test(userAgentString)) {
     return true;
   }
-  const isIOSMobile = /iPhone|iPod/i.test(userAgentString) || (/iPad/i.test(userAgentString) && /Mobile/i.test(userAgentString));
-  if (isIOSMobile && !/Safari\//i.test(userAgentString)) {
-    return true;
-  }
   return false;
+}
+
+/**
+ * Returns friendly human-readable label for an in-app browser or null.
+ */
+export function getInAppBrowserLabel(userAgentString = "") {
+  if (!userAgentString || typeof userAgentString !== "string") return null;
+  if (/GSA\//i.test(userAgentString)) return "Google app";
+  if (/Instagram/i.test(userAgentString)) return "Instagram";
+  if (/WhatsApp/i.test(userAgentString)) return "WhatsApp";
+  if (/FBAN|FBAV/i.test(userAgentString)) return "Facebook";
+  if (/MicroMessenger/i.test(userAgentString)) return "WeChat";
+  if (/LinkedInApp/i.test(userAgentString)) return "LinkedIn";
+  if (/Twitter/i.test(userAgentString)) return "Twitter";
+  if (/Line\//i.test(userAgentString)) return "Line";
+  if (/Android/i.test(userAgentString) && /;\s*wv/i.test(userAgentString)) return "WebView";
+  if (isInAppBrowser(userAgentString)) return "In-App Browser";
+  return null;
 }
 
 /**
@@ -382,10 +415,16 @@ export function matchDevice({
       if (directMatch || graceMatch) {
         const dSlot = deriveSlot(d);
         const curSlot = signals.slot;
-        const dOsFamily = d.osFamily || "";
+        const dOsFamily = d.osFamily || deriveOsFamily(d);
         const curOsFamily = signals.osFamily || "";
+        const osMatches =
+          !dOsFamily ||
+          dOsFamily === "Unknown" ||
+          !curOsFamily ||
+          curOsFamily === "Unknown" ||
+          dOsFamily === curOsFamily;
 
-        if (dSlot === curSlot && dOsFamily === curOsFamily) {
+        if (dSlot === curSlot && osMatches) {
           return {
             matched: true,
             device: d,
@@ -417,8 +456,20 @@ export function matchDevice({
         (Array.isArray(d.tokenHashes) && d.tokenHashes.length > 0);
 
       if (!hasTokens) {
-        const sameOs = (d.osFamily || "") === (signals.osFamily || "");
-        const profileMatch = matchProfilePair(profile, d.profile);
+        const dOsFamily = d.osFamily || deriveOsFamily(d);
+        const curOsFamily = signals.osFamily || "";
+        const sameOs =
+          !dOsFamily ||
+          dOsFamily === "Unknown" ||
+          !curOsFamily ||
+          curOsFamily === "Unknown" ||
+          dOsFamily === curOsFamily;
+
+        let profileMatch = true;
+        if (d.profile?.screenMajor && profile?.screenMajor) {
+          profileMatch = matchProfilePair(profile, d.profile);
+        }
+
         if (sameOs && profileMatch) {
           return {
             matched: true,

@@ -188,6 +188,14 @@ const deviceRequestSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    provisional: {
+      type: Boolean,
+      default: false,
+    },
+    inAppBrowser: {
+      type: String,
+      default: "",
+    },
     pendingId: {
       type: String,
       default: "",
@@ -218,6 +226,11 @@ deviceRequestSchema.pre("validate", function () {
     this.userId = this.studentId;
   } else if (this.userId && !this.studentId) {
     this.studentId = this.userId;
+  }
+  if (!this.dedupeKey) {
+    this.dedupeKey =
+      this.deviceId ||
+      `${this.studentId || this.userId || "anon"}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   }
   if (this.decidedAt && !this.resolvedAt) {
     this.resolvedAt = this.decidedAt;

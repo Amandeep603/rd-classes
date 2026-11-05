@@ -29,7 +29,9 @@ import {
   computeDeviceDifferences,
   computeRequestFlags,
   deriveSlot,
+  deriveOsFamily,
   isInAppBrowser,
+  getInAppBrowserLabel,
 } from "./deviceIdentity.js";
 import { DeviceHistory } from "../../lib/models/DeviceHistory.ts";
 import {
@@ -63,24 +65,17 @@ export async function studentLogin({ loginId, password }) {
   );
   const profile = computeProfile(signals, clientHints);
   const ip = signals.ip;
+  const inAppLabel = getInAppBrowserLabel(signals.userAgent);
+  const isInApp = Boolean(inAppLabel);
 
-  // 0. Detect in-app browsers and WebViews
-  if (isInAppBrowser(signals.userAgent)) {
-    return {
-      success: false,
-      error: "Please open rd-classes.in in Chrome or Safari to log in (tap the menu and choose Open in browser)",
-      reason: "in_app_browser",
-    };
-  }
-
-  // 0b. Test cookie check
+  // 0. Test cookie check
   const rawTestCookie = await getCookie(COOKIE_NAMES.TEST);
   const rawDeviceCookie = await getCookie(COOKIE_NAMES.DEVICE);
   const rawPendingCookie = await getCookie(COOKIE_NAMES.PENDING);
-  if (!rawTestCookie && !rawHintsCookie && !rawDeviceCookie && !rawPendingCookie) {
+  if (rawTestCookie === "0") {
     return {
       success: false,
-      error: "Please enable cookies and do not use private browsing.",
+      error: "Please enable cookies to log in.",
       reason: "cookies_disabled",
     };
   }
@@ -97,7 +92,7 @@ export async function studentLogin({ loginId, password }) {
     );
     return {
       success: false,
-      error: `Too many attempts, try again in ${mins} minutes`,
+      error: `Too many failed attempts, try again in ${mins} minutes`,
       reason: "rate_limited",
     };
   }
@@ -173,7 +168,7 @@ export async function studentLogin({ loginId, password }) {
     );
     return {
       success: false,
-      error: "Your account has been deactivated. Please contact RD Classes administration.",
+      error: "Your account has been deactivated (blocked). Please contact RD Classes administration.",
       reason: "blocked",
     };
   }
@@ -192,9 +187,9 @@ export async function studentLogin({ loginId, password }) {
   const deviceBinding =
     setting?.deviceBinding || (setting?.deviceLockMode === "smart" ? "smart" : "browser");
 
-  // Fetch approved devices of student
+  // Fetch approved devices of student - match by studentId OR legacy userId
   const approvedDevices = await Device.find({
-    studentId: user._id,
+    $or: [{ studentId: user._id }, { userId: user._id }],
     status: "approved",
   });
 
@@ -206,18 +201,33 @@ export async function studentLogin({ loginId, password }) {
       .digest("hex");
   }
 
-  // Check if incoming cookie belongs to a replaced device of this student
+  // Check if incoming cookie belongs to a replaced or revoked device of this student
   let replacedDevice = null;
+  let revokedDevice = null;
   if (incomingTokenHash) {
     replacedDevice = await Device.findOne({
-      studentId: user._id,
+      $or: [{ studentId: user._id }, { userId: user._id }],
       status: "replaced",
       $or: [
         { browserTokenHashes: incomingTokenHash },
         { tokenHashes: incomingTokenHash },
       ],
     });
+    revokedDevice = await Device.findOne({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      status: "revoked",
+      $or: [
+        { browserTokenHashes: incomingTokenHash },
+        { tokenHashes: incomingTokenHash },
+      ],
+    });
   }
+
+  const anyDeviceEver = Boolean(
+    await Device.exists({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+    })
+  );
 
   // Helper to create and set a session without revoking existing sessions
   const createStudentSession = async (deviceId) => {
@@ -236,6 +246,7 @@ export async function studentLogin({ loginId, password }) {
     });
 
     await setCookie(COOKIE_NAMES.STUDENT_SESSION, rawSessionToken);
+    await setCookie(COOKIE_NAMES.LEGACY_SESSION, rawSessionToken);
     return rawSessionToken;
   };
 
@@ -246,6 +257,115 @@ export async function studentLogin({ loginId, password }) {
     await setCookie(COOKIE_NAMES.DEVICE, freshToken, COOKIE_DURATIONS.DEVICE);
     return { token: freshToken, hash: freshHash };
   };
+
+  // 1. Check if this browser carries rd_pending matching an APPROVED DeviceRequest
+  let approvedReq = null;
+  if (rawPendingCookie) {
+    const pendingVal = String(rawPendingCookie).trim();
+    const query = mongoose.isValidObjectId(pendingVal)
+      ? { $or: [{ _id: pendingVal }, { pendingId: pendingVal }, { deviceId: pendingVal }] }
+      : { $or: [{ pendingId: pendingVal }, { deviceId: pendingVal }] };
+
+    approvedReq = await DeviceRequest.findOne({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      ...query,
+      status: "approved",
+      fulfilledAt: null,
+    });
+  }
+
+  if (approvedReq) {
+    const { token: freshToken, hash: freshTokenHash } = await issueDeviceToken();
+    let activeDeviceId = null;
+
+    let existingDev = null;
+    if (approvedReq.targetDeviceId) {
+      existingDev = await Device.findOne({
+        $or: [{ studentId: user._id }, { userId: user._id }],
+        $or: [
+          { deviceId: approvedReq.targetDeviceId },
+          { _id: mongoose.isValidObjectId(approvedReq.targetDeviceId) ? approvedReq.targetDeviceId : undefined },
+        ],
+        status: "approved",
+      });
+    }
+    if (!existingDev && approvedReq.mode === "same_device") {
+      existingDev = await Device.findOne({
+        $or: [{ studentId: user._id }, { userId: user._id }],
+        status: "approved",
+      });
+    }
+
+    if (existingDev) {
+      activeDeviceId = existingDev.deviceId;
+      if (!Array.isArray(existingDev.browserTokenHashes)) existingDev.browserTokenHashes = [];
+      existingDev.browserTokenHashes.push(freshTokenHash);
+      if (!Array.isArray(existingDev.tokenHashes)) existingDev.tokenHashes = [];
+      existingDev.tokenHashes.push(freshTokenHash);
+      if (existingDev.tokenHashes.length > 10) existingDev.tokenHashes.shift();
+      existingDev.lastUsedAt = now;
+      existingDev.lastIp = signals.ip;
+      await existingDev.save();
+    } else {
+      const newDevId = "dev_" + crypto.randomBytes(8).toString("hex");
+      activeDeviceId = newDevId;
+      await Device.create({
+        studentId: user._id,
+        userId: user._id,
+        deviceId: newDevId,
+        deviceKey: newDevId,
+        slot: deriveSlot(approvedReq) || signals.slot,
+        coarseKey: signals.coarseKey,
+        deviceType: signals.deviceType,
+        osFamily: signals.osFamily,
+        os: signals.osName,
+        osVersion: signals.osVersion,
+        browser: signals.browserName,
+        browserName: signals.browserName,
+        browserVersion: signals.browserVersion,
+        browsersSeen: [signals.browserName],
+        model: signals.model,
+        profile: profile || null,
+        aliases: [],
+        browserTokenHashes: [freshTokenHash],
+        tokenHashes: [freshTokenHash],
+        graceTokenHashes: [],
+        city: signals.city,
+        region: signals.region,
+        country: signals.country,
+        timezone: signals.timezone,
+        firstIp: signals.ip,
+        lastIp: signals.ip,
+        ip: signals.ip,
+        firstLoginAt: now,
+        lastUsedAt: now,
+        approvedAt: now,
+        approvedBy: "auto-first-login",
+        decidedAt: now,
+        decidedBy: approvedReq.decidedBy || "admin",
+        loginAttempts: 1,
+        deviceLabel: signals.label,
+        label: signals.label,
+        userAgent: signals.userAgent,
+        status: "approved",
+      });
+    }
+
+    approvedReq.fulfilledAt = now;
+    await approvedReq.save();
+
+    await deleteCookie(COOKIE_NAMES.PENDING);
+    await createStudentSession(activeDeviceId);
+
+    console.log(
+      `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=approved_request_login deviceId=${activeDeviceId} ip=${signals.ip}`
+    );
+
+    return {
+      success: true,
+      redirectTo: "/student",
+    };
+  }
 
   // Run device match according to policy
   const matchResult = matchDevice({
@@ -260,6 +380,27 @@ export async function studentLogin({ loginId, password }) {
   if (matchResult.matched) {
     const matchedDevice = matchResult.device;
     const { token: freshToken, hash: freshTokenHash } = await issueDeviceToken();
+
+    // Lazy upgrade & defensive fields on old documents
+    if (!matchedDevice.deviceId) {
+      matchedDevice.deviceId = matchedDevice.deviceKey || ("dev_" + (matchedDevice._id ? matchedDevice._id.toString() : crypto.randomBytes(8).toString("hex")));
+    }
+    if (!matchedDevice.deviceKey) {
+      matchedDevice.deviceKey = matchedDevice.deviceId;
+    }
+    if (!matchedDevice.studentId) {
+      matchedDevice.studentId = user._id;
+    }
+    if (!matchedDevice.userId) {
+      matchedDevice.userId = user._id;
+    }
+    matchedDevice.slot = deriveSlot(matchedDevice);
+    matchedDevice.osFamily = matchedDevice.osFamily || deriveOsFamily(matchedDevice) || signals.osFamily;
+    if (signals.osName && !matchedDevice.os) matchedDevice.os = signals.osName;
+    if (signals.browserName && !matchedDevice.browser) matchedDevice.browser = signals.browserName;
+    if (!matchedDevice.deviceLabel) matchedDevice.deviceLabel = signals.label;
+    if (!matchedDevice.label) matchedDevice.label = matchedDevice.deviceLabel;
+    if (profile && !matchedDevice.profile) matchedDevice.profile = profile;
 
     if (!Array.isArray(matchedDevice.browserTokenHashes)) {
       matchedDevice.browserTokenHashes = [];
@@ -320,9 +461,10 @@ export async function studentLogin({ loginId, password }) {
     }
     await matchedDevice.save();
 
-    user.lastLoginAt = now;
-    user.lastLoginIp = signals.ip;
-    await user.save();
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { lastLoginAt: now, lastLoginIp: signals.ip } }
+    );
 
     await createStudentSession(matchedDevice.deviceId);
 
@@ -336,6 +478,112 @@ export async function studentLogin({ loginId, password }) {
     };
   }
 
+  // Provisional confirmation: normal browser confirms provisional device from in-app registration
+  if (!matchResult.matched && !isInApp && approvedDevices.length > 0) {
+    const provisionalDevice = approvedDevices.find((d) => {
+      if (!d.provisional) return false;
+      if (d.slot !== signals.slot) return false;
+      const dOs = d.osFamily || deriveOsFamily(d);
+      if (dOs !== signals.osFamily) return false;
+      if (!d.profile?.screenMajor || !d.profile?.screenMinor || !profile?.screenMajor || !profile?.screenMinor) return false;
+
+      const dMajor = Math.max(d.profile.screenMajor, d.profile.screenMinor);
+      const dMinor = Math.min(d.profile.screenMajor, d.profile.screenMinor);
+      const cMajor = Math.max(profile.screenMajor, profile.screenMinor);
+      const cMinor = Math.min(profile.screenMajor, profile.screenMinor);
+
+      const majorTol = Math.abs(dMajor - cMajor) / Math.max(dMajor, cMajor);
+      const minorTol = Math.abs(dMinor - cMinor) / Math.max(dMinor, cMinor);
+      if (majorTol > 0.03 || minorTol > 0.03) return false;
+
+      if (d.profile.model && profile.model) {
+        if (d.profile.model.toLowerCase().trim() !== profile.model.toLowerCase().trim()) return false;
+      }
+      return true;
+    });
+
+    if (provisionalDevice) {
+      provisionalDevice.provisional = false;
+      const { token: freshToken, hash: freshTokenHash } = await issueDeviceToken();
+      if (!Array.isArray(provisionalDevice.browserTokenHashes)) provisionalDevice.browserTokenHashes = [];
+      provisionalDevice.browserTokenHashes.push(freshTokenHash);
+      if (!Array.isArray(provisionalDevice.tokenHashes)) provisionalDevice.tokenHashes = [];
+      provisionalDevice.tokenHashes.push(freshTokenHash);
+      if (signals.browserName) {
+        if (!Array.isArray(provisionalDevice.browsersSeen)) provisionalDevice.browsersSeen = [];
+        if (!provisionalDevice.browsersSeen.includes(signals.browserName)) {
+          provisionalDevice.browsersSeen.push(signals.browserName);
+        }
+      }
+      provisionalDevice.lastUsedAt = now;
+      provisionalDevice.lastIp = signals.ip;
+      await provisionalDevice.save();
+
+      await createStudentSession(provisionalDevice.deviceId);
+
+      console.log(
+        `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_provisional_confirmed deviceId=${provisionalDevice.deviceId} slot=${signals.slot} ip=${signals.ip}`
+      );
+
+      return {
+        success: true,
+        redirectTo: "/student",
+      };
+    }
+  }
+
+  // In-app soft match: OS family + screen within 3% + model equal when both known
+  if (!matchResult.matched && isInApp && approvedDevices.length > 0) {
+    if (clientHints && clientHints.sw && clientHints.sh && clientHints.dpr && profile) {
+      const softMatchDev = approvedDevices.find((d) => {
+        if (d.slot !== signals.slot) return false;
+        const dOs = d.osFamily || deriveOsFamily(d);
+        if (dOs !== signals.osFamily) return false;
+        if (!d.profile?.screenMajor || !d.profile?.screenMinor) return false;
+
+        const dMajor = Math.max(d.profile.screenMajor, d.profile.screenMinor);
+        const dMinor = Math.min(d.profile.screenMajor, d.profile.screenMinor);
+        const cMajor = Math.max(profile.screenMajor, profile.screenMinor);
+        const cMinor = Math.min(profile.screenMajor, profile.screenMinor);
+
+        const majorDiff = Math.abs(dMajor - cMajor) / Math.max(dMajor, cMajor);
+        const minorDiff = Math.abs(dMinor - cMinor) / Math.max(dMinor, cMinor);
+        if (majorDiff > 0.03 || minorDiff > 0.03) return false;
+
+        if (d.profile.model && profile.model) {
+          if (d.profile.model.toLowerCase().trim() !== profile.model.toLowerCase().trim()) return false;
+        }
+        return true;
+      });
+
+      if (softMatchDev) {
+        const { token: freshToken, hash: freshTokenHash } = await issueDeviceToken();
+        if (!Array.isArray(softMatchDev.browserTokenHashes)) softMatchDev.browserTokenHashes = [];
+        softMatchDev.browserTokenHashes.push(freshTokenHash);
+        if (!Array.isArray(softMatchDev.tokenHashes)) softMatchDev.tokenHashes = [];
+        softMatchDev.tokenHashes.push(freshTokenHash);
+        if (!Array.isArray(softMatchDev.browsersSeen)) softMatchDev.browsersSeen = [];
+        if (inAppLabel && !softMatchDev.browsersSeen.includes(inAppLabel)) {
+          softMatchDev.browsersSeen.push(inAppLabel);
+        }
+        softMatchDev.lastUsedAt = now;
+        softMatchDev.lastIp = signals.ip;
+        await softMatchDev.save();
+
+        await createStudentSession(softMatchDev.deviceId);
+
+        console.log(
+          `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_soft_match_inapp deviceId=${softMatchDev.deviceId} slot=${softMatchDev.slot} inAppBrowser=${inAppLabel} ip=${signals.ip}`
+        );
+
+        return {
+          success: true,
+          redirectTo: "/student",
+        };
+      }
+    }
+  }
+
   // If cookie matched another slot or OS family, log device_cookie_mismatch
   if (matchResult.isCopiedCookie) {
     console.warn(
@@ -346,7 +594,7 @@ export async function studentLogin({ loginId, password }) {
   // STEP 3.2: Student has zero approved devices -> register current device as approved
   // Atomic: only one first device can win a race across slots; loser becomes pending request
   const totalApproved = approvedDevices.length;
-  if (totalApproved === 0) {
+  if (totalApproved === 0 && !anyDeviceEver && !revokedDevice) {
     const wonFirstLoginRace = await User.findOneAndUpdate(
       {
         _id: user._id,
@@ -391,12 +639,15 @@ export async function studentLogin({ loginId, password }) {
         firstLoginAt: now,
         lastUsedAt: now,
         approvedAt: now,
+        approvedBy: "auto-first-login",
         decidedAt: now,
         loginAttempts: 1,
         deviceLabel: signals.label,
         label: signals.label,
         userAgent: signals.userAgent,
         status: "approved",
+        provisional: isInApp ? true : false,
+        inAppBrowser: inAppLabel || "",
       });
 
       await DeviceHistory.create({
@@ -408,16 +659,17 @@ export async function studentLogin({ loginId, password }) {
         ip: signals.ip,
         city: signals.city,
         adminName: "system",
-      }).catch(() => {});
+      }).catch(() => { });
 
-      user.lastLoginAt = now;
-      user.lastLoginIp = signals.ip;
-      await user.save();
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { lastLoginAt: now, lastLoginIp: signals.ip } }
+      );
 
       await createStudentSession(newDeviceId);
 
       console.log(
-        `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_registered deviceId=${newDeviceId} slot=${signals.slot} ip=${signals.ip}`
+        `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_registered deviceId=${newDeviceId} slot=${signals.slot} ip=${signals.ip}${isInApp ? ` provisional=true inAppBrowser=${inAppLabel}` : ""}`
       );
 
       return {
@@ -437,12 +689,44 @@ export async function studentLogin({ loginId, password }) {
     reqTokenHash = issued.hash;
   }
 
-  // Check if a REJECTED request exists for that token
-  const rejectedReq = await DeviceRequest.findOne({
-    studentId: user._id,
-    $or: [{ requestTokenHash: reqTokenHash }, { tokenHash: reqTokenHash }],
-    status: "rejected",
+  // Find occupied device for this slot
+  const occupiedDevice = approvedDevices.find((d) => deriveSlot(d) === signals.slot);
+  const flags = computeRequestFlags({
+    signals,
+    profile,
+    occupiedDevice,
+    isCopiedCookie: matchResult.isCopiedCookie,
+    replacedDevice,
   });
+
+  const dedupeKey = computeDedupeKey(user._id, reqTokenHash, profile, signals.slot);
+
+  // Check if a REJECTED request exists for that token, pending cookie, or dedupe key
+  const rejectCond = [];
+  if (rawPendingCookie) {
+    const pVal = String(rawPendingCookie).trim();
+    if (mongoose.isValidObjectId(pVal)) {
+      rejectCond.push({ _id: pVal });
+    }
+    rejectCond.push({ pendingId: pVal });
+    rejectCond.push({ deviceId: pVal });
+  }
+  if (reqTokenHash) {
+    rejectCond.push({ requestTokenHash: reqTokenHash });
+    rejectCond.push({ tokenHash: reqTokenHash });
+  }
+  if (dedupeKey) {
+    rejectCond.push({ dedupeKey });
+  }
+
+  let rejectedReq = null;
+  if (rejectCond.length > 0) {
+    rejectedReq = await DeviceRequest.findOne({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      status: "rejected",
+      $or: rejectCond,
+    });
+  }
 
   if (rejectedReq) {
     rejectedReq.attemptCount = (rejectedReq.attemptCount || 1) + 1;
@@ -451,7 +735,9 @@ export async function studentLogin({ loginId, password }) {
     if (signals.city) rejectedReq.city = signals.city;
     await rejectedReq.save();
 
-    const declinedMsg = "Your request for this device was declined. Please contact RD Classes.";
+    const declinedMsg = rejectedReq.rejectionReason
+      ? rejectedReq.rejectionReason
+      : "Your request for this device was declined. Please contact RD Classes.";
     console.warn(
       `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_declined reqTokenHash=${reqTokenHash} ip=${signals.ip}`
     );
@@ -466,26 +752,27 @@ export async function studentLogin({ loginId, password }) {
     };
   }
 
-  // Find occupied device for this slot
-  const occupiedDevice = approvedDevices.find((d) => deriveSlot(d) === signals.slot);
-  const flags = computeRequestFlags({
-    signals,
-    profile,
-    occupiedDevice,
-    isCopiedCookie: matchResult.isCopiedCookie,
-    replacedDevice,
-  });
-
-  const dedupeKey = computeDedupeKey(user._id, reqTokenHash, profile, signals.slot);
+  const pendingCond = [];
+  if (rawPendingCookie) {
+    const pVal = String(rawPendingCookie).trim();
+    if (mongoose.isValidObjectId(pVal)) {
+      pendingCond.push({ _id: pVal });
+    }
+    pendingCond.push({ pendingId: pVal });
+    pendingCond.push({ deviceId: pVal });
+  }
+  if (reqTokenHash) {
+    pendingCond.push({ requestTokenHash: reqTokenHash });
+    pendingCond.push({ tokenHash: reqTokenHash });
+  }
+  if (dedupeKey) {
+    pendingCond.push({ dedupeKey });
+  }
 
   let pendingReq = await DeviceRequest.findOne({
-    studentId: user._id,
+    $or: [{ studentId: user._id }, { userId: user._id }],
     status: "pending",
-    $or: [
-      { requestTokenHash: reqTokenHash },
-      { tokenHash: reqTokenHash },
-      { dedupeKey },
-    ],
+    $or: pendingCond,
   });
 
   if (pendingReq) {
@@ -503,40 +790,75 @@ export async function studentLogin({ loginId, password }) {
     if (!pendingReq.tokenHash) pendingReq.tokenHash = reqTokenHash;
     await pendingReq.save();
   } else {
+    // Rate limit: at most 5 new requests per user in 24 hours
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const recentRequestsCount = await DeviceRequest.countDocuments({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      createdAt: { $gte: twentyFourHoursAgo },
+    });
+
+    if (recentRequestsCount >= 5) {
+      return {
+        success: false,
+        pendingApproval: false,
+        error: "Too many pending device requests within 24 hours. Please contact RD Classes support.",
+        reason: "rate_limited",
+      };
+    }
+
     const newReqDeviceId = "req_" + crypto.randomBytes(8).toString("hex");
 
-    pendingReq = await DeviceRequest.create({
-      studentId: user._id,
-      userId: user._id,
-      slot: signals.slot,
-      dedupeKey,
-      deviceId: newReqDeviceId,
-      tokenHash: reqTokenHash,
-      requestTokenHash: reqTokenHash,
-      coarseKey: signals.coarseKey,
-      deviceType: signals.deviceType,
-      osFamily: signals.osFamily,
-      osName: signals.osName,
-      osVersion: signals.osVersion,
-      browserName: signals.browserName,
-      browserVersion: signals.browserVersion,
-      model: signals.model,
-      label: signals.label,
-      profile: profile || null,
-      bucketKey: computeProfileBucket(profile),
-      userAgent: signals.userAgent,
-      ip: signals.ip,
-      city: signals.city,
-      region: signals.region,
-      country: signals.country,
-      timezone: signals.timezone,
-      flags,
-      previousDeviceId: replacedDevice ? replacedDevice.deviceId : null,
-      attemptCount: 1,
-      firstAttemptAt: now,
-      lastAttemptAt: now,
-      status: "pending",
-    });
+    try {
+      pendingReq = await DeviceRequest.create({
+        studentId: user._id,
+        userId: user._id,
+        slot: signals.slot,
+        dedupeKey,
+        deviceId: newReqDeviceId,
+        tokenHash: reqTokenHash,
+        requestTokenHash: reqTokenHash,
+        coarseKey: signals.coarseKey,
+        deviceType: signals.deviceType,
+        osFamily: signals.osFamily,
+        osName: signals.osName,
+        osVersion: signals.osVersion,
+        browserName: signals.browserName,
+        browserVersion: signals.browserVersion,
+        model: signals.model,
+        label: signals.label,
+        profile: profile || null,
+        bucketKey: computeProfileBucket(profile),
+        userAgent: signals.userAgent,
+        ip: signals.ip,
+        city: signals.city,
+        region: signals.region,
+        country: signals.country,
+        timezone: signals.timezone,
+        flags,
+        inAppBrowser: inAppLabel || "",
+        previousDeviceId: replacedDevice ? replacedDevice.deviceId : null,
+        attemptCount: 1,
+        firstAttemptAt: now,
+        lastAttemptAt: now,
+        status: "pending",
+      });
+    } catch (createErr) {
+      const isDup = createErr && (createErr.code === 11000 || String(createErr.message).includes("E11000"));
+      if (isDup) {
+        pendingReq = await DeviceRequest.findOne({
+          $or: [{ studentId: user._id }, { userId: user._id }],
+          $or: pendingCond,
+        });
+        if (pendingReq) {
+          pendingReq.status = "pending";
+          pendingReq.attemptCount = (pendingReq.attemptCount || 1) + 1;
+          pendingReq.lastAttemptAt = now;
+          if (inAppLabel && !pendingReq.inAppBrowser) pendingReq.inAppBrowser = inAppLabel;
+          await pendingReq.save();
+        }
+      }
+      if (!pendingReq) throw createErr;
+    }
 
     await createAdminNotification({
       type: "device_request",
@@ -551,19 +873,19 @@ export async function studentLogin({ loginId, password }) {
         label: signals.label,
         slot: signals.slot,
       },
-    }).catch(() => {});
+    }).catch(() => { });
   }
+
+  // Set pending cookie
+  await setCookie(COOKIE_NAMES.PENDING, pendingReq._id.toString(), COOKIE_DURATIONS.PENDING);
 
   // Exact student messages
   let message = "";
   if (replacedDevice) {
     message = "This device was replaced. Please log in again to request access.";
-  } else if (occupiedDevice) {
-    const slotWord = signals.slot === "handheld" ? "phone" : "laptop";
-    message = `This account is registered on another device. Only one phone and one laptop can be used per account. A request has been sent to RD Classes. You can log in here after the admin approves it. Always use the same browser and do not use private mode. Approving this device will log out your earlier ${slotWord}.`;
   } else {
     message =
-      "This account is registered on another device. Only one phone and one laptop can be used per account. A request has been sent to RD Classes. You can log in here after the admin approves it. Always use the same browser and do not use private mode.";
+      "Ye naya device hai. Request admin ko bhej di gayi hai. Approval ke baad dobara login karein.";
   }
 
   console.warn(
@@ -573,6 +895,8 @@ export async function studentLogin({ loginId, password }) {
   return {
     success: false,
     pendingApproval: true,
+    status: "pending",
+    redirectTo: "/student/login/pending",
     error: message,
     message,
     reason: replacedDevice ? "device_replaced" : "device_pending",
@@ -681,7 +1005,7 @@ export async function logoutUser(role = "student") {
     if (role === "admin") {
       const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
       if (adminToken) {
-        await Session.deleteOne({ tokenHash: hashToken(adminToken) }).catch(() => {});
+        await Session.deleteOne({ tokenHash: hashToken(adminToken) }).catch(() => { });
       }
       await deleteCookie(COOKIE_NAMES.ADMIN_SESSION);
     } else {
@@ -689,7 +1013,7 @@ export async function logoutUser(role = "student") {
         (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
         (await getCookie(COOKIE_NAMES.LEGACY_SESSION));
       if (studentToken) {
-        await Session.deleteOne({ tokenHash: hashToken(studentToken) }).catch(() => {});
+        await Session.deleteOne({ tokenHash: hashToken(studentToken) }).catch(() => { });
       }
       await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
       await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);

@@ -12,6 +12,9 @@ import {
   Loader2,
   ShieldCheck,
   Clock,
+  Compass,
+  Copy,
+  Check,
 } from "lucide-react";
 import { SITE_CONFIG } from "@/constants/site";
 import AuthLayout from "./AuthLayout";
@@ -51,6 +54,7 @@ export default function AuthScene({
   const [state, formAction, isPending] = useActionState(action, null);
   const [showPassword, setShowPassword] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [isReloading, setIsReloading] = useState(false);
 
   const searchParams = useSearchParams();
   const urlError = searchParams?.get("error");
@@ -65,7 +69,63 @@ export default function AuthScene({
         document.cookie = `rd_cookie_test=1; path=/; SameSite=Lax${isSecure ? "; Secure" : ""}`;
       }
     } catch {}
+
+    // Clear stale reload guard after being on page for 10 seconds
+    try {
+      const t = setTimeout(() => {
+        sessionStorage.removeItem("auth_stale_reloaded");
+      }, 10000);
+      return () => clearTimeout(t);
+    } catch {}
   }, []);
+
+  // Stale deploy detection & single automatic reload
+  const triggerStaleReload = () => {
+    try {
+      const alreadyReloaded = sessionStorage.getItem("auth_stale_reloaded");
+      if (!alreadyReloaded) {
+        sessionStorage.setItem("auth_stale_reloaded", "1");
+        setIsReloading(true);
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (state?.error) {
+      const err = String(state.error);
+      if (
+        err.includes("Failed to find Server Action") ||
+        err.includes("An unexpected response") ||
+        err.includes("page was updated")
+      ) {
+        triggerStaleReload();
+      }
+    }
+  }, [state]);
+
+  const handleCopyLoginLink = async () => {
+    const loginUrl = "https://www.rd-classes.in/student-login";
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(loginUrl);
+      } else {
+        const input = document.createElement("input");
+        input.value = loginUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      setToastMessage("Link: https://www.rd-classes.in/student-login");
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  };
 
   let urlErrorMessage = null;
   let isExpiredNotice = false;
@@ -156,6 +216,22 @@ export default function AuthScene({
         </div>
       )}
 
+      {/* Stale Page Deploy Reloading State */}
+      {isReloading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center gap-3 rounded-2xl bg-amber-950/80 p-4 border border-amber-500/50 text-xs sm:text-sm text-amber-100 shadow-xl backdrop-blur-md animate-pulse"
+        >
+          <Loader2 className="h-5 w-5 animate-spin text-[#FFB800] shrink-0" />
+          <div>
+            <p className="font-semibold text-[#FFB800]">This page was updated. Reloading...</p>
+            <p className="mt-0.5 text-xs text-amber-200/80">Updating application assets to latest version.</p>
+          </div>
+        </div>
+      )}
+
+
       {/* Calm Request Sent State */}
       {state?.pendingApproval && (
         <div
@@ -191,7 +267,7 @@ export default function AuthScene({
       )}
 
       {/* Error Message Alert */}
-      {state?.error && (
+      {state?.error && !isReloading && state?.reason !== "in_app_browser" && (
         <div
           role="alert"
           aria-live="polite"
@@ -289,7 +365,7 @@ export default function AuthScene({
       {/* Helper text under login form */}
       {isStudent && (
         <p className="mt-3 text-center text-xs text-white/70">
-          Use the same browser every time. Private or incognito mode is not supported.
+          For the smoothest login, use the same browser each time.
         </p>
       )}
 

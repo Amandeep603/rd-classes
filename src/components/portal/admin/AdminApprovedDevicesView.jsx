@@ -222,6 +222,16 @@ export default function AdminApprovedDevicesView() {
                         <div className="flex items-center gap-2">
                           {getDeviceIcon(d.deviceType, d.osFamily || d.os)}
                           <span className="font-medium text-slate-800 text-xs">{label}</span>
+                          {d.inAppBrowser && (
+                            <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-semibold">
+                              Opened from {d.inAppBrowser}
+                            </span>
+                          )}
+                          {d.provisional && (
+                            <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-semibold">
+                              Provisional
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           {d.osFamily || d.os} {d.osVersion} &bull; Screen: {screen}

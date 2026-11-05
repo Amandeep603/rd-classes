@@ -367,9 +367,21 @@ export default function DeviceRequestsView({ initialStatus = "pending" }) {
                         {getDeviceIcon(req.deviceType, req.osFamily)}
                         NEW Requesting Device
                       </span>
-                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                        Attempts: {req.attemptCount || 1}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {req.inAppBrowser && (
+                          <span className="text-[11px] font-semibold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
+                            Opened from {req.inAppBrowser}
+                          </span>
+                        )}
+                        {req.provisional && (
+                          <span className="text-[11px] font-semibold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                            Provisional
+                          </span>
+                        )}
+                        <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                          Attempts: {req.attemptCount || 1}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="font-semibold text-slate-900 text-sm">{reqLabel}</div>

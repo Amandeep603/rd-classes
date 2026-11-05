@@ -554,7 +554,7 @@ export default function PortalSettingsView({ initialSettings = {}, admin = {} })
                     <option value="off">Off (No Device Lock)</option>
                   </select>
                   <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed italic">
-                    Strict Mode locks each student to their exact approved browser token. A different device or browser cannot log in without admin approval, even with identical hardware or IP.
+                    Strict Mode locks each student to their exact approved browser token. A different device or browser cannot log in without admin approval, even with identical hardware or IP. In-app browsers are matched by OS and screen, so an identical phone model can pass there.
                   </p>
                 </FormField>
 

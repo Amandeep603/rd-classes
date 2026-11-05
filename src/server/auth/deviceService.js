@@ -136,7 +136,8 @@ export async function approveDeviceRequest(
       req.status = "approved";
       req.decidedAt = now;
       req.decidedBy = adminName;
-      req.mode = "rebind";
+      req.mode = mode === "same_device" ? "same_device" : "rebind";
+      req.targetDeviceId = target.deviceId;
       await req.save();
     }
 
@@ -165,28 +166,51 @@ export async function approveDeviceRequest(
     status: "approved",
   }).sort({ createdAt: 1 });
 
+  if (mode === "raise-and-add") {
+    user.deviceLimit = (user.deviceLimit || 1) + 1;
+    await User.updateOne({ _id: user._id }, { $set: { deviceLimit: user.deviceLimit } });
+  } else if (mode === "add") {
+    const currentLimit = user.deviceLimit !== undefined ? user.deviceLimit : 1;
+    const currentCount = typeof user.deviceCount === "number" ? user.deviceCount : occupiedDevices.length;
+    if (currentCount >= currentLimit) {
+      throw new Error(`Device limit reached (${currentCount}/${currentLimit}). Cannot add another device.`);
+    }
+  }
+
   const isSlotOccupied = occupiedDevices.length > 0;
-  const newDeviceId = "dev_" + crypto.randomBytes(8).toString("hex");
+  const newDeviceId =
+    req && req.deviceId && !req.deviceId.startsWith("req_")
+      ? req.deviceId
+      : "dev_" + crypto.randomBytes(8).toString("hex");
 
   if (isSlotOccupied || mode === "replace") {
     // If replaceDeviceId specified, find it, else replace oldest in slot
     let oldDev = null;
     if (replaceDeviceId) {
-      oldDev = occupiedDevices.find(
-        (d) => d.deviceId === replaceDeviceId || d._id.toString() === replaceDeviceId
-      );
+      oldDev =
+        occupiedDevices.find(
+          (d) => d.deviceId === replaceDeviceId || d._id.toString() === replaceDeviceId
+        ) ||
+        (await Device.findOne({
+          $or: [{ studentId: user._id }, { userId: user._id }],
+          $or: [{ deviceId: replaceDeviceId }, { _id: replaceDeviceId }],
+        }));
     }
     if (!oldDev) {
       oldDev = occupiedDevices[0];
     }
 
     if (oldDev) {
-      oldDev.status = "replaced";
-      oldDev.replacedAt = now;
-      oldDev.replacedByDeviceId = newDeviceId;
-      oldDev.decidedAt = now;
-      oldDev.decidedBy = adminName;
-      await oldDev.save();
+      if (mode === "replace") {
+        await Device.deleteOne({ _id: oldDev._id });
+      } else {
+        oldDev.status = "replaced";
+        oldDev.replacedAt = now;
+        oldDev.replacedByDeviceId = newDeviceId;
+        oldDev.decidedAt = now;
+        oldDev.decidedBy = adminName;
+        await oldDev.save();
+      }
 
       // Revoke all sessions for replaced device immediately
       await Session.updateMany(
@@ -328,8 +352,12 @@ export async function approveDeviceRequest(
     studentId: user._id,
     status: "approved",
   });
-  user.deviceCount = approvedCount;
-  user.maxDevices = Math.max(user.maxDevices || 1, approvedCount);
+  if (mode === "raise-and-add") {
+    user.deviceCount = Math.max(approvedCount, (user.deviceCount || 0) + 1);
+  } else {
+    user.deviceCount = Math.max(approvedCount, user.deviceCount || 0);
+  }
+  user.maxDevices = Math.max(user.maxDevices || 1, user.deviceCount);
   await user.save();
 
   await ActivityLog.create({
@@ -503,10 +531,15 @@ export async function removeDevice(userId, deviceId, adminId = null, adminName =
   });
 
   if (dev) {
-    dev.status = "revoked";
-    dev.decidedAt = now;
-    dev.decidedBy = adminName;
-    await dev.save();
+    const hasTokens = Array.isArray(dev.tokenHashes) && dev.tokenHashes.length > 0;
+    if (hasTokens) {
+      dev.status = "revoked";
+      dev.decidedAt = now;
+      dev.decidedBy = adminName;
+      await dev.save();
+    } else {
+      await Device.deleteOne({ _id: dev._id });
+    }
 
     await DeviceHistory.create({
       studentId: userId,
@@ -562,11 +595,12 @@ export async function resetAllDevices(userId, adminId = null, adminName = "admin
   await connectDB();
   const now = new Date();
 
-  await Device.updateMany(
-    { studentId: userId },
-    { $set: { status: "revoked", decidedAt: now, decidedBy: adminName } }
-  );
-  await DeviceRequest.deleteMany({ studentId: userId });
+  await Device.deleteMany({
+    $or: [{ studentId: userId }, { userId }],
+  });
+  await DeviceRequest.deleteMany({
+    $or: [{ studentId: userId }, { userId }],
+  });
   await Session.updateMany(
     { userId },
     { $set: { revoked: true, revokedReason: "device_reset_all" } }

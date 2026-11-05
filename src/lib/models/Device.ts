@@ -216,6 +216,10 @@ const deviceSchema = new Schema(
       type: String,
       default: null,
     },
+    approvedBy: {
+      type: String,
+      default: null,
+    },
     rejectionReason: {
       type: String,
       default: "",
@@ -237,6 +241,14 @@ const deviceSchema = new Schema(
       type: Date,
       default: null,
     },
+    provisional: {
+      type: Boolean,
+      default: false,
+    },
+    inAppBrowser: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,
@@ -252,6 +264,10 @@ deviceSchema.pre("validate", function () {
   if (this.deviceKey && !this.deviceId) {
     this.deviceId = this.deviceKey;
   } else if (this.deviceId && !this.deviceKey) {
+    this.deviceKey = this.deviceId;
+  }
+  if (!this.deviceId) {
+    this.deviceId = "dev_" + (this._id ? this._id.toString() : Math.random().toString(36).substring(2, 10));
     this.deviceKey = this.deviceId;
   }
   if (this.lastIp && !this.ip) {
@@ -275,7 +291,16 @@ deviceSchema.pre("validate", function () {
   if (this.status === "approved" && !this.decidedAt && this.approvedAt) {
     this.decidedAt = this.approvedAt;
   }
-  if (!this.slot) {
+  if (this.status && !["approved", "pending", "rejected", "revoked", "active", "replaced"].includes(this.status)) {
+    this.status = "approved";
+  }
+  if (this.deviceType && !["desktop", "mobile", "tablet", "unknown"].includes(this.deviceType)) {
+    const dt = String(this.deviceType).toLowerCase();
+    if (dt.includes("mobile") || dt.includes("phone")) this.deviceType = "mobile";
+    else if (dt.includes("tablet") || dt.includes("ipad")) this.deviceType = "tablet";
+    else this.deviceType = "desktop";
+  }
+  if (this.slot !== "handheld" && this.slot !== "computer") {
     const isHandheld =
       this.deviceType === "mobile" ||
       this.deviceType === "tablet" ||
