@@ -3,16 +3,16 @@
    - Zero JavaScript dependencies.
    - Visible by default: base styles represent the 100% complete, visible state.
    - Keyframes only animate starting offsets.
-   - H1 and Hero Photo animate TRANSFORM ONLY (no opacity animation) to protect LCP.
+   - H1 entrance animates TRANSFORM ONLY (no opacity animation) to protect LCP.
    - Scroll-driven animations are wrapped in @supports (animation-timeline: view()).
    - Hover effects are strictly wrapped in @media (hover: hover) and (pointer: fine).
    - prefers-reduced-motion completely disables all animations and transitions.
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
-   1. HERO ENTRANCE ANIMATIONS (LOAD)
+   1. HERO LOAD ANIMATIONS
    ------------------------------------------------------------------------- */
-@keyframes heroSlideFade {
+@keyframes aboutHeroSlideFade {
   from {
     opacity: 0;
     transform: translateY(20px);
@@ -23,7 +23,7 @@
   }
 }
 
-@keyframes heroTransformOnly {
+@keyframes aboutHeroTransformOnly {
   from {
     transform: translateY(20px);
   }
@@ -32,16 +32,7 @@
   }
 }
 
-@keyframes heroPhotoEntrance {
-  from {
-    transform: translateY(20px) scale(0.97);
-  }
-  to {
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes highlightSweep {
+@keyframes aboutHighlightSweep {
   from {
     transform: scaleX(0);
   }
@@ -50,97 +41,66 @@
   }
 }
 
-@keyframes sparkEntrance {
-  0% {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes sparkPulse {
+/* Subtle gentle floating drift for desk accessories */
+@keyframes aboutDeskDrift {
   0%, 100% {
-    transform: scale(1);
-    opacity: 0.95;
+    transform: translateY(0);
   }
   50% {
-    transform: scale(1.08);
-    opacity: 1;
+    transform: translateY(-4px);
   }
 }
 
-/* Chip entrance (0ms delay, 600ms duration) */
+/* Gentle sway for top-right leaves */
+@keyframes aboutLeafSway {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(1.8deg);
+  }
+}
+
+/* Hero Chip */
 .about-hero-chip {
-  animation: heroSlideFade 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 0ms both;
+  animation: aboutHeroSlideFade 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 0ms both;
 }
 
-/* H1 entrance: TRANSFORM ONLY (80ms delay, 600ms duration, opacity stays 1 for LCP) */
+/* H1: Transform only to protect LCP metric */
 .about-hero-h1 {
-  animation: heroTransformOnly 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
+  animation: aboutHeroTransformOnly 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
 }
 
-/* Paragraph entrance (160ms delay, 600ms duration) */
+/* Paragraph */
 .about-hero-p {
-  animation: heroSlideFade 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 160ms both;
+  animation: aboutHeroSlideFade 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 160ms both;
 }
 
-/* Hero photo entrance: TRANSFORM ONLY (280ms delay, 600ms duration, opacity stays 1 for LCP) */
-.about-hero-photo-card {
-  animation: heroPhotoEntrance 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 280ms both;
-}
-
-/* Highlight sweep: sweeps in from left, text stays fully visible */
+/* Highlight sweep on "Classes" marker */
 .about-highlight-sweep {
-  transform-origin: left;
-  animation: highlightSweep 600ms cubic-bezier(0.2, 0.8, 0.2, 1) 350ms both;
+  transform-origin: left center;
+  animation: aboutHighlightSweep 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms both;
 }
 
-/* Sparks entrance and soft pulse */
-.about-spark-cluster {
-  animation: sparkEntrance 400ms cubic-bezier(0.2, 0.8, 0.2, 1) 850ms both,
-             sparkPulse 3s ease-in-out 1250ms infinite;
+/* Gentle artwork animation */
+.about-desk-drift {
+  animation: aboutDeskDrift 6s ease-in-out infinite;
 }
 
-/* CTA Books illustration gentle floating */
-@keyframes ctaBookFloat {
-  0% {
-    transform: translateY(-6px);
-  }
-  100% {
-    transform: translateY(6px);
-  }
-}
-
-.about-cta-books-float {
-  animation: ctaBookFloat 4s ease-in-out infinite alternate;
-}
-
-/* Large pale yellow circles slow drift behind CTA */
-@keyframes circlesDrift {
-  0% {
-    transform: translate(0, 0);
-  }
-  100% {
-    transform: translate(10px, -12px);
-  }
-}
-
-.about-circles-drift {
-  animation: circlesDrift 14s ease-in-out infinite alternate;
+.about-leaf-sway {
+  transform-origin: top right;
+  animation: aboutLeafSway 8s ease-in-out infinite;
 }
 
 /* -------------------------------------------------------------------------
-   2. SCROLL-DRIVEN ANIMATIONS (PROGRESSIVE ENHANCEMENT)
-   Outside this @supports block, every element has opacity: 1 and normal transforms.
+   2. SCROLL-DRIVEN ENHANCEMENTS (@supports animation-timeline: view())
+   When unsupported, elements remain 100% visible with natural static styles.
    ------------------------------------------------------------------------- */
 @supports (animation-timeline: view()) {
-  @keyframes scrollFadeUp {
+  @keyframes aboutFadeUpScroll {
     from {
-      opacity: 0;
-      transform: translateY(28px);
+      opacity: 0.25;
+      transform: translateY(24px);
     }
     to {
       opacity: 1;
@@ -148,329 +108,105 @@
     }
   }
 
-  .about-founder-scroll {
-    animation: scrollFadeUp linear both;
+  .about-scroll-reveal {
+    animation: aboutFadeUpScroll linear both;
     animation-timeline: view();
-    animation-range: entry 5% entry 55%;
+    animation-range: entry 0% cover 25%;
   }
 
-  .about-founder-stats-scroll {
-    animation: scrollFadeUp linear both;
-    animation-timeline: view();
-    animation-range: entry 15% entry 60%;
+  .about-card-stagger-1 {
+    animation-range: entry 0% cover 22%;
   }
 
-  @keyframes barGrow {
-    from {
-      transform: scaleX(0);
-    }
-    to {
-      transform: scaleX(1);
-    }
+  .about-card-stagger-2 {
+    animation-range: entry 5% cover 26%;
   }
 
-  .about-heading-bar-scroll {
-    transform-origin: left;
-    animation: barGrow linear both;
-    animation-timeline: view();
-    animation-range: entry 5% entry 45%;
+  .about-card-stagger-3 {
+    animation-range: entry 10% cover 30%;
   }
-
-  .about-heading-text-scroll {
-    animation: scrollFadeUp linear both;
-    animation-timeline: view();
-    animation-range: entry 5% entry 50%;
-  }
-
-  /* Pillar cards: rise & fade in, settling into static rotations */
-  @keyframes pillarScroll1 {
-    from {
-      opacity: 0;
-      transform: translateY(40px) rotate(-4deg);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) rotate(-4deg);
-    }
-  }
-
-  @keyframes pillarScroll2 {
-    from {
-      opacity: 0;
-      transform: translateY(40px) rotate(2deg);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) rotate(2deg);
-    }
-  }
-
-  @keyframes pillarScroll3 {
-    from {
-      opacity: 0;
-      transform: translateY(40px) rotate(3deg);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) rotate(3deg);
-    }
-  }
-
-  .about-pillar-1-scroll {
-    animation: pillarScroll1 linear both;
-    animation-timeline: view();
-    animation-range: entry 5% entry 45%;
-  }
-
-  .about-pillar-2-scroll {
-    animation: pillarScroll2 linear both;
-    animation-timeline: view();
-    animation-range: entry 12% entry 52%;
-  }
-
-  .about-pillar-3-scroll {
-    animation: pillarScroll3 linear both;
-    animation-timeline: view();
-    animation-range: entry 19% entry 59%;
-  }
-
-  .about-cta-scroll {
-    animation: scrollFadeUp linear both;
-    animation-timeline: view();
-    animation-range: entry 5% entry 50%;
-  }
-
-  @keyframes drawLine {
-    from {
-      stroke-dashoffset: 160;
-    }
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-
-  .about-arc-draw path,
-  .about-arc-draw {
-    stroke-dasharray: 160;
-    animation: drawLine linear both;
-    animation-timeline: view();
-    animation-range: entry 10% entry 60%;
-  }
-}
-
-/* Base static rotations for pillar cards */
-.about-pillar-1 {
-  transform: rotate(-4deg);
-}
-.about-pillar-2 {
-  transform: rotate(2deg);
-}
-.about-pillar-3 {
-  transform: rotate(3deg);
-}
-
-/* WhatsApp link base underline */
-.about-wa-link {
-  background-image: linear-gradient(#FFC83A, #FFC83A);
-  background-repeat: no-repeat;
-  background-position: left bottom;
-  background-size: 100% 2px;
 }
 
 /* -------------------------------------------------------------------------
-   3. HOVER ANIMATIONS (ONLY FOR FINE POINTER / MOUSE DEVICES)
+   3. DESKTOP HOVER INTERACTIONS
+   Strictly scoped to devices supporting hover & fine pointers.
    ------------------------------------------------------------------------- */
 @media (hover: hover) and (pointer: fine) {
-  /* Buttons ("Explore Courses") */
-  .about-cta-btn {
-    transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
-  }
-  .about-cta-btn:hover {
-    transform: translateY(-2px);
-    background-color: #F0BA28;
-    box-shadow: 0 8px 20px rgba(255, 200, 58, 0.45);
-  }
-  .about-cta-btn .about-cta-btn-arrow {
-    transition: transform 200ms ease;
-  }
-  .about-cta-btn:hover .about-cta-btn-arrow {
-    transform: translate(3px, -3px);
-  }
-  .about-cta-btn:active {
-    transform: translateY(0);
+  /* Approach cards lift 6px with deeper shadow, icon scales 1.08 */
+  .about-approach-card {
+    transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+                box-shadow 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+                border-color 250ms ease;
   }
 
-  /* WhatsApp link underline */
-  .about-wa-link {
-    background-size: 0% 2px;
-    transition: background-size 250ms ease, color 200ms ease;
-  }
-  .about-wa-link:hover {
-    background-size: 100% 2px;
-    color: #FFC83A;
+  .about-approach-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 38px -8px rgba(15, 35, 60, 0.12);
+    border-color: rgba(255, 193, 0, 0.4);
   }
 
-  /* Pillar cards: rotate to 0deg, translateY(-8px), deeper shadow, raised z-index */
-  .about-pillar-card {
-    transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
-                box-shadow 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
-                z-index 0ms;
+  .about-approach-card .about-icon-box {
+    transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .about-pillar-card:hover {
-    transform: translateY(-8px) rotate(0deg) !important;
-    box-shadow: 0 20px 35px rgba(15, 35, 66, 0.12);
-    z-index: 40 !important;
-  }
-  .about-pillar-icon {
-    transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .about-pillar-card:hover .about-pillar-icon {
+
+  .about-approach-card:hover .about-icon-box {
     transform: scale(1.08);
   }
 
-  /* Founder card: translateY(-4px) with deeper shadow */
-  .about-founder-card {
-    transition: transform 250ms ease, box-shadow 250ms ease;
-  }
-  .about-founder-card:hover {
-    transform: translateY(-4px) !important;
-    box-shadow: 0 16px 36px rgba(15, 35, 66, 0.1);
-  }
-  .about-founder-icon {
-    transition: transform 250ms ease;
-  }
-  .about-founder-card:hover .about-founder-icon {
-    transform: scale(1.1);
+  /* CTA Button lifts 2px and arrow nudges */
+  .about-cta-btn {
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+                background-color 200ms ease,
+                box-shadow 200ms ease;
   }
 
-  /* Hero photo: image inside zooms to 1.04 over 500ms */
-  .about-hero-photo-img {
-    transition: transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  .about-cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px -4px rgba(255, 193, 0, 0.4);
   }
-  .about-hero-photo-card:hover .about-hero-photo-img {
-    transform: scale(1.04);
+
+  .about-cta-btn .about-cta-arrow {
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .about-cta-btn:hover .about-cta-arrow {
+    transform: translate(2px, -2px);
+  }
+
+  /* Founder portrait zooms 1.03 */
+  .about-founder-container {
+    transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .about-founder-container:hover .about-founder-photo {
+    transform: scale(1.03);
+  }
+
+  .about-founder-photo {
+    transition: transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
 
 /* -------------------------------------------------------------------------
-   4. ACCESSIBILITY & PREFERS-REDUCED-MOTION
+   4. ACCESSIBILITY: PREFERS-REDUCED-MOTION
+   Completely neutralizes all transitions, animations, and transforms.
    ------------------------------------------------------------------------- */
-.about-cta-btn:focus-visible,
-.about-wa-link:focus-visible,
-.about-focus-ring:focus-visible {
-  outline: 2px solid #0F2342;
-  outline-offset: 3px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .about-hero-chip,
   .about-hero-h1,
   .about-hero-p,
-  .about-hero-photo-card,
-  .about-hero-photo-img,
   .about-highlight-sweep,
-  .about-spark-cluster,
-  .about-founder-scroll,
-  .about-founder-stats-scroll,
-  .about-heading-bar-scroll,
-  .about-heading-text-scroll,
-  .about-pillar-1-scroll,
-  .about-pillar-2-scroll,
-  .about-pillar-3-scroll,
-  .about-cta-scroll,
-  .about-cta-books-float,
-  .about-circles-drift,
-  .about-arc-draw,
+  .about-desk-drift,
+  .about-leaf-sway,
+  .about-scroll-reveal,
+  .about-approach-card,
+  .about-icon-box,
   .about-cta-btn,
-  .about-wa-link,
-  .about-pillar-card,
-  .about-founder-card,
-  .about-founder-icon,
-  .about-pillar-icon {
+  .about-cta-arrow,
+  .about-founder-container,
+  .about-founder-photo {
     animation: none !important;
     transition: none !important;
+    transform: none !important;
   }
-
-  .about-highlight-sweep {
-    transform: scaleX(1) !important;
-  }
-
-  .about-spark-cluster {
-    opacity: 1 !important;
-    transform: scale(1) !important;
-  }
-
-  .about-wa-link {
-    background-size: 100% 2px !important;
-  }
-
-  .about-pillar-1 {
-    transform: rotate(-4deg) !important;
-  }
-
-  .about-pillar-2 {
-    transform: rotate(2deg) !important;
-  }
-
-  .about-pillar-3 {
-    transform: rotate(3deg) !important;
-  }
-}
-
-/* -------------------------------------------------------------------------
-   5. ZERO JAVASCRIPT FALLBACK (html without data-js="1")
-   Ensures 100% visible static layout if JS is disabled.
-   ------------------------------------------------------------------------- */
-html:not([data-js="1"]) .about-hero-chip,
-html:not([data-js="1"]) .about-hero-h1,
-html:not([data-js="1"]) .about-hero-p,
-html:not([data-js="1"]) .about-hero-photo-card,
-html:not([data-js="1"]) .about-hero-photo-img,
-html:not([data-js="1"]) .about-highlight-sweep,
-html:not([data-js="1"]) .about-spark-cluster,
-html:not([data-js="1"]) .about-founder-scroll,
-html:not([data-js="1"]) .about-founder-stats-scroll,
-html:not([data-js="1"]) .about-heading-bar-scroll,
-html:not([data-js="1"]) .about-heading-text-scroll,
-html:not([data-js="1"]) .about-pillar-1-scroll,
-html:not([data-js="1"]) .about-pillar-2-scroll,
-html:not([data-js="1"]) .about-pillar-3-scroll,
-html:not([data-js="1"]) .about-cta-scroll,
-html:not([data-js="1"]) .about-cta-books-float,
-html:not([data-js="1"]) .about-circles-drift,
-html:not([data-js="1"]) .about-arc-draw,
-html:not([data-js="1"]) .about-cta-btn,
-html:not([data-js="1"]) .about-wa-link,
-html:not([data-js="1"]) .about-pillar-card,
-html:not([data-js="1"]) .about-founder-card,
-html:not([data-js="1"]) .about-founder-icon,
-html:not([data-js="1"]) .about-pillar-icon {
-  animation: none !important;
-  transition: none !important;
-  opacity: 1 !important;
-}
-
-html:not([data-js="1"]) .about-highlight-sweep {
-  transform: scaleX(1) !important;
-}
-
-html:not([data-js="1"]) .about-spark-cluster {
-  opacity: 1 !important;
-  transform: scale(1) !important;
-}
-
-html:not([data-js="1"]) .about-wa-link {
-  background-size: 100% 2px !important;
-}
-
-html:not([data-js="1"]) .about-pillar-1 {
-  transform: rotate(-4deg) !important;
-}
-
-html:not([data-js="1"]) .about-pillar-2 {
-  transform: rotate(2deg) !important;
-}
-
-html:not([data-js="1"]) .about-pillar-3 {
-  transform: rotate(3deg) !important;
 }
