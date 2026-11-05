@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { requireAdminApi } from "../auth/session.js";
+import { requireAdmin, requireAdminApi } from "../auth/session.js";
 import {
   lectureCreateSchema,
   lectureUpdateSchema,
@@ -146,9 +146,7 @@ export async function bulkAddLecturesToCourseAction({
   section = "General",
   titlePrefix = "",
 }) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+  const admin = await requireAdmin();
   const { parseVimeoUrl, fetchVimeoMetadata } = await import("../services/vimeo.js");
   const { Lecture } = await import("../db/models/Lecture.js");
   const { logAuditEvent } = await import("../services/audit.js");

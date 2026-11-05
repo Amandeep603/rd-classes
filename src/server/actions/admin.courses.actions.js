@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminApi } from "../auth/session.js";
+import { requireAdmin, requireAdminApi } from "../auth/session.js";
 import {
   courseCreateSchema,
   courseUpdateSchema,
@@ -95,11 +95,12 @@ function parseCourseFormData(formData) {
 }
 
 export async function createCourseAction(prevState, formData) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+  const admin = await requireAdmin();
 
-  const raw = parseCourseFormData(formData);
+  const rawForm = formData || prevState;
+  const raw = rawForm instanceof FormData || (rawForm && typeof rawForm.get === "function")
+    ? parseCourseFormData(rawForm)
+    : (rawForm || {});
   const parsed = courseCreateSchema.safeParse(raw);
   if (!parsed.success) {
     return {

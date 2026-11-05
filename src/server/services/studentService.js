@@ -653,7 +653,8 @@ export async function importStudentsFromCSV({ rows = [], adminId }) {
     let loginId = rawLoginId;
 
     if (!loginId) {
-      loginId = await getNextLoginId();
+      const generated = await getNextLoginId();
+      loginId = (generated || "").toLowerCase();
     }
 
     if (seenLoginIdsInBatch.has(loginId)) {

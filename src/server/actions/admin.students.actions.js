@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import connectDB from "../db/connect.js";
-import { requireAdminApi } from "../auth/session.js";
+import { requireAdmin, requireAdminApi } from "../auth/session.js";
 import {
   studentCreateSchema,
   studentUpdateSchema,
@@ -425,10 +425,9 @@ export async function sendTestEmailAction(toEmail) {
 /**
  * Bulk imports students from parsed CSV rows.
  */
-export async function importStudentsFromCSVAction({ rows }) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+export async function importStudentsFromCSVAction(arg) {
+  const admin = await requireAdmin();
+  const rows = Array.isArray(arg) ? arg : arg?.rows;
   const { importStudentsFromCSV } = await import("../services/studentService.js");
 
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -454,9 +453,7 @@ export async function importStudentsFromCSVAction({ rows }) {
  * Plaintext passwords are provided from client memory (returned once from import).
  */
 export async function sendBulkImportCredentialsChunkAction({ items, batchId }) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+  const admin = await requireAdmin();
   await connectDB();
   const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
   const { sendEmail } = await import("../email/emailService.js");
@@ -565,9 +562,7 @@ export async function checkCredentialEncryptionConfigAction() {
  * Requires admin re-authentication, rate limited to 5/minute, and audits access.
  */
 export async function revealStudentPasswordAction({ studentId, adminPassword }) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+  const admin = await requireAdmin();
   await connectDB();
 
   if (!checkRevealRateLimit(admin.user._id)) {
@@ -754,9 +749,7 @@ export async function bulkResetAndEmailCredentialsChunkAction({
   batchId,
   autoResetMissing = true,
 }) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+  const admin = await requireAdmin();
   await connectDB();
   const { isEmailConfigured, checkDailyQuota } = await import("../email/emailConfig.js");
   const { resetStudentPasswordAndEmail } = await import("../services/studentService.js");

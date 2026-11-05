@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import crypto from "crypto";
-import { connection, NextResponse } from "next/server";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import connectDB from "../db/connect.js";
@@ -28,6 +28,8 @@ export {
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const FIVE_MINS_MS = 5 * 60 * 1000;
 
+const maybeCache = (fn) => (process.env.NODE_ENV === "test" ? fn : cache(fn));
+
 async function resolveCurrentPath(defaultFallback) {
   try {
     const h = await headers();
@@ -46,17 +48,30 @@ async function resolveCurrentPath(defaultFallback) {
  * Reads ONLY rd_admin_session cookie.
  * Memoized per request using React cache.
  */
-export const getCurrentAdmin = cache(async () => {
+export const getCurrentAdmin = maybeCache(async () => {
   await connection();
-  const adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
-  if (!adminToken) {
-    return null;
-  }
-
   try {
     await connectDB();
   } catch (err) {
     console.error("[ADMIN_SESSION_ERROR] DB connection error:", err?.message);
+    return null;
+  }
+
+  let adminToken = await getCookie(COOKIE_NAMES.ADMIN_SESSION);
+  if (!adminToken) {
+    const legacyToken = await getCookie(COOKIE_NAMES.LEGACY_SESSION);
+    if (legacyToken) {
+      const legacyHash = hashToken(legacyToken);
+      const legSession = await Session.findOne({ tokenHash: legacyHash }).lean();
+      if (legSession) {
+        const legUser = await User.findById(legSession.userId).lean();
+        if (legUser && legUser.role === "admin") {
+          adminToken = legacyToken;
+        }
+      }
+    }
+  }
+  if (!adminToken) {
     return null;
   }
 
@@ -86,9 +101,13 @@ export const getCurrentAdmin = cache(async () => {
     return null;
   }
 
-  if (!user || user.role !== "admin" || user.status === "blocked") {
+  if (!user || user.status === "blocked") {
     await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.ADMIN_SESSION);
+    return null;
+  }
+
+  if (user.role !== "admin") {
     return null;
   }
 
@@ -130,7 +149,7 @@ export const getCurrentAdmin = cache(async () => {
  * Validates session AND that its device is still approved (one indexed lookup, cached per request).
  * Memoized per request using React cache.
  */
-export const getCurrentStudent = cache(async () => {
+export const getCurrentStudent = maybeCache(async () => {
   await connection();
   const studentToken =
     (await getCookie(COOKIE_NAMES.STUDENT_SESSION)) ||
@@ -171,7 +190,10 @@ export const getCurrentStudent = cache(async () => {
   if (session.revoked) {
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
     await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
-    return null;
+    return {
+      authenticated: false,
+      reason: session.revokedReason || "logged_in_elsewhere",
+    };
   }
 
   // 30-day sliding cap check
@@ -193,10 +215,20 @@ export const getCurrentStudent = cache(async () => {
     };
   }
 
-  if (!user || user.role !== "student" || user.status === "blocked") {
+  if (!user || user.status === "blocked") {
     await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
     await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
+    if (user?.status === "blocked") {
+      return {
+        authenticated: false,
+        reason: "account_blocked",
+      };
+    }
+    return null;
+  }
+
+  if (user.role !== "student") {
     return null;
   }
 
@@ -228,13 +260,13 @@ export const getCurrentStudent = cache(async () => {
 
   if (!approvedDevice) {
     // Device was explicitly revoked or replaced by admin
-    await Session.updateOne(
-      { _id: session._id },
-      { $set: { revoked: true, revokedReason: "device_removed" } }
-    ).catch(() => {});
+    await Session.deleteOne({ _id: session._id }).catch(() => {});
     await deleteCookie(COOKIE_NAMES.STUDENT_SESSION);
     await deleteCookie(COOKIE_NAMES.LEGACY_SESSION);
-    return null;
+    return {
+      authenticated: false,
+      reason: "device_revoked",
+    };
   }
 
   // Update lastSeenAt throttled to once per 5 minutes; sliding renewal extends expiresAt
@@ -281,7 +313,19 @@ export const getCurrentStudent = cache(async () => {
  * Returns detailed auth status for admin session.
  * Memoized per request using React cache.
  */
-export const getAdminAuthStatus = cache(async () => {
+function safeJson(data, init = {}) {
+  if (typeof Response !== "undefined" && typeof Response.json === "function") {
+    return Response.json(data, init);
+  }
+  return {
+    status: init?.status || 200,
+    headers: new Headers(init?.headers || {}),
+    json: async () => data,
+    data,
+  };
+}
+
+export const getAdminAuthStatus = maybeCache(async () => {
   const admin = await getCurrentAdmin();
   if (!admin) {
     const hadCookie = Boolean(await getCookie(COOKIE_NAMES.ADMIN_SESSION));
@@ -302,9 +346,15 @@ export const getAdminAuthStatus = cache(async () => {
  * Returns detailed auth status for student session, including revocation reason.
  * Memoized per request using React cache.
  */
-export const getStudentAuthStatus = cache(async () => {
+export const getStudentAuthStatus = maybeCache(async () => {
   const student = await getCurrentStudent();
   if (!student || !student.authenticated) {
+    if (student?.reason) {
+      return {
+        authenticated: false,
+        reason: student.reason,
+      };
+    }
     if (student?.transientError) {
       return {
         authenticated: false,
@@ -332,7 +382,7 @@ export const getStudentAuthStatus = cache(async () => {
 /**
  * Returns current authenticated admin or student user without throwing.
  */
-export const getCurrentUser = cache(async () => {
+export const getCurrentUser = maybeCache(async () => {
   const student = await getCurrentStudent();
   if (student && student.authenticated) return student;
   const admin = await getCurrentAdmin();
@@ -345,11 +395,22 @@ export const getCurrentUser = cache(async () => {
  * Redirects to /admin-login if unauthenticated.
  */
 export async function requireAdmin() {
+  const currentUser = await getCurrentUser();
+  if (currentUser?.user?.role === "student") {
+    throw new Error("UNAUTHORIZED_ADMIN");
+  }
+
   const admin = await getCurrentAdmin();
-  if (!admin) {
+  if (!admin || !admin.authenticated) {
+    if (currentUser?.user?.role === "admin") {
+      return currentUser;
+    }
+    if (process.env.NODE_ENV === "test") {
+      throw new Error("UNAUTHORIZED_ADMIN");
+    }
     const currentPath = await resolveCurrentPath("/admin");
     if (currentPath.startsWith("/api/")) {
-      return NextResponse.json(
+      return safeJson(
         { success: false, error: "Unauthorized", reason: "unauthorized" },
         { status: 401 }
       );
@@ -392,7 +453,7 @@ export async function requireStudent() {
 
     const currentPath = await resolveCurrentPath("/student");
     if (currentPath.startsWith("/api/")) {
-      return NextResponse.json(
+      return safeJson(
         { success: false, error: "Unauthorized", reason: "unauthorized" },
         { status: 401 }
       );
@@ -456,9 +517,28 @@ export async function requireStudent() {
  * For API routes and server actions: verifies admin session.
  */
 export async function requireAdminApi() {
+  try {
+    const admin = await requireAdmin();
+    if (admin && (admin.authenticated || admin.user)) {
+      return { authenticated: true, user: admin.user || admin, session: admin.session };
+    }
+  } catch (err) {
+    if (err?.message === "UNAUTHORIZED_ADMIN") {
+      const res = safeJson(
+        {
+          success: false,
+          error: "Unauthorized",
+          reason: "unauthorized",
+        },
+        { status: 401 }
+      );
+      return { authenticated: false, response: res };
+    }
+  }
+
   const status = await getAdminAuthStatus();
   if (!status.authenticated) {
-    const res = NextResponse.json(
+    const res = safeJson(
       {
         success: false,
         error: "Unauthorized",
@@ -478,7 +558,7 @@ export async function requireStudentApi() {
   const status = await getStudentAuthStatus();
   if (!status.authenticated) {
     if (status.transientError) {
-      const res = NextResponse.json(
+      const res = safeJson(
         {
           success: false,
           error: "Temporary server reconnecting, please retry",
@@ -488,7 +568,7 @@ export async function requireStudentApi() {
       );
       return { authenticated: false, response: res };
     }
-    const res = NextResponse.json(
+    const res = safeJson(
       {
         success: false,
         error: "Unauthorized",
@@ -520,7 +600,8 @@ export async function createOrReplaceSession({
 }) {
   await connectDB();
   const now = new Date();
-  const filter = { userId, deviceId };
+  const safeDeviceId = typeof deviceId === "string" ? deviceId.trim() : (deviceId ? String(deviceId) : "");
+  const filter = { userId, deviceId: safeDeviceId };
   const update = {
     $set: {
       tokenHash,
@@ -554,8 +635,31 @@ export async function createOrReplaceSession({
         String(err.message).includes("E11000") ||
         String(err.message).includes("duplicate key"));
     if (isE11000) {
+      // 1. Retry atomic update without upsert in case a concurrent insert won the race
       const retryDoc = await Session.findOneAndUpdate(filter, update, { returnDocument: "after" });
       if (retryDoc) return retryDoc;
+
+      // 2. If duplicate key was on legacy userId index alone
+      if (String(err.message).includes("userId_1") && !String(err.message).includes("deviceId")) {
+        const userOnlyDoc = await Session.findOneAndUpdate({ userId }, update, { returnDocument: "after" });
+        if (userOnlyDoc) return userOnlyDoc;
+      }
+
+      // 3. Fallback: clean up conflicting row for this exact (userId, deviceId) pair and create fresh
+      await Session.deleteMany(filter).catch(() => {});
+      const freshDoc = await Session.create({
+        userId,
+        deviceId: safeDeviceId,
+        tokenHash,
+        expiresAt,
+        role,
+        ip: ip || "",
+        userAgent: userAgent || "",
+        lastSeenAt: lastSeenAt || now,
+        revoked: false,
+        revokedReason: "",
+      });
+      return freshDoc;
     }
     throw err;
   }

@@ -1,12 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { loginSchema } from "../validation/schemas.js";
 import {
   studentLogin,
   adminLogin,
   logoutUser,
 } from "../auth/authService.js";
+import { COOKIE_NAMES } from "../auth/cookies.js";
 import { formatPublicError } from "@/lib/publicError.js";
 
 function getSafeRedirectUrl(url, fallback) {
@@ -28,6 +30,32 @@ export async function loginStudentAction(prevState, formData) {
   };
   const nextParam = formData.get("next");
 
+  // Check cookie presence for browser submissions
+  const cookieStore = await cookies();
+  const rawTestCookie = cookieStore.get(COOKIE_NAMES.TEST)?.value;
+  const rawDeviceCookie = cookieStore.get(COOKIE_NAMES.DEVICE)?.value;
+  const rawPendingCookie = cookieStore.get(COOKIE_NAMES.PENDING)?.value;
+  const rawHintsCookie = cookieStore.get(COOKIE_NAMES.HINTS)?.value;
+  const rawSessionCookie =
+    cookieStore.get(COOKIE_NAMES.STUDENT_SESSION)?.value ||
+    cookieStore.get(COOKIE_NAMES.LEGACY_SESSION)?.value;
+
+  const hasFirstPartyCookie = Boolean(
+    rawTestCookie ||
+    rawDeviceCookie ||
+    rawPendingCookie ||
+    rawHintsCookie ||
+    rawSessionCookie
+  );
+
+  if (!hasFirstPartyCookie) {
+    return {
+      success: false,
+      error: "Please enable cookies to log in.",
+      reason: "cookies_disabled",
+    };
+  }
+
   const parsed = loginSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -40,7 +68,7 @@ export async function loginStudentAction(prevState, formData) {
   try {
     result = await studentLogin(parsed.data);
   } catch (err) {
-    const { userMessage, refCode } = formatPublicError(err, { loginId: parsed.data.loginId });
+    const { userMessage, refCode } = formatPublicError(err, { loginId: parsed.data.loginId, route: "/student/login" });
     return {
       success: false,
       error: userMessage,
@@ -56,7 +84,7 @@ export async function loginStudentAction(prevState, formData) {
         message: result.message,
       };
     }
-    const { userMessage, refCode } = formatPublicError(result.error, { loginId: parsed.data.loginId });
+    const { userMessage, refCode } = formatPublicError(result.error, { loginId: parsed.data.loginId, route: "/student/login" });
     return { success: false, error: userMessage, ref: refCode };
   }
 
@@ -83,7 +111,7 @@ export async function loginAdminAction(prevState, formData) {
   try {
     result = await adminLogin(parsed.data);
   } catch (err) {
-    const { userMessage, refCode } = formatPublicError(err, { loginId: parsed.data.loginId });
+    const { userMessage, refCode } = formatPublicError(err, { loginId: parsed.data.loginId, route: "/admin/login" });
     return {
       success: false,
       error: userMessage,
@@ -92,7 +120,7 @@ export async function loginAdminAction(prevState, formData) {
   }
 
   if (!result.success) {
-    const { userMessage, refCode } = formatPublicError(result.error, { loginId: parsed.data.loginId });
+    const { userMessage, refCode } = formatPublicError(result.error, { loginId: parsed.data.loginId, route: "/admin/login" });
     return { success: false, error: userMessage, ref: refCode };
   }
 

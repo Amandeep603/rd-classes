@@ -36,91 +36,92 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
       ? new mongoose.Types.ObjectId(primaryCourseId)
       : null;
 
-  // Prepare announcement query
-  const announcementQuery = {
-    _id: { $nin: user.dismissedAnnouncementIds || [] },
-    active: { $ne: false },
-    $and: [
-      {
-        $or: [
-          { startsAt: null },
-          { startsAt: { $lte: now } },
-          { createdAt: { $lte: now } },
-        ],
-      },
-      {
-        $or: [
-          { $and: [{ expiresAt: null }, { endsAt: null }] },
-          { expiresAt: { $gt: now } },
-          { endsAt: { $gt: now } },
-        ],
-      },
-    ],
-  };
-
-  if (primaryCourseId) {
-    announcementQuery.$and.push({
-      $or: [
-        { audience: "all" },
-        { "audience.all": true },
-        { audience: primaryCourseId },
-        { audience: primaryCourseObjId },
-        { "audience.courseIds": primaryCourseId },
-        { "audience.courseIds": primaryCourseObjId },
+    // Prepare announcement query
+    const announcementQuery = {
+      _id: { $nin: user.dismissedAnnouncementIds || [] },
+      active: { $ne: false },
+      $and: [
+        {
+          $or: [
+            { startsAt: null },
+            { startsAt: { $lte: now } },
+            { createdAt: { $lte: now } },
+          ],
+        },
+        {
+          $or: [
+            { $and: [{ expiresAt: null }, { endsAt: null }] },
+            { expiresAt: { $gt: now } },
+            { endsAt: { $gt: now } },
+          ],
+        },
       ],
-    });
-  } else {
-    announcementQuery.$and.push({
-      $or: [{ audience: "all" }, { "audience.all": true }],
-    });
-  }
+    };
 
-  // Parallelize all independent database queries for maximum performance
-  const [
-    earliestExpiryDoc,
-    settings,
-    announcement,
-    totalCurriculumLectures,
-    firstPlayable,
-    progressDocs,
-    totalWithVideo,
-    completedProgressDocs,
-    totalNotesCount,
-    rawRecentNotes,
-    testResults,
-    upcomingTest,
-    upcomingTestsCount,
-  ] = await Promise.all([
-    // 1. Earliest expiry
-    (!user.validUntil && context.enrolledCourseIds.length > 0)
-      ? Enrollment.findOne({
+    if (primaryCourseId) {
+      announcementQuery.$and.push({
+        $or: [
+          { audience: "all" },
+          { "audience.all": true },
+          { audience: primaryCourseId },
+          { audience: primaryCourseObjId },
+          { "audience.courseIds": primaryCourseId },
+          { "audience.courseIds": primaryCourseObjId },
+        ],
+      });
+    } else {
+      announcementQuery.$and.push({
+        $or: [{ audience: "all" }, { "audience.all": true }],
+      });
+    }
+
+    // Parallelize all independent database queries for maximum performance
+    const [
+      earliestExpiryDoc,
+      settings,
+      announcement,
+      totalCurriculumLectures,
+      firstPlayable,
+      progressDocs,
+      totalWithVideo,
+      completedProgressDocs,
+      totalNotesCount,
+      rawRecentNotes,
+      testResults,
+      upcomingTest,
+      upcomingTestsCount,
+    ] = await Promise.all([
+      // 1. Earliest expiry
+      (!user.validUntil && context.enrolledCourseIds.length > 0)
+        ? Enrollment.findOne({
           $or: [{ userId: userObjId }, { studentId: userObjId }],
           status: { $ne: "cancelled" },
           expiresAt: { $ne: null },
         })
           .sort({ expiresAt: 1 })
           .lean()
-      : Promise.resolve(null),
+        : Promise.resolve(null),
 
-    // 2. Settings
-    Setting.findOne().lean(),
+      // 2. Settings
+      Setting.findOne().lean(),
 
-    // 3. Announcement
-    Announcement.findOne(announcementQuery)
-      .sort({ pinned: -1, createdAt: -1, startsAt: -1 })
-      .lean(),
+      // 3. Announcement
+      Announcement.findOne(announcementQuery)
+        .sort({ pinned: -1, createdAt: -1, startsAt: -1 })
+        .lean(),
 
-    // 4. Lectures count
-    primaryCourseId
-      ? Lecture.countDocuments({
+      // 4. Lectures count (published only, drafts excluded)
+      primaryCourseId
+        ? Lecture.countDocuments({
           courseId: primaryCourseObjId || primaryCourseId,
-          status: { $ne: "archived" },
+          status: "published",
+          published: { $ne: false },
         })
-      : Promise.resolve(0),
+        : Promise.resolve(0),
 
-    // 5. First playable lecture
-    primaryCourseId
-      ? Lecture.findOne({
+      // 5. First playable lecture
+      primaryCourseId
+        ? Lecture.findOne({
           courseId: primaryCourseObjId || primaryCourseId,
           vimeoId: { $exists: true, $ne: "" },
           status: { $ne: "archived" },
@@ -129,11 +130,11 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
           .populate("bookId", "title position")
           .populate("chapterId", "title position")
           .lean()
-      : Promise.resolve(null),
+        : Promise.resolve(null),
 
-    // 6. Recent progress
-    primaryCourseId
-      ? Progress.find({
+      // 6. Recent progress
+      primaryCourseId
+        ? Progress.find({
           $or: [{ userId: userObjId }, { studentId: userObjId }],
           courseId: primaryCourseObjId || primaryCourseId,
         })
@@ -148,31 +149,32 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
             ],
           })
           .lean()
-      : Promise.resolve([]),
+        : Promise.resolve([]),
 
-    // 7. Video lectures count
-    primaryCourseId
-      ? Lecture.countDocuments({
+      // 7. Video lectures count (published only, drafts excluded)
+      primaryCourseId
+        ? Lecture.countDocuments({
           courseId: primaryCourseObjId || primaryCourseId,
           vimeoId: { $exists: true, $ne: "" },
-          status: { $ne: "archived" },
+          status: "published",
+          published: { $ne: false },
         })
-      : Promise.resolve(0),
+        : Promise.resolve(0),
 
-    // 8. Completed progress
-    primaryCourseId
-      ? Progress.find({
+      // 8. Completed progress
+      primaryCourseId
+        ? Progress.find({
           $or: [{ userId: userObjId }, { studentId: userObjId }],
           courseId: primaryCourseObjId || primaryCourseId,
           completed: true,
         })
           .select("lectureId")
           .lean()
-      : Promise.resolve([]),
+        : Promise.resolve([]),
 
-    // 9. Notes count
-    primaryCourseId
-      ? Note.countDocuments({
+      // 9. Notes count
+      primaryCourseId
+        ? Note.countDocuments({
           $or: [
             { courseId: primaryCourseObjId || primaryCourseId },
             { courseIds: primaryCourseObjId || primaryCourseId },
@@ -180,11 +182,11 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
           published: true,
           status: { $ne: "archived" },
         })
-      : Promise.resolve(0),
+        : Promise.resolve(0),
 
-    // 10. Recent notes
-    primaryCourseId
-      ? Note.find({
+      // 10. Recent notes
+      primaryCourseId
+        ? Note.find({
           $or: [
             { courseId: primaryCourseObjId || primaryCourseId },
             { courseIds: primaryCourseObjId || primaryCourseId },
@@ -195,21 +197,27 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
           .sort({ createdAt: -1 })
           .limit(3)
           .lean()
-      : Promise.resolve([]),
+        : Promise.resolve([]),
 
-    // 11. Test results
-    primaryCourseId
-      ? TestResult.find({
-          $or: [{ userId: userObjId }, { studentId: userObjId }],
-          courseId: primaryCourseObjId || primaryCourseId,
-        })
-          .select("score percentage status")
-          .lean()
-      : Promise.resolve([]),
+      // 11. Test results
+      TestResult.find({
+        $or: [{ userId: userObjId }, { studentId: userObjId }],
+        ...(primaryCourseId
+          ? {
+            $or: [
+              { courseId: primaryCourseObjId || primaryCourseId },
+              { courseId: null },
+              { courseId: { $exists: false } },
+            ],
+          }
+          : {}),
+      })
+        .select("score percentage status maxScore")
+        .lean(),
 
-    // 12. Upcoming test
-    primaryCourseId
-      ? Test.findOne({
+      // 12. Upcoming test
+      primaryCourseId
+        ? Test.findOne({
           $or: [
             { courseId: primaryCourseObjId || primaryCourseId },
             { courseIds: primaryCourseObjId || primaryCourseId },
@@ -220,11 +228,11 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
         })
           .sort({ startsAt: 1 })
           .lean()
-      : Promise.resolve(null),
+        : Promise.resolve(null),
 
-    // 13. Upcoming tests count
-    primaryCourseId
-      ? Test.countDocuments({
+      // 13. Upcoming tests count
+      primaryCourseId
+        ? Test.countDocuments({
           $or: [
             { courseId: primaryCourseObjId || primaryCourseId },
             { courseIds: primaryCourseObjId || primaryCourseId },
@@ -233,176 +241,158 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
           startsAt: { $gte: now },
           published: true,
         })
-      : Promise.resolve(0),
-  ]);
+        : Promise.resolve(0),
+    ]);
 
-  let earliestExpiry = user.validUntil || (earliestExpiryDoc?.expiresAt || null);
+    let earliestExpiry = user.validUntil || (earliestExpiryDoc?.expiresAt || null);
 
-  // Resume Revision (computed per selected primary course)
-  let resume = null;
-  let firstLectureId = firstPlayable ? firstPlayable._id.toString() : null;
+    // Resume Revision (computed per selected primary course)
+    let resume = null;
+    let firstLectureId = firstPlayable ? firstPlayable._id.toString() : null;
 
-  if (primaryCourseId) {
-    const chosen = (progressDocs && progressDocs.find((p) => !p.completed)) || (progressDocs && progressDocs[0]) || null;
-    const isLecPublished = (lec) => Boolean(lec && lec.status !== "archived");
+    if (primaryCourseId) {
+      const chosen = (progressDocs && progressDocs.find((p) => !p.completed)) || (progressDocs && progressDocs[0]) || null;
+      const isLecPublished = (lec) => Boolean(lec && lec.status !== "archived");
 
-    if (chosen?.lectureId && isLecPublished(chosen.lectureId)) {
-      const dur = chosen.durationSec || chosen.lectureId.durationSec || chosen.lectureId.durationSeconds || 2520;
-      const pos = chosen.positionSec || 0;
-      const pct = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
-      const lec = chosen.lectureId;
+      if (chosen?.lectureId && isLecPublished(chosen.lectureId)) {
+        const dur = chosen.durationSec || chosen.lectureId.durationSec || chosen.lectureId.durationSeconds || 2520;
+        const pos = chosen.positionSec || 0;
+        const pct = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
+        const lec = chosen.lectureId;
 
-      let chapterPath = "";
-      if (lec.bookId?.title && lec.chapterId?.title) {
-        chapterPath = `Book ${lec.bookId.position || 1}: ${lec.bookId.title} · Chapter ${lec.chapterId.position || 1}: ${lec.chapterId.title}`;
-      } else if (lec.book || lec.chapter) {
-        chapterPath = `${lec.book ? (lec.book.toLowerCase().startsWith("book") ? lec.book : `Book: ${lec.book}`) : "Book"} · ${lec.chapter ? (lec.chapter.toLowerCase().startsWith("chapter") ? lec.chapter : `Chapter: ${lec.chapter}`) : lec.section || "Chapter Revision"}`;
-      } else {
-        chapterPath = `${primaryCourse.title} · ${lec.section || "Chapter Revision"}`;
+        let chapterPath = "";
+        if (lec.bookId?.title && lec.chapterId?.title) {
+          chapterPath = `Book ${lec.bookId.position || 1}: ${lec.bookId.title} · Chapter ${lec.chapterId.position || 1}: ${lec.chapterId.title}`;
+        } else if (lec.book || lec.chapter) {
+          chapterPath = `${lec.book ? (lec.book.toLowerCase().startsWith("book") ? lec.book : `Book: ${lec.book}`) : "Book"} · ${lec.chapter ? (lec.chapter.toLowerCase().startsWith("chapter") ? lec.chapter : `Chapter: ${lec.chapter}`) : lec.section || "Chapter Revision"}`;
+        } else {
+          chapterPath = `${primaryCourse.title} · ${lec.section || "Chapter Revision"}`;
+        }
+
+        resume = {
+          lectureId: lec._id.toString(),
+          lectureTitle: lec.title,
+          section: lec.chapter || lec.section || "Chapter Revision",
+          chapterPath,
+          courseId: primaryCourse._id,
+          courseTitle: primaryCourse.title,
+          courseSlug: primaryCourse.slug,
+          positionSec: pos,
+          durationSec: dur,
+          percent: pct,
+          bookmarked: Boolean(chosen.bookmarked),
+          totalCourseLectures: totalCurriculumLectures,
+        };
       }
-
-      resume = {
-        lectureId: lec._id.toString(),
-        lectureTitle: lec.title,
-        section: lec.chapter || lec.section || "Chapter Revision",
-        chapterPath,
-        courseId: primaryCourse._id,
-        courseTitle: primaryCourse.title,
-        courseSlug: primaryCourse.slug,
-        positionSec: pos,
-        durationSec: dur,
-        percent: pct,
-        bookmarked: Boolean(chosen.bookmarked),
-        totalCourseLectures: totalCurriculumLectures,
-      };
-    } else if (firstPlayable) {
-      const dur = firstPlayable.durationSec || firstPlayable.durationSeconds || 2520;
-      let chapterPath = "";
-      if (firstPlayable.bookId?.title && firstPlayable.chapterId?.title) {
-        chapterPath = `Book ${firstPlayable.bookId.position || 1}: ${firstPlayable.bookId.title} · Chapter ${firstPlayable.chapterId.position || 1}: ${firstPlayable.chapterId.title}`;
-      } else if (firstPlayable.book || firstPlayable.chapter) {
-        chapterPath = `${firstPlayable.book ? (firstPlayable.book.toLowerCase().startsWith("book") ? firstPlayable.book : `Book: ${firstPlayable.book}`) : "Book"} · ${firstPlayable.chapter ? (firstPlayable.chapter.toLowerCase().startsWith("chapter") ? firstPlayable.chapter : `Chapter: ${firstPlayable.chapter}`) : firstPlayable.section || "Chapter Revision"}`;
-      } else {
-        chapterPath = `${primaryCourse.title} · ${firstPlayable.section || "Chapter Revision"}`;
-      }
-
-      resume = {
-        lectureId: firstPlayable._id.toString(),
-        lectureTitle: firstPlayable.title,
-        section: firstPlayable.chapter || firstPlayable.section || "Chapter Revision",
-        chapterPath,
-        courseId: primaryCourse._id,
-        courseTitle: primaryCourse.title,
-        courseSlug: primaryCourse.slug,
-        positionSec: 0,
-        durationSec: dur,
-        percent: 0,
-        bookmarked: false,
-        totalCourseLectures: totalCurriculumLectures,
-      };
     }
-  }
 
-  const completedLectures = completedProgressDocs.length;
+    const completedLectures = completedProgressDocs.length;
 
-  // Exclude "Coming soon" (lectures without video) from coverage denominator
-  const coveragePercent =
-    totalWithVideo > 0
-      ? Math.min(100, Math.round((completedLectures / totalWithVideo) * 100))
-      : 0;
+    // Exclude "Coming soon" (lectures without video) from coverage denominator
+    const coveragePercent =
+      totalWithVideo > 0
+        ? Math.min(100, Math.round((completedLectures / totalWithVideo) * 100))
+        : 0;
 
-  // 6. Notes / Handouts count for selected course
-  let recentNotes = [];
-  if (primaryCourseId && rawRecentNotes && rawRecentNotes.length > 0) {
-    recentNotes = rawRecentNotes.map((n) => ({
-      _id: n._id.toString(),
-      title: n.title,
-      fileSize: n.fileSize ? `${(n.fileSize / (1024 * 1024)).toFixed(1)} MB` : "2.4 MB",
-      bookTitle: n.book || n.section || primaryCourse.title,
-      viewUrl: `/student/notes?view=${n._id}`,
-      downloadUrl: `/api/student/notes/${n._id}/download`,
-    }));
-  }
+    // 6. Notes / Handouts count for selected course
+    let recentNotes = [];
+    if (primaryCourseId && rawRecentNotes && rawRecentNotes.length > 0) {
+      recentNotes = rawRecentNotes.map((n) => ({
+        _id: n._id.toString(),
+        title: n.title,
+        fileSize: n.fileSize ? `${(n.fileSize / (1024 * 1024)).toFixed(1)} MB` : "2.4 MB",
+        book: n.book || n.section || primaryCourse.title,
+        bookTitle: n.book || n.section || primaryCourse.title,
+        viewUrl: `/student/notes?view=${n._id}`,
+        downloadUrl: `/api/student/notes/${n._id}/download`,
+      }));
+    }
 
-  // 7. Tests & Test Results for selected course
-  let testsCount = 0;
-  let avgTestScore = null;
+    // 7. Tests & Test Results for selected course
+    let testsCount = 0;
+    let avgTestScore = null;
 
-  if (primaryCourseId && testResults) {
-    testsCount = testResults.length;
-    if (testsCount > 0) {
-      const sum = testResults.reduce((acc, t) => acc + (t.percentage || t.score || 0), 0);
+    if (testResults && testResults.length > 0) {
+      testsCount = testResults.length;
+      const sum = testResults.reduce((acc, t) => {
+        const pct =
+          typeof t.percentage === "number"
+            ? t.percentage
+            : t.maxScore
+              ? (t.score / t.maxScore) * 100
+              : t.score || 0;
+        return acc + pct;
+      }, 0);
       avgTestScore = (sum / testsCount).toFixed(1);
     }
-  }
 
-  const courseReward = (primaryCourse?.rewardTargetText && primaryCourse.rewardTargetText.trim()) || null;
-  const courseTarget = (primaryCourse?.targetScore && primaryCourse.targetScore.trim()) || null;
-  const rawValidity = user.validUntil || primaryCourse?.validUntil || earliestExpiry || null;
-  const courseValidity = rawValidity
-    ? new Date(rawValidity).toISOString()
-    : null;
+    const courseReward = (primaryCourse?.rewardTargetText && primaryCourse.rewardTargetText.trim()) || null;
+    const courseTarget = (primaryCourse?.targetScore && primaryCourse.targetScore.trim()) || null;
+    const rawValidity = user.validUntil || primaryCourse?.validUntil || earliestExpiry || null;
+    const courseValidity = rawValidity
+      ? new Date(rawValidity).toISOString()
+      : null;
 
-  return {
-    student: {
-      _id: user._id.toString(),
-      name: user.name,
-      loginId: user.loginId,
-      className: user.className || "12",
-      phone: user.phone || "",
-    },
-    primaryCourse: primaryCourse
-      ? {
+    return {
+      student: {
+        _id: user._id.toString(),
+        name: user.name,
+        loginId: user.loginId,
+        className: user.className || "12",
+        phone: user.phone || "",
+      },
+      primaryCourse: primaryCourse
+        ? {
           _id: primaryCourse._id.toString(),
           title: primaryCourse.title,
           slug: primaryCourse.slug,
         }
-      : null,
-    isZeroCourses: activeCourses.length === 0,
-    activeCourses: activeCourses.map((c) => ({
-      _id: c._id.toString(),
-      title: c.title,
-      slug: c.slug,
-    })),
-    earliestExpiry: earliestExpiry ? new Date(earliestExpiry).toISOString() : null,
-    announcement: announcement
-      ? {
+        : null,
+      isZeroCourses: activeCourses.length === 0,
+      activeCourses: activeCourses.map((c) => ({
+        _id: c._id.toString(),
+        title: c.title,
+        slug: c.slug,
+      })),
+      earliestExpiry: earliestExpiry ? new Date(earliestExpiry).toISOString() : null,
+      announcement: announcement
+        ? {
           _id: announcement._id.toString(),
           title: announcement.title,
           body: announcement.body,
           dismissible: announcement.dismissible !== false,
         }
-      : null,
-    resume,
-    firstLectureId,
-    syllabus: {
-      courseTitle: primaryCourse?.title || "Class 12 Accountancy",
-      totalLectures: totalWithVideo,
-      completedLectures,
-      percent: coveragePercent,
-      rewardTargetText: courseReward,
-      targetScore: courseTarget,
-      earliestExpiry: courseValidity,
-    },
-    stats: {
-      lecturesWatched: {
-        completed: completedLectures,
-        total: totalWithVideo,
+        : null,
+      resume,
+      firstLectureId,
+      syllabus: {
+        courseTitle: primaryCourse?.title || "Class 12 Accountancy",
+        totalLectures: totalWithVideo,
+        completedLectures,
+        percent: coveragePercent,
+        rewardTargetText: courseReward,
+        targetScore: courseTarget,
+        earliestExpiry: courseValidity,
       },
-      handouts: {
-        count: totalNotesCount,
+      stats: {
+        lecturesWatched: {
+          completed: completedLectures,
+          total: totalWithVideo,
+        },
+        handouts: {
+          count: totalNotesCount,
+        },
+        tests: {
+          count: testsCount > 0 ? testsCount : upcomingTestsCount,
+          upcomingCount: upcomingTestsCount,
+          completedCount: testsCount,
+          avgScore: avgTestScore,
+        },
       },
-      tests: {
-        count: testsCount > 0 ? testsCount : upcomingTestsCount,
-        upcomingCount: upcomingTestsCount,
-        completedCount: testsCount,
-        avgScore: avgTestScore,
-      },
-    },
-    whatsappNumber: settings?.whatsappNumber || settings?.whatsapp || "918368545620",
-    recentNotes,
-    upcomingTest: upcomingTest
-      ? {
+      whatsappNumber: settings?.whatsappNumber || settings?.whatsapp || "918368545620",
+      recentNotes,
+      upcomingTest: upcomingTest
+        ? {
           _id: upcomingTest._id.toString(),
           title: upcomingTest.title,
           kind: upcomingTest.kind || "Sunday Mock",
@@ -411,8 +401,8 @@ export async function getStudentDashboardData(userId, selectedCourseId = null) {
           syllabus: upcomingTest.syllabus || "",
           venue: upcomingTest.venue || "",
         }
-      : null,
-  };
+        : null,
+    };
   } catch (err) {
     console.error("[STUDENT_DASHBOARD_SERVICE_ERROR]", err);
     return null;

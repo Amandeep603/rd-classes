@@ -110,11 +110,23 @@ export async function getAdminLecturesByCourse(courseId) {
 }
 
 /**
- * Synchronizes course preview state without automatically marking anything free.
+ * Synchronizes course preview state: ensures lowest order published lecture is freePreview if none are.
  */
 export async function syncCourseFreePreview(courseId) {
-  // Auto-marking removed per user specification. Only isFree === true lectures are free.
-  return;
+  const published = await Lecture.find({
+    courseId,
+    published: true,
+  }).sort({ order: 1, position: 1, createdAt: 1 });
+
+  if (published.length === 0) return;
+  const hasFree = published.some((l) => l.freePreview || l.isPreview || l.isFree);
+  if (!hasFree) {
+    const firstLec = published[0];
+    firstLec.freePreview = true;
+    firstLec.isPreview = true;
+    firstLec.isFree = true;
+    await firstLec.save();
+  }
 }
 
 /**
@@ -135,8 +147,30 @@ export async function createLecture(data, adminId) {
     .lean();
   const nextOrder = (highestOrder?.position ?? highestOrder?.order ?? -1) + 1;
 
-  const isFree = Boolean(data.isFree ?? data.freePreview ?? data.isPreview ?? false);
-  const isPublished = data.status === "published" || data.published === true;
+  const hasExplicitFreeToggle =
+    typeof data.freePreview === "boolean" || typeof data.isPreview === "boolean" || typeof data.isFree === "boolean";
+  const explicitFreeValue =
+    typeof data.freePreview === "boolean"
+      ? data.freePreview
+      : typeof data.isPreview === "boolean"
+        ? data.isPreview
+        : typeof data.isFree === "boolean"
+          ? data.isFree
+          : false;
+
+  const isPublished = data.status === "published" || data.published === true || Boolean(vimeoId);
+
+  // Auto-mark freePreview: true if this is the first published lecture of the course
+  let isFree = hasExplicitFreeToggle ? explicitFreeValue : false;
+  if (!hasExplicitFreeToggle && isPublished) {
+    const existingCount = await Lecture.countDocuments({
+      courseId: data.courseId,
+      published: true,
+    });
+    if (existingCount === 0) {
+      isFree = true;
+    }
+  }
 
   // Resolve Book and Chapter IDs if provided or fallback to strings
   let bookId = data.bookId || null;
@@ -179,23 +213,23 @@ export async function createLecture(data, adminId) {
 
   await syncCourseFreePreview(data.courseId);
 
-await logAuditEvent({
-  actorId: adminId,
-  action: "lecture.created",
-  targetType: "lecture",
-  targetId: lecture._id.toString(),
-  meta: { title: lecture.title, courseId: data.courseId },
-});
+  await logAuditEvent({
+    actorId: adminId,
+    action: "lecture.created",
+    targetType: "lecture",
+    targetId: lecture._id.toString(),
+    meta: { title: lecture.title, courseId: data.courseId },
+  });
 
-await createAdminNotification({
-  type: "lecture_added",
-  title: "Lecture Added",
-  message: `Lecture "${lecture.title}" added to "${course.title}"`,
-  link: `/admin/courses/${course._id}`,
-  entityId: lecture._id.toString(),
-});
+  await createAdminNotification({
+    type: "lecture_added",
+    title: "Lecture Added",
+    message: `Lecture "${lecture.title}" added to "${course.title}"`,
+    link: `/admin/courses/${course._id}`,
+    entityId: lecture._id.toString(),
+  });
 
-return lecture;
+  return lecture;
 }
 
 /**
@@ -447,6 +481,8 @@ export async function getAuthorizedLecture({ lectureId, studentId }) {
       courseSlug: course.slug,
     },
     playerUrl,
+    vimeoId: lecture.vimeoId || "",
+    vimeoHash: lecture.vimeoHash || "",
     savedPositionSec: progress?.positionSec || 0,
     completed: !!progress?.completed,
     prevLecture: prevLec ? { _id: prevLec._id.toString(), title: prevLec.title } : null,

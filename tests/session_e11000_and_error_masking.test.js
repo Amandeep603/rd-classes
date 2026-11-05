@@ -44,7 +44,7 @@ let studentLogin, hashPassword, comparePassword, getCurrentStudent;
 let createOrReplaceSession;
 let formatPublicError, GENERIC_PUBLIC_ERROR_TEXT;
 
-function setMockContext({ userAgent, ip, deviceCookie, pendingCookie } = {}) {
+function setMockContext({ userAgent, ip, deviceCookie, pendingCookie, testCookie = "1" } = {}) {
   currentHeaders.clear();
   currentCookies.clear();
 
@@ -52,6 +52,7 @@ function setMockContext({ userAgent, ip, deviceCookie, pendingCookie } = {}) {
   if (ip) currentHeaders.set("x-forwarded-for", ip);
   if (deviceCookie) currentCookies.set("rd_device", deviceCookie);
   if (pendingCookie) currentCookies.set("rd_pending", pendingCookie);
+  if (testCookie) currentCookies.set("rd_cookie_test", testCookie);
 }
 
 describe("Session E11000 Prevention & Global Error Masking Suite", () => {

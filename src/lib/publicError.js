@@ -33,17 +33,30 @@ const TECHNICAL_LEAK_WORDS = [
 
 // Patterns representing intentional, safe user-facing feedback
 const KNOWN_USER_PATTERNS = [
-  /invalid (login id|password|credentials|input|token|request|file|format|code|otp)/i,
-  /account is (locked|blocked|inactive|suspended)/i,
+  /invalid (student id|login id|student|login|password|credentials|input|token|request|file|format|code|otp)/i,
+  /account (has been|is) (deactivated|locked|blocked|inactive|suspended)/i,
+  /deactivated/i,
   /locked for/i,
   /too many (failed )?attempts/i,
   /try again in/i,
   /please wait/i,
+  /please open .* in (chrome|safari|browser)/i,
+  /open in browser/i,
+  /please enable cookies/i,
+  /enable cookies/i,
+  /private (browsing|mode)/i,
+  /device was (replaced|removed)/i,
+  /device .* (replaced|declined|rejected|removed)/i,
+  /request .* (declined|rejected)/i,
+  /registered on another device/i,
+  /one phone and one laptop/i,
+  /approving this device will log out/i,
   /device (is )?pending/i,
   /device (is )?declined/i,
   /device (was )?removed/i,
   /device request/i,
   /pending approval/i,
+  /request has been sent/i,
   /not found/i,
   /already (exists|taken|enrolled)/i,
   /unauthorized/i,
@@ -53,6 +66,9 @@ const KNOWN_USER_PATTERNS = [
   /passwords do not match/i,
   /required/i,
   /upload a (valid|supported|csv|xlsx)/i,
+  /ye naya device hai/i,
+  /approval ke baad dobara login karein/i,
+  /this page was updated/i,
 ];
 
 /**
@@ -93,12 +109,40 @@ export function isKnownUserMessage(message) {
 }
 
 /**
+ * Extracts the first stack frame from an error object.
+ */
+function extractFirstStackFrame(err) {
+  if (!err || typeof err !== "object" || !err.stack) return "unknown";
+  const lines = String(err.stack).split("\n");
+  for (let i = 1; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith("at ")) {
+      return trimmed.replace(/^at\s+/, "");
+    }
+  }
+  return "unknown";
+}
+
+/**
  * Centralized error formatter: turns unexpected or technical errors into generic text + reference code
  */
-export function formatPublicError(err, { loginId } = {}) {
+export function formatPublicError(err, { loginId, route } = {}) {
   const errName = err?.name || "";
   const rawMessage = typeof err === "string" ? err : err?.message || "";
   const errCode = err?.code;
+
+  // Stale deploy server action error mapping: friendly notice instead of masked code
+  if (
+    rawMessage.includes("Failed to find Server Action") ||
+    rawMessage.includes("An unexpected response was received from the server")
+  ) {
+    return {
+      userMessage: "This page was updated. Please refresh and try again.",
+      refCode: null,
+      isKnown: true,
+      isStaleAction: true,
+    };
+  }
 
   // Technical error types that must ALWAYS be masked
   const isTechnicalType =
@@ -126,10 +170,16 @@ export function formatPublicError(err, { loginId } = {}) {
   // Unexpected or technical error: generate reference code and mask
   const refCode = generateReferenceCode();
   const safeLoginId = loginId && typeof loginId === "string" ? loginId.trim() : null;
+  const safeRoute = route && typeof route === "string" ? route.trim() : "unknown_route";
+  const firstStackFrame = extractFirstStackFrame(err);
+  const realErrName = errName || "Error";
+  const realErrCode = errCode !== undefined && errCode !== null ? String(errCode) : "NONE";
 
-  // Log real error on server with reference code (loginId only, no sensitive tokens/passwords/cookies)
-  const logPrefix = `[PUBLIC_ERROR] ref=${refCode}${safeLoginId ? ` loginId=${safeLoginId}` : ""}`;
-  console.error(`${logPrefix} error=${errName || "Error"}: ${rawMessage}\n${err?.stack || ""}`);
+  // Requirement 4: server log entry must always contain:
+  // the reference code, the route, the real error name and code, the first stack frame, and the loginId (nothing else)
+  console.error(
+    `[MASKED_ERROR] ref=${refCode} route=${safeRoute} errorName=${realErrName} errorCode=${realErrCode} stackFrame="${firstStackFrame}" loginId=${safeLoginId || "NONE"}`
+  );
 
   return {
     userMessage: `${GENERIC_PUBLIC_ERROR_TEXT} (${refCode})`,
@@ -141,7 +191,7 @@ export function formatPublicError(err, { loginId } = {}) {
 /**
  * Wraps a Server Action to ensure unexpected errors are never returned raw
  */
-export function withActionErrorHandling(actionFn, { getLoginId } = {}) {
+export function withActionErrorHandling(actionFn, { getLoginId, route = "server_action" } = {}) {
   return async (...args) => {
     try {
       const result = await actionFn(...args);
@@ -149,7 +199,7 @@ export function withActionErrorHandling(actionFn, { getLoginId } = {}) {
       if (result && typeof result === "object" && result.error && typeof result.error === "string") {
         if (containsTechnicalLeak(result.error) || !isKnownUserMessage(result.error)) {
           const loginId = typeof getLoginId === "function" ? getLoginId(...args) : undefined;
-          const { userMessage, refCode } = formatPublicError(new Error(result.error), { loginId });
+          const { userMessage, refCode } = formatPublicError(new Error(result.error), { loginId, route });
           return {
             ...result,
             success: false,
@@ -162,7 +212,7 @@ export function withActionErrorHandling(actionFn, { getLoginId } = {}) {
       return result;
     } catch (err) {
       const loginId = typeof getLoginId === "function" ? getLoginId(...args) : undefined;
-      const { userMessage, refCode } = formatPublicError(err, { loginId });
+      const { userMessage, refCode } = formatPublicError(err, { loginId, route });
       return {
         success: false,
         error: userMessage,
@@ -176,14 +226,15 @@ export function withActionErrorHandling(actionFn, { getLoginId } = {}) {
 /**
  * Wraps an API route handler to ensure unexpected errors are never returned raw
  */
-export function withRouteErrorHandling(handlerFn, { getLoginId } = {}) {
+export function withRouteErrorHandling(handlerFn, { getLoginId, route } = {}) {
   return async (req, context) => {
+    const determinedRoute = route || req?.nextUrl?.pathname || req?.url || "api_route";
     try {
       const response = await handlerFn(req, context);
       return response;
     } catch (err) {
       const loginId = typeof getLoginId === "function" ? getLoginId(req, context) : undefined;
-      const { userMessage, refCode } = formatPublicError(err, { loginId });
+      const { userMessage, refCode } = formatPublicError(err, { loginId, route: determinedRoute });
       return NextResponse.json(
         {
           success: false,
@@ -198,5 +249,6 @@ export function withRouteErrorHandling(handlerFn, { getLoginId } = {}) {
 }
 
 export const withErrorHandling = withRouteErrorHandling;
+export { formatPublicError as publicError };
 export default formatPublicError;
 

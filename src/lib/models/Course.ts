@@ -118,12 +118,22 @@ const courseSchema = new Schema(
       default: null,
     },
     // Course Page Content Controls
-    includes: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
+    includes: [Schema.Types.Mixed],
+    thumbnail: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    illustrationAssetId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    facultyAvatarAssetId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     highlights: [
       {
         icon: { type: String, default: "video", trim: true },

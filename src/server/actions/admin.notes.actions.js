@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { requireAdminApi } from "../auth/session.js";
+import { requireAdmin, requireAdminApi } from "../auth/session.js";
 import { noteCreateSchema, noteUpdateSchema } from "../validation/schemas.js";
 import {
   createNote,
@@ -19,9 +19,7 @@ import connectDB from "../db/connect.js";
  * Creates a note from admin panel.
  */
 export async function createNoteAction(payload) {
-  const auth = await requireAdminApi();
-  if (!auth.authenticated) return { success: false, error: "Unauthorized" };
-  const admin = auth;
+  const admin = await requireAdmin();
 
   const parsed = noteCreateSchema.safeParse(payload);
   if (!parsed.success) {

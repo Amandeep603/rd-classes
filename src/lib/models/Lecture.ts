@@ -136,7 +136,6 @@ const lectureSchema = new Schema(
     },
     published: {
       type: Boolean,
-      default: false,
     },
     freePreview: {
       type: Boolean,
@@ -172,14 +171,30 @@ lectureSchema.pre("validate", function () {
   }
 
   // Sync lectureNo & partNumber
-  if (this.lectureNo !== undefined && (!this.partNumber || this.partNumber === 1)) {
+  const derivedNo =
+    typeof this.order === "number" && this.order >= 0
+      ? this.order + 1
+      : typeof this.position === "number" && this.position >= 0
+        ? this.position + 1
+        : 1;
+
+  if (!this.isModified("lectureNo") || this.lectureNo === 1) {
+    this.lectureNo = derivedNo;
+    this.partNumber = derivedNo;
+  } else if (this.lectureNo !== undefined && (!this.partNumber || this.partNumber === 1)) {
     this.partNumber = this.lectureNo;
   } else if (this.partNumber !== undefined && (!this.lectureNo || this.lectureNo === 1)) {
     this.lectureNo = this.partNumber;
   }
 
-  // Live status depends on having a Vimeo link
-  if (this.vimeoId && String(this.vimeoId).trim() !== "") {
+  // Live status depends on having a Vimeo link, unless explicitly marked as draft
+  if (this.published === false) {
+    this.status = "draft";
+    this.published = false;
+  } else if (this.published === true) {
+    this.status = "published";
+    this.published = true;
+  } else if (this.vimeoId && String(this.vimeoId).trim() !== "") {
     this.status = "published";
     this.published = true;
   } else {
@@ -187,19 +202,33 @@ lectureSchema.pre("validate", function () {
     this.published = false;
   }
 
-  // Sync isFree & legacy flags
-  if (this.isFree !== undefined) {
-    this.freePreview = this.isFree;
-    this.isFreePreview = this.isFree;
-    this.isPreview = this.isFree;
-  } else if (this.isFreePreview !== undefined) {
-    this.isFree = this.isFreePreview;
-    this.freePreview = this.isFreePreview;
-    this.isPreview = this.isFreePreview;
-  } else if (this.freePreview !== undefined) {
-    this.isFree = this.freePreview;
-    this.isFreePreview = this.freePreview;
-    this.isPreview = this.freePreview;
+  // Sync isFree & legacy flags based on whichever was explicitly modified
+  if (this.isModified("freePreview")) {
+    const val = Boolean(this.freePreview);
+    this.isFree = val;
+    this.isFreePreview = val;
+    this.isPreview = val;
+  } else if (this.isModified("isPreview")) {
+    const val = Boolean(this.isPreview);
+    this.isFree = val;
+    this.freePreview = val;
+    this.isFreePreview = val;
+  } else if (this.isModified("isFreePreview")) {
+    const val = Boolean(this.isFreePreview);
+    this.isFree = val;
+    this.freePreview = val;
+    this.isPreview = val;
+  } else if (this.isModified("isFree")) {
+    const val = Boolean(this.isFree);
+    this.freePreview = val;
+    this.isFreePreview = val;
+    this.isPreview = val;
+  } else {
+    const val = Boolean(this.isFree || this.freePreview || this.isPreview || this.isFreePreview);
+    this.isFree = val;
+    this.freePreview = val;
+    this.isFreePreview = val;
+    this.isPreview = val;
   }
 });
 

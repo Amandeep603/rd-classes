@@ -185,6 +185,10 @@ export async function getCachedCourseLectures(courseId) {
       hasVideo,
     };
 
+    if (isFree && lec.vimeoId) {
+      base.vimeoId = lec.vimeoId;
+    }
+
     return base;
   });
 

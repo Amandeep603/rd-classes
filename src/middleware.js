@@ -10,10 +10,12 @@ export function middleware(request) {
   const isLocal = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
   const isVercelPreview = (host.endsWith(".vercel.app") && host !== "rd-classes-sandy.vercel.app") || host.includes("-git-");
 
-  // Apex or non-canonical production host redirect -> https://www.rd-classes.in (308 single hop)
-  if (!isLocal && !isVercelPreview && (host === "rd-classes.in" || host === "rd-classes-sandy.vercel.app")) {
+  // Apex or non-canonical production host redirect -> https://www.rd-classes.in (308 single hop, path & query preserved, no Set-Cookie)
+  if (!isLocal && !isVercelPreview && host !== "www.rd-classes.in") {
     const targetUrl = new URL(`https://www.rd-classes.in${pathname}${search}`);
-    return NextResponse.redirect(targetUrl, 308);
+    const res = NextResponse.redirect(targetUrl, 308);
+    res.headers.delete("set-cookie");
+    return res;
   }
 
   // Determine whether this request should be noindexed
@@ -36,6 +38,15 @@ export function middleware(request) {
     if (isProtectedPath) {
       res.headers.set("X-Frame-Options", "DENY");
       res.headers.set("X-Content-Type-Options", "nosniff");
+    }
+    if (
+      pathname === "/student-login" ||
+      pathname === "/student/login" ||
+      pathname === "/admin-login" ||
+      pathname === "/admin/login"
+    ) {
+      res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      res.headers.set("Pragma", "no-cache");
     }
     return res;
   };

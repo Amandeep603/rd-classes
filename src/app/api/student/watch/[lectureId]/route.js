@@ -92,7 +92,7 @@ export async function GET(request, { params }) {
   // ACCESS RULE: Can be watched if isFree === true (anyone) OR enrolled student
   if (!isFree && !isEnrolled) {
     const errorMessage = auth?.user
-      ? "This lecture is not part of your enrolled courses"
+      ? "Forbidden: This lecture is not part of your enrolled courses"
       : "Forbidden. This lecture is for enrolled students.";
     return NextResponse.json(
       {
@@ -155,6 +155,11 @@ export async function GET(request, { params }) {
         savedPositionSec,
         completed,
         student: studentMeta,
+        lecture: {
+          _id: lecture._id.toString(),
+          title: lecture.title,
+          section: lecture.section || "",
+        },
       },
     },
     {
