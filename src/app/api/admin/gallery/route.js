@@ -4,18 +4,25 @@ import connectDB from "@/lib/mongodb";
 import { GalleryItem } from "@/lib/models/GalleryItem";
 import { logAuditEvent } from "@/server/services/audit.js";
 
-const galleryItemSchema = z.object({
-  imageUrl: z.string().min(1, "Image URL is required"),
+const galleryItemInputSchema = z.object({
+  type: z.enum(["image", "video"]).optional().default("image"),
+  url: z.string().optional(),
+  imageUrl: z.string().optional(),
+  posterUrl: z.string().optional().default(""),
   publicId: z.string().optional().default(""),
   caption: z.string().optional().default(""),
+  width: z.number().optional().default(0),
+  height: z.number().optional().default(0),
   position: z.number().optional().default(0),
+  order: z.number().optional().default(0),
+  showOnHome: z.boolean().optional().default(true),
 });
 
 export async function GET() {
   try {
     await requireAdmin();
     await connectDB();
-    const items = await GalleryItem.find().sort({ position: 1, createdAt: -1 }).lean();
+    const items = await GalleryItem.find().sort({ position: 1, order: 1, createdAt: -1 }).lean();
     return Response.json({ success: true, items });
   } catch (err) {
     return Response.json(
@@ -37,13 +44,21 @@ export async function POST(request) {
       const created = [];
       const count = await GalleryItem.countDocuments();
       let pos = count;
+
       for (const item of body) {
-        const parsed = galleryItemSchema.safeParse(item);
+        const parsed = galleryItemInputSchema.safeParse(item);
         if (parsed.success) {
+          const itemUrl = parsed.data.url || parsed.data.imageUrl;
+          if (!itemUrl) continue;
+
           const doc = await GalleryItem.create({
             ...parsed.data,
-            position: pos++,
+            url: itemUrl,
+            imageUrl: itemUrl,
+            position: parsed.data.position || pos,
+            order: parsed.data.order || pos,
           });
+          pos++;
           created.push(doc);
         }
       }
@@ -59,12 +74,17 @@ export async function POST(request) {
       return Response.json({ success: true, items: created }, { status: 201 });
     }
 
-    const parsed = galleryItemSchema.safeParse(body);
+    const parsed = galleryItemInputSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json(
-        { error: parsed.error.issues[0]?.message || "Invalid data." },
+        { error: parsed.error.issues[0]?.message || "Invalid gallery data." },
         { status: 400 }
       );
+    }
+
+    const itemUrl = parsed.data.url || parsed.data.imageUrl;
+    if (!itemUrl) {
+      return Response.json({ error: "Media URL is required." }, { status: 400 });
     }
 
     const maxItem = await GalleryItem.findOne().sort({ position: -1 }).select("position").lean();
@@ -72,7 +92,10 @@ export async function POST(request) {
 
     const item = await GalleryItem.create({
       ...parsed.data,
+      url: itemUrl,
+      imageUrl: itemUrl,
       position: parsed.data.position || nextPos,
+      order: parsed.data.order || nextPos,
     });
 
     await logAuditEvent({
@@ -80,7 +103,7 @@ export async function POST(request) {
       action: "gallery.created",
       entity: "GalleryItem",
       entityId: item._id.toString(),
-      meta: { caption: item.caption },
+      meta: { caption: item.caption, type: item.type },
     });
 
     return Response.json({ success: true, item }, { status: 201 });

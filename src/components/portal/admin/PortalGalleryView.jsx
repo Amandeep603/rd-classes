@@ -10,57 +10,63 @@ import {
   ArrowDown,
   Plus,
   Loader2,
-  AlertCircle,
   ImageIcon,
+  Video,
+  Play,
   Maximize2,
   X,
   Check,
+  Eye,
+  EyeOff,
+  Film,
 } from "lucide-react";
 import PageHeader from "@/components/admin/ui/PageHeader";
 import ConfirmDialog from "@/components/admin/ui/ConfirmDialog";
 import { useToast } from "@/components/admin/ui/Toast";
 
-// Helper: resize image to max 1600px width/height & convert to WebP blob
-async function resizeImageToMax1600WebP(file) {
+// Helper to upload a single file directly from browser to Cloudinary with progress
+function uploadFileDirectToCloudinary({ file, signData, onProgress }) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new window.Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        const maxDim = 1600;
+    const xhr = new XMLHttpRequest();
+    const url = `https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`;
 
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
+    xhr.open("POST", url, true);
 
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return reject(new Error("Image compression failed"));
-            resolve(blob);
-          },
-          "image/webp",
-          0.85
-        );
-      };
-      img.onerror = () => reject(new Error("Failed to load image"));
-      img.src = e.target.result;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        onProgress(percent);
+      }
     };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          resolve(res);
+        } catch {
+          reject(new Error("Invalid response format from Cloudinary."));
+        }
+      } else {
+        try {
+          const errRes = JSON.parse(xhr.responseText);
+          reject(new Error(errRes.error?.message || `Cloudinary upload failed: ${xhr.statusText}`));
+        } catch {
+          reject(new Error(`Upload failed with HTTP ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network error during upload to Cloudinary."));
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("api_key", signData.apiKey);
+    formData.append("timestamp", signData.timestamp);
+    formData.append("signature", signData.signature);
+    formData.append("folder", signData.folder);
+
+    xhr.send(formData);
   });
 }
 
@@ -68,9 +74,9 @@ export default function PortalGalleryView({ initialItems = [] }) {
   const { showToast } = useToast();
   const [items, setItems] = useState(initialItems);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadFiles, setUploadFiles] = useState([]); // Array of { id, name, size, type, progress, status, error }
   const [deletingItem, setDeletingItem] = useState(null);
-  const [lightboxImage, setLightboxImage] = useState(null);
+  const [lightboxItem, setLightboxItem] = useState(null);
   const [editingCaptionId, setEditingCaptionId] = useState(null);
   const [captionText, setCaptionText] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -81,54 +87,108 @@ export default function PortalGalleryView({ initialItems = [] }) {
     const files = Array.from(fileList);
 
     setUploading(true);
-    setUploadProgress(15);
+
+    // Initialize individual upload progress tracking
+    const queue = files.map((f, i) => ({
+      id: `${Date.now()}-${i}`,
+      name: f.name,
+      size: (f.size / (1024 * 1024)).toFixed(2) + " MB",
+      isVideo: f.type.includes("video") || Boolean(f.name.match(/\.(mp4|mov|m4v|webm)$/i)),
+      progress: 0,
+      status: "pending", // "pending" | "uploading" | "done" | "error"
+      file: f,
+    }));
+    setUploadFiles(queue);
 
     try {
-      const formData = new FormData();
-      let processedCount = 0;
+      // 1. Get signed credentials from server
+      const signRes = await fetch("/api/admin/gallery/sign-upload", { method: "POST" });
+      const signData = await signRes.json();
+      if (!signRes.ok || !signData.signature) {
+        throw new Error(signData.error || "Failed to obtain upload authorization.");
+      }
 
-      for (const file of files) {
-        if (!file.type.includes("image") && !file.name.match(/\.(png|webp|jpg|jpeg)$/i)) {
-          continue;
+      const uploadedRecords = [];
+
+      // 2. Upload each file directly to Cloudinary
+      for (const item of queue) {
+        setUploadFiles((prev) =>
+          prev.map((q) => (q.id === item.id ? { ...q, status: "uploading" } : q))
+        );
+
+        try {
+          const res = await uploadFileDirectToCloudinary({
+            file: item.file,
+            signData,
+            onProgress: (percent) => {
+              setUploadFiles((prev) =>
+                prev.map((q) => (q.id === item.id ? { ...q, progress: percent } : q))
+              );
+            },
+          });
+
+          const isVideo =
+            res.resource_type === "video" || item.isVideo;
+
+          // Poster URL for video
+          let posterUrl = "";
+          let finalUrl = res.secure_url || res.url;
+
+          if (isVideo) {
+            // Generate poster frame URL by replacing video extension with .jpg
+            posterUrl = finalUrl.replace(/\.[^/.]+$/, ".jpg");
+          } else {
+            // Ensure format auto-optimization for delivery (HEIC/JPEG/PNG/WebP)
+            if (finalUrl.includes("/upload/")) {
+              finalUrl = finalUrl.replace(/\/upload\//, "/upload/f_auto,q_auto/");
+            }
+          }
+
+          uploadedRecords.push({
+            type: isVideo ? "video" : "image",
+            url: finalUrl,
+            imageUrl: finalUrl,
+            posterUrl,
+            publicId: res.public_id,
+            width: res.width || 0,
+            height: res.height || 0,
+            caption: item.name.replace(/\.[^/.]+$/, ""),
+            showOnHome: true,
+          });
+
+          setUploadFiles((prev) =>
+            prev.map((q) => (q.id === item.id ? { ...q, status: "done", progress: 100 } : q))
+          );
+        } catch (fileErr) {
+          setUploadFiles((prev) =>
+            prev.map((q) =>
+              q.id === item.id ? { ...q, status: "error", error: fileErr.message } : q
+            )
+          );
         }
-        const resizedBlob = await resizeImageToMax1600WebP(file);
-        formData.append("files", resizedBlob, `${file.name.replace(/\.[^/.]+$/, "")}.webp`);
-        processedCount++;
-        setUploadProgress(Math.min(50, 15 + Math.round((processedCount / files.length) * 35)));
       }
 
-      if (processedCount === 0) {
-        throw new Error("No valid image files found.");
+      if (uploadedRecords.length === 0) {
+        throw new Error("No files were successfully uploaded.");
       }
 
-      setUploadProgress(60);
-      const uploadRes = await fetch("/api/admin/gallery/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      setUploadProgress(85);
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadData.error || "Upload failed");
-
-      // Save records in DB
+      // 3. Save records in DB
       const saveRes = await fetch("/api/admin/gallery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(uploadData.uploaded),
+        body: JSON.stringify(uploadedRecords),
       });
 
       const saveData = await saveRes.json();
-      if (!saveRes.ok) throw new Error(saveData.error || "Failed to save gallery records");
+      if (!saveRes.ok) throw new Error(saveData.error || "Failed to save records in database");
 
-      setUploadProgress(100);
-      setItems((prev) => [...(saveData.items || []), ...prev]);
-      showToast(`${processedCount} image(s) processed and added to gallery`);
+      const newDocs = saveData.items || [];
+      setItems((prev) => [...newDocs, ...prev]);
+      showToast(`${newDocs.length} item(s) successfully uploaded to gallery!`);
     } catch (err) {
-      showToast(err.message || "Failed to upload gallery images", "error");
+      showToast(err.message || "Upload failed", "error");
     } finally {
       setUploading(false);
-      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -166,6 +226,26 @@ export default function PortalGalleryView({ initialItems = [] }) {
     }
   };
 
+  const toggleShowOnHome = async (item) => {
+    const nextVal = item.showOnHome === false ? true : false;
+    try {
+      const res = await fetch(`/api/admin/gallery/${item._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showOnHome: nextVal }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update visibility");
+
+      setItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, showOnHome: nextVal } : i))
+      );
+      showToast(nextVal ? "Visible on Home Page" : "Hidden from Home Page");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
   const moveItem = async (index, direction) => {
     const targetIdx = index + direction;
     if (targetIdx < 0 || targetIdx >= items.length) return;
@@ -198,10 +278,10 @@ export default function PortalGalleryView({ initialItems = [] }) {
         method: "DELETE",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to delete image");
+      if (!res.ok) throw new Error(data.error || "Failed to delete item");
 
       setItems((prev) => prev.filter((i) => i._id !== deletingItem._id));
-      showToast("Gallery item and Cloudinary file deleted");
+      showToast("Item deleted from gallery and Cloudinary");
       setDeletingItem(null);
     } catch (err) {
       showToast(err.message, "error");
@@ -212,7 +292,7 @@ export default function PortalGalleryView({ initialItems = [] }) {
     <div>
       <PageHeader
         title="Classroom & Events Gallery"
-        subtitle="Upload photos, felicitations, classroom moments and seminars. Resized to 1600px WebP."
+        subtitle="Upload photos & videos directly to Cloudinary. Supports iPhone HEIC, MP4, MOV, and high-res photos."
         breadcrumbs={[
           { label: "Admin", href: "/admin" },
           { label: "Gallery" },
@@ -224,12 +304,12 @@ export default function PortalGalleryView({ initialItems = [] }) {
             className="inline-flex items-center gap-2 rounded-xl bg-[#FFC21A] px-4 py-2.5 text-xs font-bold text-neutral-900 shadow-xs hover:bg-[#E5AE17] transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>Upload Images</span>
+            <span>Upload Media</span>
           </button>
         }
       />
 
-      {/* Multi-Image Drag-and-Drop Dropzone */}
+      {/* Multi-File Drag-and-Drop Dropzone */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -238,7 +318,7 @@ export default function PortalGalleryView({ initialItems = [] }) {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className={`mb-8 cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all ${
+        className={`mb-6 cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all ${
           dragOver
             ? "border-[#FFC21A] bg-amber-50/50"
             : "border-gray-300 bg-white hover:border-[#FFC21A] hover:bg-gray-50/50"
@@ -248,7 +328,7 @@ export default function PortalGalleryView({ initialItems = [] }) {
           type="file"
           ref={fileInputRef}
           multiple
-          accept="image/png,image/jpeg,image/webp"
+          accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif,video/*,.mp4,.mov,.m4v,.webm"
           onChange={(e) => handleFiles(e.target.files)}
           className="hidden"
         />
@@ -258,67 +338,132 @@ export default function PortalGalleryView({ initialItems = [] }) {
             {uploading ? (
               <Loader2 className="h-7 w-7 animate-spin text-amber-600" />
             ) : (
-              <ImageIcon className="h-7 w-7" />
+              <Upload className="h-7 w-7" />
             )}
           </div>
           <h3 className="text-sm font-bold text-gray-900">
-            {uploading ? "Processing and Uploading Images..." : "Drag and drop multiple classroom photos here"}
+            {uploading ? "Uploading files to Cloudinary..." : "Drag and drop photos & videos here"}
           </h3>
           <p className="mt-1 text-xs text-gray-500 max-w-md">
-            Auto-resized to max 1600px width/height and compressed to WebP on client before Cloudinary upload.
+            Direct browser-to-Cloudinary upload bypassing Vercel body limits. Supports multiple files, MP4, MOV, HEIC, PNG, JPG.
           </p>
-
-          {uploading && uploadProgress > 0 && (
-            <div className="mt-4 w-full max-w-xs space-y-1">
-              <div className="flex justify-between text-[11px] font-semibold text-gray-600">
-                <span>Optimizing & Uploading...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#FFC21A] transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Individual Upload Progress Bars */}
+      {uploadFiles.length > 0 && uploading && (
+        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-xs space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
+            Upload Progress ({uploadFiles.filter((f) => f.status === "done").length} / {uploadFiles.length})
+          </h4>
+          <div className="space-y-2.5">
+            {uploadFiles.map((f) => (
+              <div key={f.id} className="rounded-xl border border-gray-100 bg-gray-50/80 p-3">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    {f.isVideo ? (
+                      <Video className="w-4 h-4 text-purple-600 shrink-0" />
+                    ) : (
+                      <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                    )}
+                    <span className="font-semibold text-gray-800 truncate">{f.name}</span>
+                    <span className="text-[10px] text-gray-400 shrink-0 font-mono">({f.size})</span>
+                  </div>
+                  <div className="shrink-0 font-bold text-[11px]">
+                    {f.status === "error" ? (
+                      <span className="text-red-600">Failed</span>
+                    ) : f.status === "done" ? (
+                      <span className="text-emerald-600">Complete</span>
+                    ) : (
+                      <span className="text-amber-700">{f.progress}%</span>
+                    )}
+                  </div>
+                </div>
+                <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-200 ${
+                      f.status === "error"
+                        ? "bg-red-500"
+                        : f.status === "done"
+                        ? "bg-emerald-500"
+                        : "bg-[#FFC21A]"
+                    }`}
+                    style={{ width: `${f.progress}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Gallery Grid */}
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center">
           <ImageIcon className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-          <h4 className="text-base font-bold text-gray-800">No gallery images uploaded</h4>
+          <h4 className="text-base font-bold text-gray-800">No gallery media uploaded</h4>
           <p className="mt-1 text-xs text-gray-500 max-w-sm mx-auto">
-            Upload celebration snapshots, student batches, and felicitation events. They appear on the Home gallery and /gallery page.
+            Upload celebration snapshots, classroom moments, seminars or short videos.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {items.map((item, index) => {
             const isEditing = editingCaptionId === item._id;
+            const isVideo =
+              item.type === "video" ||
+              Boolean((item.url || item.imageUrl)?.match(/\.(mp4|mov|m4v|webm)$/i));
+            const thumbSrc =
+              item.posterUrl ||
+              item.imageUrl ||
+              item.image ||
+              item.url ||
+              (isVideo && item.url ? item.url.replace(/\.[^/.]+$/, ".jpg") : item.url);
+
             return (
               <div
                 key={item._id}
                 className="group relative flex flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xs transition-all hover:shadow-md"
               >
-                {/* Photo Preview Container */}
+                {/* Media Preview Container */}
                 <div
-                  className="relative aspect-4/3 w-full bg-gray-100 cursor-pointer overflow-hidden"
-                  onClick={() => setLightboxImage(item.imageUrl || item.image)}
+                  className="relative aspect-4/3 w-full bg-slate-900 cursor-pointer overflow-hidden"
+                  onClick={() => setLightboxItem(item)}
                 >
-                  <Image
-                    src={item.imageUrl || item.image}
-                    alt={item.caption || "Gallery photo"}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-xs">
+                  {thumbSrc ? (
+                    <Image
+                      src={thumbSrc}
+                      alt={item.caption || "Gallery item"}
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400">
+                      <Film className="w-8 h-8" />
+                    </div>
+                  )}
+
+                  {/* Video Badge & Play Icon */}
+                  {isVideo && (
+                    <>
+                      <div className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1 rounded-full bg-black/75 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white backdrop-blur-xs border border-white/20">
+                        <Video className="w-3 h-3 text-[#FFC21A]" />
+                        <span>VIDEO</span>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="h-10 w-10 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center text-white border border-white/20 shadow-lg group-hover:scale-110 transition-transform">
+                          <Play className="w-4 h-4 fill-white text-white translate-x-0.5" />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-black/75 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-xs">
                       <Maximize2 className="h-3.5 w-3.5" />
-                      <span>Zoom</span>
+                      <span>{isVideo ? "Play Video" : "View Photo"}</span>
                     </span>
                   </div>
                 </div>
@@ -355,7 +500,9 @@ export default function PortalGalleryView({ initialItems = [] }) {
                   ) : (
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-xs font-bold text-gray-800 line-clamp-2">
-                        {item.caption || item.title || <span className="text-gray-400 italic font-normal">No caption set</span>}
+                        {item.caption || item.title || (
+                          <span className="text-gray-400 italic font-normal">No caption set</span>
+                        )}
                       </p>
                       <button
                         type="button"
@@ -368,8 +515,34 @@ export default function PortalGalleryView({ initialItems = [] }) {
                     </div>
                   )}
 
-                  {/* Order & Actions Row */}
-                  <div className="mt-3.5 flex items-center justify-between border-t border-gray-100 pt-2.5">
+                  {/* Show on Home Toggle */}
+                  <div className="mt-2.5 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => toggleShowOnHome(item)}
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                        item.showOnHome !== false
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                          : "bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200"
+                      }`}
+                      title="Click to toggle Home visibility"
+                    >
+                      {item.showOnHome !== false ? (
+                        <>
+                          <Eye className="w-3 h-3 text-emerald-600" />
+                          <span>Home: Visible</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3 text-gray-400" />
+                          <span>Home: Hidden</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Order & Delete Row */}
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5">
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
@@ -398,7 +571,7 @@ export default function PortalGalleryView({ initialItems = [] }) {
                       type="button"
                       onClick={() => setDeletingItem(item)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                      title="Delete Image"
+                      title="Delete Item"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -410,26 +583,46 @@ export default function PortalGalleryView({ initialItems = [] }) {
         </div>
       )}
 
-      {/* Lightbox Modal */}
-      {lightboxImage && (
+      {/* Lightbox / Video Modal */}
+      {lightboxItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-xs"
-          onClick={() => setLightboxImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-xs"
+          onClick={() => setLightboxItem(null)}
         >
           <button
             type="button"
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 rounded-full bg-white/20 p-2 text-white hover:bg-white/30"
+            onClick={() => setLightboxItem(null)}
+            className="absolute top-5 right-5 z-50 rounded-full bg-white/20 p-2.5 text-white hover:bg-white/30"
           >
             <X className="h-6 w-6" />
           </button>
-          <div className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxImage}
-              alt="Gallery enlarged"
-              className="max-h-[85vh] max-w-[85vw] object-contain rounded-xl"
-            />
+          <div
+            className="relative max-h-[85vh] max-w-[90vw] flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightboxItem.type === "video" ||
+            Boolean((lightboxItem.url || lightboxItem.imageUrl)?.match(/\.(mp4|mov|m4v|webm)$/i)) ? (
+              <video
+                controls
+                autoPlay
+                playsInline
+                poster={lightboxItem.posterUrl}
+                src={lightboxItem.url || lightboxItem.imageUrl}
+                className="max-h-[80vh] max-w-[85vw] rounded-2xl shadow-2xl bg-black outline-none"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={lightboxItem.url || lightboxItem.imageUrl || lightboxItem.image}
+                alt={lightboxItem.caption || "Gallery enlarged"}
+                className="max-h-[80vh] max-w-[85vw] object-contain rounded-2xl"
+              />
+            )}
+            {lightboxItem.caption && (
+              <p className="mt-3 text-sm text-white/90 bg-black/60 px-4 py-1.5 rounded-full">
+                {lightboxItem.caption}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -439,9 +632,9 @@ export default function PortalGalleryView({ initialItems = [] }) {
         isOpen={Boolean(deletingItem)}
         onClose={() => setDeletingItem(null)}
         onConfirm={handleDelete}
-        title="Delete Gallery Photo?"
-        message="Are you sure you want to remove this photo? It will also be permanently deleted from Cloudinary."
-        confirmText="Delete Photo"
+        title="Delete Gallery Item?"
+        message="Are you sure you want to remove this item? It will be permanently removed from Cloudinary and the database."
+        confirmText="Delete"
         isDestructive
       />
     </div>

@@ -18,13 +18,25 @@ export default function BoardToppersClient({ toppers = [] }) {
       aria-label="Celebrating Our Board Toppers"
       className="relative w-full overflow-hidden text-white py-10 lg:py-14 [isolation:isolate] bg-gradient-to-b from-[#07142B] via-[#0B1B3A] to-[#07142B]"
     >
-      {/* 1-2 very faint blurred ambient shapes (opacity <= 10%) */}
+      {/* Background decorations matching reference */}
+      {/* a) Large soft dark-navy circle at the top right */}
       <div
-        className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-orange-600/10 blur-3xl -z-10"
+        className="pointer-events-none absolute -top-24 -right-24 w-[520px] h-[520px] rounded-full bg-[#0A1A36]/80 blur-2xl z-0"
         aria-hidden="true"
       />
+      {/* b) Big curved orange-brown arc/blob on the far left edge */}
       <div
-        className="pointer-events-none absolute top-1/2 -right-32 w-[30rem] h-[30rem] rounded-full bg-blue-600/10 blur-3xl -z-10"
+        className="pointer-events-none absolute top-1/3 -left-44 w-[360px] h-[360px] rounded-full bg-gradient-to-r from-[#FF7A00]/25 via-[#D96500]/15 to-transparent blur-3xl z-0"
+        aria-hidden="true"
+      />
+      {/* c) Similar but smaller one on the far right edge */}
+      <div
+        className="pointer-events-none absolute bottom-6 -right-36 w-[280px] h-[280px] rounded-full bg-gradient-to-l from-[#FF7A00]/20 via-[#D96500]/10 to-transparent blur-3xl z-0"
+        aria-hidden="true"
+      />
+      {/* d) Faint orange radial glow behind the center card */}
+      <div
+        className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] rounded-full bg-[radial-gradient(circle,rgba(255,122,0,0.12)_0%,transparent_70%)] blur-2xl z-0"
         aria-hidden="true"
       />
 

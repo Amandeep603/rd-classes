@@ -2,15 +2,36 @@ import mongoose, { Schema } from "mongoose";
 
 const galleryItemSchema = new Schema(
   {
+    type: {
+      type: String,
+      enum: ["image", "video"],
+      default: "image",
+    },
+    url: {
+      type: String,
+      trim: true,
+    },
     imageUrl: {
       type: String,
-      required: true,
+      trim: true,
+    },
+    posterUrl: {
+      type: String,
+      default: "",
       trim: true,
     },
     publicId: {
       type: String,
       default: "",
       trim: true,
+    },
+    width: {
+      type: Number,
+      default: 0,
+    },
+    height: {
+      type: Number,
+      default: 0,
     },
     caption: {
       type: String,
@@ -27,6 +48,10 @@ const galleryItemSchema = new Schema(
       default: 0,
       index: true,
     },
+    order: {
+      type: Number,
+      default: 0,
+    },
     // Backwards-compatible fields
     title: {
       type: String,
@@ -41,10 +66,6 @@ const galleryItemSchema = new Schema(
       type: String,
       default: "",
     },
-    order: {
-      type: Number,
-      default: 0,
-    },
   },
   {
     timestamps: true,
@@ -52,13 +73,26 @@ const galleryItemSchema = new Schema(
 );
 
 galleryItemSchema.pre("validate", function () {
-  if (this.imageUrl && !this.image) {
-    this.image = this.imageUrl;
-  } else if (this.image && !this.imageUrl) {
-    this.imageUrl = this.image;
+  // Sync url, imageUrl, image
+  const primaryUrl = this.url || this.imageUrl || this.image;
+  if (primaryUrl) {
+    if (!this.url) this.url = primaryUrl;
+    if (!this.imageUrl) this.imageUrl = primaryUrl;
+    if (!this.image) this.image = primaryUrl;
   }
+
+  // Auto-detect type if not explicitly set
+  if (!this.type || this.type === "image") {
+    if (this.url && this.url.match(/\.(mp4|mov|m4v|webm)$/i)) {
+      this.type = "video";
+    }
+  }
+
+  // Sync order & position
   if (this.position !== undefined && this.order === 0) {
     this.order = this.position;
+  } else if (this.order !== undefined && this.position === 0) {
+    this.position = this.order;
   }
 });
 

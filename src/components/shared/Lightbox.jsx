@@ -86,21 +86,37 @@ export default function Lightbox({
         </button>
       )}
 
-      {/* Image container */}
+      {/* Media container */}
       <div
         className="relative max-h-[85vh] max-w-[90vw] flex flex-col items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative w-[85vw] max-w-5xl h-[75vh]">
-          <Image
-            src={imageSrc}
-            alt={caption || "Classroom moment enlarged"}
-            fill
-            priority
-            sizes="90vw"
-            className="object-contain"
-          />
-        </div>
+        {currentItem.type === "video" ||
+        currentItem.mediaType === "video" ||
+        Boolean((currentItem.url || imageSrc)?.match(/\.(mp4|mov|m4v|webm)$/i)) ? (
+          <div className="relative max-w-5xl max-h-[75vh] flex items-center justify-center">
+            <video
+              key={currentItem.url || imageSrc}
+              controls
+              autoPlay
+              playsInline
+              poster={currentItem.posterUrl}
+              src={currentItem.url || imageSrc}
+              className="max-h-[75vh] max-w-[85vw] rounded-2xl shadow-2xl bg-black outline-none"
+            />
+          </div>
+        ) : (
+          <div className="relative w-[85vw] max-w-5xl h-[75vh]">
+            <Image
+              src={imageSrc}
+              alt={caption || "Classroom moment enlarged"}
+              fill
+              priority
+              sizes="90vw"
+              className="object-contain"
+            />
+          </div>
+        )}
 
         {/* Caption */}
         {caption && (
