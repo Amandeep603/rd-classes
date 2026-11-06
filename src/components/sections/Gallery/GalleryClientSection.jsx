@@ -28,7 +28,7 @@ export default function GalleryClientSection({ items = [] }) {
     <section
       id="gallery"
       aria-label="Inside Our Classroom & Celebrations"
-      className="relative overflow-hidden bg-[#FDFAF3] py-8 lg:py-10"
+      className="relative overflow-hidden bg-[#FDFAF3] py-7 lg:py-8 scroll-mt-20"
     >
       {/* 1. Header (tight, centered, like the reference) */}
       <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
@@ -38,7 +38,7 @@ export default function GalleryClientSection({ items = [] }) {
         </div>
 
         {/* H2 Heading with warm gradient highlight bar */}
-        <h2 className="mt-3.5 text-3xl sm:text-4xl lg:text-[clamp(1.9rem,3.4vw,3.1rem)] font-extrabold text-[#0B1B3A] tracking-tight leading-tight lg:whitespace-nowrap">
+        <h2 className="mt-3 text-3xl sm:text-4xl lg:text-[clamp(1.9rem,3.4vw,3.1rem)] font-extrabold text-[#0B1B3A] tracking-tight leading-tight lg:whitespace-nowrap">
           Inside Our{" "}
           <span className="relative inline-block z-0">
             Classroom &amp; Celebrations
@@ -56,7 +56,7 @@ export default function GalleryClientSection({ items = [] }) {
       </div>
 
       {/* 2. Arrows Row: Aligned to the right edge of max-w-7xl, directly above slider */}
-      <div className="mx-auto max-w-7xl px-6 flex justify-end gap-3 mt-1 -mb-9 lg:-mb-11 relative z-20 pointer-events-auto">
+      <div className="mx-auto max-w-7xl px-6 flex justify-end gap-3 -mb-10 lg:-mb-11 relative z-20 pointer-events-auto">
         <button
           type="button"
           onClick={handlePrev}
@@ -76,7 +76,7 @@ export default function GalleryClientSection({ items = [] }) {
       </div>
 
       {/* 3. Slider Track: Edge-to-edge full width of viewport */}
-      <div className="w-full mt-8">
+      <div className="w-full mt-4">
         <GalleryStrip
           items={items}
           stripRef={stripRef}
@@ -85,7 +85,7 @@ export default function GalleryClientSection({ items = [] }) {
       </div>
 
       {/* 4. CTA Button: Centered below */}
-      <div className="mt-6 lg:mt-7 flex justify-center">
+      <div className="mt-5 lg:mt-6 flex justify-center">
         <Link
           href="/gallery"
           className="inline-flex items-center gap-2 rounded-full bg-[#0E6E8C] px-7 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(14,110,140,0.3)] hover:-translate-y-0.5 transition cursor-pointer"
