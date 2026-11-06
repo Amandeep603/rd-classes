@@ -8,124 +8,94 @@ import Lightbox from "@/components/shared/Lightbox";
 
 export default function GalleryClientSection({ items = [] }) {
   const stripRef = useRef(null);
-  const [scrollState, setScrollState] = useState({ atStart: true, atEnd: false });
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   const handlePrev = () => {
     const strip = stripRef.current;
     if (!strip) return;
-    const cardW = 240;
-    strip.scrollBy({ left: -cardW, behavior: "smooth" });
+    const step = 200; // one card (190px) + gap (10px)
+    strip.scrollBy({ left: -step, behavior: "smooth" });
   };
 
   const handleNext = () => {
     const strip = stripRef.current;
     if (!strip) return;
-    const cardW = 240;
-    strip.scrollBy({ left: cardW, behavior: "smooth" });
+    const step = 200; // one card (190px) + gap (10px)
+    strip.scrollBy({ left: step, behavior: "smooth" });
   };
 
   return (
     <section
       id="gallery"
       aria-label="Inside Our Classroom & Celebrations"
-      className="relative w-full overflow-hidden text-[#0F172A] py-16 lg:py-24 bg-[#FDF8F1]"
+      className="relative overflow-hidden bg-[#FDFAF3] py-8 lg:py-10"
     >
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header Row: Centered with Prev/Next buttons on top right */}
-        <div className="relative w-full flex flex-col items-center text-center mb-8 lg:mb-12">
-          {/* Top Pill Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FFE6A0] text-[#0B1B3A] text-xs font-extrabold uppercase tracking-wider mb-4 shadow-2xs select-none">
-            <span>LIFE AT RD CLASSES</span>
-          </div>
-
-          {/* Heading with yellow-to-orange highlight bar */}
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0B1B3A] tracking-tight leading-[1.15]">
-            Inside Our{" "}
-            <span className="relative inline-block px-1 whitespace-nowrap">
-              <span
-                className="absolute inset-x-0 bottom-1.5 h-[45%] bg-gradient-to-r from-[#FFB800] to-[#FF6B00] -z-10 rounded-xs opacity-90 -rotate-1"
-                aria-hidden="true"
-              />
-              Classroom &amp; Celebrations
-            </span>
-          </h2>
-
-          {/* Subtitle */}
-          <p className="mt-3.5 text-base sm:text-lg text-slate-600 font-normal max-w-2xl leading-relaxed">
-            Real snapshots from daily lecture discussions, whiteboard problem solving, and annual prize distributions.
-          </p>
-
-          {/* Prev/Next buttons at the top right on desktop */}
-          <div className="hidden lg:flex items-center gap-2.5 absolute right-0 top-1/2 -translate-y-1/2">
-            <button
-              type="button"
-              onClick={handlePrev}
-              aria-label="Previous gallery photo"
-              disabled={scrollState.atStart}
-              className={`w-11 h-11 rounded-full flex items-center justify-center bg-[#D6EAF8] text-[#0E7490] transition-transform hover:scale-105 active:scale-95 cursor-pointer shadow-xs ${
-                scrollState.atStart ? "opacity-40 cursor-not-allowed hover:scale-100" : ""
-              }`}
-            >
-              <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              aria-label="Next gallery photo"
-              disabled={scrollState.atEnd}
-              className={`w-11 h-11 rounded-full flex items-center justify-center bg-[#0E7490] text-white transition-transform hover:scale-105 active:scale-95 cursor-pointer shadow-md ${
-                scrollState.atEnd ? "opacity-40 cursor-not-allowed hover:scale-100" : ""
-              }`}
-            >
-              <ChevronRight className="w-5 h-5 stroke-[2.5]" />
-            </button>
-          </div>
+      {/* 1. Header (tight, centered, like the reference) */}
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
+        {/* Pill */}
+        <div className="inline-flex rounded-full border border-amber-200 bg-[#FDF0CF] px-4 py-1.5 text-xs font-bold tracking-wider text-[#0B1B3A] select-none shadow-2xs">
+          LIFE AT RD CLASSES
         </div>
 
-        {/* Gallery 3D Slider */}
-        <div className="w-full">
-          <GalleryStrip
-            items={items}
-            stripRef={stripRef}
-            onImageClick={(idx) => setLightboxIndex(idx)}
-            onScrollStateChange={setScrollState}
-          />
-        </div>
+        {/* H2 Heading with warm gradient highlight bar */}
+        <h2 className="mt-3.5 text-3xl sm:text-4xl lg:text-[clamp(1.9rem,3.4vw,3.1rem)] font-extrabold text-[#0B1B3A] tracking-tight leading-tight lg:whitespace-nowrap">
+          Inside Our{" "}
+          <span className="relative inline-block z-0">
+            Classroom &amp; Celebrations
+            <span
+              className="absolute inset-x-[-4px] bottom-0 h-[55%] -z-10 bg-gradient-to-r from-[#FFD54A] via-[#FFC93C] to-[#FF8A1F] rounded-xs"
+              aria-hidden="true"
+            />
+          </span>
+        </h2>
 
-        {/* Mobile Prev/Next Arrows */}
-        <div className="flex lg:hidden items-center justify-center gap-3 mt-4">
-          <button
-            type="button"
-            onClick={handlePrev}
-            aria-label="Previous photo"
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-[#D6EAF8] text-[#0E7490] shadow-xs active:scale-95"
-          >
-            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
-          </button>
-          <button
-            type="button"
-            onClick={handleNext}
-            aria-label="Next photo"
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-[#0E7490] text-white shadow-xs active:scale-95"
-          >
-            <ChevronRight className="w-5 h-5 stroke-[2.5]" />
-          </button>
-        </div>
-
-        {/* Bottom CTA Row: Teal-blue pill button */}
-        <div className="mt-10 flex justify-center">
-          <Link
-            href="/gallery"
-            className="group inline-flex items-center gap-2.5 rounded-full font-bold text-white transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] shadow-lg shadow-teal-900/20 px-8 py-3.5 text-sm sm:text-base cursor-pointer bg-[#0E7490] hover:bg-[#095E76]"
-          >
-            <span>View Full Classroom Gallery</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
+        {/* Paragraph (mt-3, 2 lines) */}
+        <p className="mt-2.5 mx-auto max-w-[620px] text-sm lg:text-base leading-relaxed text-slate-500">
+          Real snapshots from daily lecture discussions, whiteboard problem solving, and annual prize distributions.
+        </p>
       </div>
 
-      {/* Shared Lightbox */}
+      {/* 2. Arrows Row: Aligned to the right edge of max-w-7xl, directly above slider */}
+      <div className="mx-auto max-w-7xl px-6 flex justify-end gap-3 mt-1 -mb-9 lg:-mb-11 relative z-20 pointer-events-auto">
+        <button
+          type="button"
+          onClick={handlePrev}
+          aria-label="Previous classroom moments"
+          className="h-11 w-11 rounded-full flex items-center justify-center bg-[#DCEEFA] text-[#0B1B3A] hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-xs select-none"
+        >
+          <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+        </button>
+        <button
+          type="button"
+          onClick={handleNext}
+          aria-label="Next classroom moments"
+          className="h-11 w-11 rounded-full flex items-center justify-center bg-[#0E6E8C] text-white shadow-md hover:scale-105 active:scale-95 transition-transform cursor-pointer select-none"
+        >
+          <ChevronRight className="w-5 h-5 stroke-[2.5]" />
+        </button>
+      </div>
+
+      {/* 3. Slider Track: Edge-to-edge full width of viewport */}
+      <div className="w-full mt-8">
+        <GalleryStrip
+          items={items}
+          stripRef={stripRef}
+          onImageClick={(idx) => setLightboxIndex(idx)}
+        />
+      </div>
+
+      {/* 4. CTA Button: Centered below */}
+      <div className="mt-6 lg:mt-7 flex justify-center">
+        <Link
+          href="/gallery"
+          className="inline-flex items-center gap-2 rounded-full bg-[#0E6E8C] px-7 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(14,110,140,0.3)] hover:-translate-y-0.5 transition cursor-pointer"
+        >
+          <span>View Full Classroom Gallery</span>
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      {/* 5. Shared Lightbox */}
       <Lightbox
         isOpen={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}
