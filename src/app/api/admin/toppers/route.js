@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
@@ -10,9 +11,14 @@ const topperSchema = z.object({
   school: z.string().min(1, "School is required").trim(),
   year: z.coerce.string().trim().default("2025"),
   marks: z.coerce.string().min(1, "Marks/Score is required").trim(),
+  score: z.coerce.string().optional(),
+  outOf: z.coerce.number().optional().default(100),
+  classLevel: z.string().optional().default("12"),
+  order: z.coerce.number().optional().default(0),
   photoUrl: z.string().optional().default(""),
   publicId: z.string().optional().default(""),
   featured: z.boolean().optional().default(false),
+  featuredOnHome: z.boolean().optional().default(false),
 });
 
 export async function GET() {
@@ -42,6 +48,7 @@ export async function POST(request) {
 
     await connectDB();
     const topper = await Topper.create(parsed.data);
+    revalidateTag("toppers");
 
     await logAuditEvent({
       actorId: admin.user._id,

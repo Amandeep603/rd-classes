@@ -1,98 +1,122 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
-import { Maximize2, X, Camera, Sparkles } from "lucide-react";
+import { ZoomIn } from "lucide-react";
+import Lightbox from "@/components/shared/Lightbox";
 
-export default function GalleryClient({ items = [] }) {
-  const [selectedImage, setSelectedImage] = useState(null);
+// Repeating 7-tile mosaic pattern from Reference Image 2:
+// Row 1: span 8 + span 4 (height ~380px)
+// Row 2: span 4 + span 4 + span 4 (height ~300px)
+// Row 3: span 4 + span 8 (height ~260px)
+const MOSAIC_PATTERN = [
+  { span: "col-span-12 md:col-span-8", height: "h-[280px] sm:h-[340px] md:h-[380px]", defaultBg: "#DCE6F0" },
+  { span: "col-span-12 md:col-span-4", height: "h-[280px] sm:h-[340px] md:h-[380px]", defaultBg: "#F5EBDD" },
+  { span: "col-span-12 sm:col-span-6 md:col-span-4", height: "h-[240px] sm:h-[280px] md:h-[300px]", defaultBg: "#F5EBDD" },
+  { span: "col-span-12 sm:col-span-6 md:col-span-4", height: "h-[240px] sm:h-[280px] md:h-[300px]", defaultBg: "#DCE6F0" },
+  { span: "col-span-12 sm:col-span-6 md:col-span-4", height: "h-[240px] sm:h-[280px] md:h-[300px]", defaultBg: "#DCE6F0" },
+  { span: "col-span-12 md:col-span-4", height: "h-[220px] sm:h-[250px] md:h-[260px]", defaultBg: "#DCE6F0" },
+  { span: "col-span-12 md:col-span-8", height: "h-[220px] sm:h-[250px] md:h-[260px]", defaultBg: "#F5EBDD" },
+];
 
-  if (items.length === 0) {
-    return (
-      <div className="rounded-3xl border border-dashed border-gray-300 bg-white p-14 text-center max-w-lg mx-auto">
-        <Camera className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-gray-800">Gallery Updating Soon</h3>
-        <p className="text-xs text-gray-500 mt-1">
-          Classroom memories, seminar snapshots and felicitation ceremonies will be uploaded shortly.
-        </p>
-      </div>
-    );
-  }
+export default function GalleryClient({ initialItems = [] }) {
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(12);
+
+  const hasItems = initialItems.length > 0;
+  // If no items in database, display the 7 pastel placeholder tiles from Reference Image 2
+  const displayItems = hasItems ? initialItems.slice(0, visibleCount) : MOSAIC_PATTERN;
 
   return (
-    <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {items.map((item, idx) => (
-          <div
-            key={item._id.toString()}
-            onClick={() => setSelectedImage(item)}
-            className="group relative flex flex-col overflow-hidden rounded-3xl border border-black/8 bg-white shadow-2xs hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
-          >
-            <div className="relative aspect-4/3 w-full bg-gray-100 overflow-hidden">
-              <Image
-                src={item.imageUrl || item.image}
-                alt={item.caption || item.title || "Classroom moment"}
-                fill
-                className="object-cover transition-transform duration-500 group-hover:scale-105"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-black/75 px-3.5 py-1.5 text-xs font-bold text-white backdrop-blur-xs">
-                  <Maximize2 className="h-3.5 w-3.5" />
-                  <span>View</span>
-                </span>
-              </div>
-            </div>
+    <div className="w-full">
+      {/* Mosaic Grid */}
+      <div className="grid grid-cols-12 gap-4 sm:gap-5 w-full">
+        {displayItems.map((item, index) => {
+          const patternConfig = MOSAIC_PATTERN[index % MOSAIC_PATTERN.length];
+          const hasImage = Boolean(item.imageUrl || item.image || item.src);
+          const imgSrc = item.imageUrl || item.image || item.src;
+          const caption = item.caption || item.title || "";
 
-            <div className="p-4 flex-1 flex flex-col justify-between">
-              <p className="text-xs sm:text-sm font-extrabold text-[#0B1B3B] group-hover:text-[#1593C9] transition-colors line-clamp-2">
-                {item.caption || item.title || "Classroom & Seminar Moments"}
-              </p>
-              <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-gray-400 pt-2 border-t border-gray-100">
-                <span className="inline-flex items-center gap-1 text-[#F59E0B]">
-                  <Sparkles className="h-3 w-3" />
-                  <span>RD Classes</span>
-                </span>
-                <span>#{idx + 1}</span>
-              </div>
+          return (
+            <div
+              key={item._id || item.id || `tile-${index}`}
+              role={hasImage ? "button" : undefined}
+              tabIndex={hasImage ? 0 : undefined}
+              aria-label={hasImage ? (caption || `View classroom moment ${index + 1}`) : undefined}
+              onClick={() => hasImage && setLightboxIndex(index)}
+              onKeyDown={(e) => {
+                if (hasImage && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  setLightboxIndex(index);
+                }
+              }}
+              className={`group relative overflow-hidden rounded-3xl transition-all duration-300 outline-none focus-visible:ring-4 focus-visible:ring-amber-400 ${
+                patternConfig.span
+              } ${patternConfig.height} ${
+                hasImage ? "cursor-zoom-in hover:shadow-xl" : "cursor-default animate-pulse"
+              }`}
+              style={{
+                backgroundColor: patternConfig.defaultBg,
+              }}
+            >
+              {hasImage ? (
+                <>
+                  <Image
+                    src={imgSrc}
+                    alt={caption || `Classroom moment ${index + 1}`}
+                    fill
+                    priority={index < 4}
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 66vw, 50vw"
+                    className="object-cover object-center transition-transform duration-500 group-hover:scale-106"
+                  />
+
+                  {/* Dark gradient and caption on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5 sm:p-6">
+                    <div className="flex items-center justify-between text-white">
+                      <p className="text-sm sm:text-base font-bold line-clamp-2 drop-shadow-sm">
+                        {caption || "Classroom moments & celebrations"}
+                      </p>
+                      <span className="p-2 rounded-full bg-white/20 backdrop-blur-xs shrink-0 ml-3">
+                        <ZoomIn className="w-4 h-4 text-white" />
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Pastel Placeholder tile with subtle shimmer */
+                <div
+                  className="w-full h-full flex items-center justify-center select-none"
+                  style={{ backgroundColor: patternConfig.defaultBg }}
+                >
+                  <span className="sr-only">Gallery tile placeholder</span>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Lightbox Modal */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-xs animate-in fade-in duration-200"
-          onClick={() => setSelectedImage(null)}
-        >
+      {/* Pagination / Load More */}
+      {hasItems && initialItems.length > visibleCount && (
+        <div className="mt-12 flex justify-center">
           <button
             type="button"
-            onClick={() => setSelectedImage(null)}
-            className="absolute top-5 right-5 rounded-full bg-white/20 p-2 text-white hover:bg-white/30 transition-colors z-20"
-            aria-label="Close"
+            onClick={() => setVisibleCount((prev) => prev + 12)}
+            className="px-8 py-3.5 rounded-full bg-white border border-[#E2E8F0] text-[#0B1B3A] font-extrabold text-sm shadow-sm hover:shadow-md hover:bg-slate-50 transition-all cursor-pointer"
           >
-            <X className="h-6 w-6" />
+            Load More Photos ({initialItems.length - visibleCount} remaining)
           </button>
-
-          <div
-            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl bg-black"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={selectedImage.imageUrl || selectedImage.image}
-              alt={selectedImage.caption || "Classroom enlarged"}
-              className="max-h-[80vh] max-w-[85vw] object-contain rounded-xl"
-            />
-            {selectedImage.caption && (
-              <div className="p-4 text-center bg-black/70 backdrop-blur-xs text-white text-xs sm:text-sm font-semibold">
-                {selectedImage.caption}
-              </div>
-            )}
-          </div>
         </div>
       )}
+
+      {/* Shared Lightbox */}
+      <Lightbox
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        items={initialItems}
+        currentIndex={lightboxIndex || 0}
+        onIndexChange={setLightboxIndex}
+      />
     </div>
   );
 }

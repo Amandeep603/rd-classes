@@ -38,6 +38,25 @@ const topperSchema = new Schema(
       default: false,
       index: true,
     },
+    featuredOnHome: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    outOf: {
+      type: Number,
+      default: 100,
+    },
+    classLevel: {
+      type: String,
+      default: "12",
+      trim: true,
+    },
+    order: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
     // Backwards-compatible fields
     score: {
       type: String,
@@ -77,10 +96,19 @@ topperSchema.pre("validate", function () {
   } else if (this.photo && !this.photoUrl) {
     this.photoUrl = this.photo;
   }
-  if (this.featured !== undefined && this.isFeatured === undefined) {
+  // Sync featured, isFeatured and featuredOnHome
+  if (this.featuredOnHome !== undefined) {
+    this.featured = this.featuredOnHome;
+    this.isFeatured = this.featuredOnHome;
+  } else if (this.featured !== undefined) {
+    this.featuredOnHome = this.featured;
     this.isFeatured = this.featured;
-  } else if (this.isFeatured !== undefined && this.featured === undefined) {
+  } else if (this.isFeatured !== undefined) {
     this.featured = this.isFeatured;
+    this.featuredOnHome = this.isFeatured;
+  }
+  if (!this.outOf) {
+    this.outOf = 100;
   }
 });
 

@@ -9,16 +9,32 @@ export async function getCachedFeaturedToppers() {
   cacheLife("max");
   await connectDB();
 
+  // Home Toppers shows ONLY entries with featuredOnHome = true (or featured/isFeatured = true)
+  // sorted by order asc, then score desc
   let toppers = await Topper.find({
-    $or: [{ featured: true }, { isFeatured: true }],
+    $or: [{ featuredOnHome: true }, { featured: true }, { isFeatured: true }],
   })
-    .sort({ year: -1, marks: -1, createdAt: -1 })
+    .sort({ order: 1, marks: -1, score: -1, createdAt: -1 })
     .lean();
 
+  // Fallback: if none flagged, use score >= 95 (or top entries)
+  if (!toppers || toppers.length === 0) {
+    toppers = await Topper.find({
+      $or: [
+        { marks: { $gte: "95" } },
+        { score: { $gte: "95" } }
+      ]
+    })
+      .sort({ order: 1, marks: -1, score: -1, createdAt: -1 })
+      .limit(10)
+      .lean();
+  }
+
+  // Second fallback: any toppers if available
   if (!toppers || toppers.length === 0) {
     toppers = await Topper.find()
-      .sort({ year: -1, marks: -1, createdAt: -1 })
-      .limit(8)
+      .sort({ order: 1, marks: -1, score: -1, createdAt: -1 })
+      .limit(10)
       .lean();
   }
 
@@ -32,8 +48,8 @@ export async function getCachedResultsData() {
   await connectDB();
 
   const [toppers, resultPdfs] = await Promise.all([
-    Topper.find().sort({ year: -1, marks: -1, createdAt: -1 }).lean(),
-    ResultPdf.find().sort({ year: -1, createdAt: -1 }).lean(),
+    Topper.find().sort({ marks: -1, score: -1, order: 1, year: -1, createdAt: -1 }).lean(),
+    ResultPdf.find().sort({ order: 1, year: -1, createdAt: -1 }).lean(),
   ]);
 
   return {

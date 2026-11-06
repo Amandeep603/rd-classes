@@ -1,36 +1,36 @@
 import { Suspense } from "react";
+import Image from "next/image";
 import { FileText, Sigma, BookOpen, FileClock } from "lucide-react";
 import { getCachedPublicNotes } from "@/server/services/noteService.js";
 import { getCachedPublicCourses } from "@/server/services/courseService.js";
 import { getCachedSettings } from "@/server/services/settingService.js";
 import NotesDirectoryClient from "@/components/notes/NotesDirectoryClient";
-import NotesHeroIllustration from "@/components/notes/NotesHeroIllustration";
 import { SITE_CONFIG } from "@/constants/site";
 
 const noteHeroChips = [
   {
     label: "Chapter-wise Notes",
     icon: FileText,
-    holderBg: "#E8F1FD",
-    iconColor: "#1E5BD8",
+    holderBg: "#E3EEFF",
+    iconColor: "#3B82F6",
   },
   {
     label: "Formula Sheets",
     icon: Sigma,
-    holderBg: "#FFF1DB",
-    iconColor: "#E8870E",
+    holderBg: "#FFEBD2",
+    iconColor: "#F59E0B",
   },
   {
     label: "Practice Questions",
     icon: BookOpen,
-    holderBg: "#E3F6EC",
-    iconColor: "#1F9D63",
+    holderBg: "#DDF5E6",
+    iconColor: "#22A55B",
   },
   {
     label: "Previous Year Papers",
     icon: FileClock,
-    holderBg: "#EFE9FD",
-    iconColor: "#7C4DDB",
+    holderBg: "#EEE4FF",
+    iconColor: "#8B5CF6",
   },
 ];
 
@@ -108,7 +108,7 @@ export default async function PublicNotesPage() {
     "@type": "CollectionPage",
     name: "Free Accountancy Notes & Revision Sheets",
     description:
-      "CBSE Class 11 & 12 Accountancy chapter notes, formulas and question banks prepared by Ronak Sir.",
+      "CBSE Class 11 & 12 Accountancy chapter notes, formulas and practice questions prepared by Ronak Sir.",
     provider: {
       "@type": "EducationalOrganization",
       name: "R.D. Classes for Accountancy",
@@ -117,7 +117,20 @@ export default async function PublicNotesPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#FAF6EE] text-[#0F172A] pb-14 overflow-x-clip">
+    <div className="min-h-screen w-full bg-[#FDF8F1] text-[#0F172A] pb-14 overflow-x-clip">
+      {/* Animation Styles */}
+      <style>{`
+        @keyframes notesHeroFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .animate-notes-float {
+            animation: notesHeroFloat 4s ease-in-out infinite;
+          }
+        }
+      `}</style>
+
       {/* JSON-LD Schema */}
       <script
         type="application/ld+json"
@@ -128,111 +141,133 @@ export default async function PublicNotesPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      {/* HEADER (display flex, align-items center, min-height 400px, padding 40px 0, warm gradient + 3 blobs) */}
-      <header
-        className="w-full border-b border-[rgba(20,30,60,0.06)] relative overflow-hidden flex items-center min-h-[400px] py-10 max-[1000px]:py-8 max-[560px]:py-8 mb-7"
-        style={{
-          background: "linear-gradient(180deg, #FFF8EE 0%, #FFF3E2 100%)",
-        }}
-      >
-        {/* Decorative Soft Blobs (z-index 0, pointer-events none) */}
-        {/* Blob A: 560px circle, right -60px, top -80px */}
+      {/* 1. SECTION: Compact, warm cream hero section */}
+      <section className="relative overflow-hidden bg-[#FDF8F1] h-auto lg:h-[clamp(520px,33vw,660px)] border-b border-[rgba(20,30,60,0.06)]">
+        {/* Faint pale-yellow corner circle: top-right */}
         <div
-          className="absolute -right-[60px] -top-[80px] w-[560px] h-[560px] rounded-full pointer-events-none z-0 max-[560px]:w-[336px] max-[560px]:h-[336px]"
+          className="pointer-events-none absolute -right-24 -top-32 h-[420px] w-[420px] rounded-full bg-[#FBEBCB]/50 z-0"
+          aria-hidden="true"
+        />
+
+        {/* Faint pale-yellow corner circle: bottom-left */}
+        <div
+          className="pointer-events-none absolute -bottom-24 -left-20 h-[240px] w-[240px] rounded-full bg-[#FBEBCB]/50 z-0"
+          aria-hidden="true"
+        />
+
+        {/* DESKTOP BACKDROP ARC (soft arc behind the books melting near floor shadow) */}
+        <div
+          className="pointer-events-none absolute left-[72%] top-[14%] z-0 hidden h-[clamp(420px,32vw,560px)] w-[clamp(420px,32vw,560px)] -translate-x-1/2 rounded-full bg-[#FCEFD3]/70 lg:block"
           style={{
-            background: "radial-gradient(circle, rgba(255,214,150,0.7) 0%, rgba(255,214,150,0) 70%)",
+            maskImage: "linear-gradient(to bottom, #000 0%, #000 35%, transparent 70%)",
+            WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 35%, transparent 70%)",
           }}
           aria-hidden="true"
         />
 
-        {/* Blob B: 420px circle, left -140px, bottom -200px */}
-        <div
-          className="absolute -left-[140px] -bottom-[200px] w-[420px] h-[420px] rounded-full pointer-events-none z-0 max-[560px]:w-[252px] max-[560px]:h-[252px]"
-          style={{
-            background: "rgba(255,201,87,0.30)",
-          }}
-          aria-hidden="true"
-        />
+        {/* DESKTOP ILLUSTRATION (positioned absolutely, centered at 72% x and 50% y) */}
+        <div className="pointer-events-none absolute left-[51%] top-1/2 z-10 hidden w-[46%] max-w-[780px] -translate-y-1/2 lg:block">
+          <div className="animate-notes-float w-full select-none">
+            <Image
+              src="/notes-hero-books.png"
+              alt="Accountancy, Practice and Results textbooks stack with study notes"
+              width={1000}
+              height={666}
+              priority
+              className="h-auto w-full object-contain"
+              sizes="(min-width: 1024px) 46vw, 780px"
+            />
+          </div>
+        </div>
 
-        {/* Blob C: 260px circle, right 32%, top -120px */}
-        <div
-          className="absolute right-[32%] -top-[120px] w-[260px] h-[260px] rounded-full pointer-events-none z-0 max-[560px]:w-[156px] max-[560px]:h-[156px]"
-          style={{
-            background: "rgba(255,223,190,0.5)",
-          }}
-          aria-hidden="true"
-        />
-
-        {/* Inner Content Grid Container (z-index 1, 2 columns on desktop with vertical centering & 80px gap) */}
-        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 w-full relative z-[1] grid grid-cols-1 min-[1000px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-y-8 gap-x-12 min-[1100px]:gap-x-20">
-          {/* LEFT: Text Block (Vertically centered, max-width 560px, consistent gaps) */}
-          <div className="w-full max-w-[560px] flex flex-col justify-center">
-            {/* Small Label with Yellow Dash (gap to title: 12px) */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-6 h-1 bg-[#FFB800] rounded-full inline-block" />
-              <span className="text-[12px] font-bold uppercase tracking-wider text-[#556987]">
+        {/* FLEX WRAPPER FOR TEXT CONTENT (max-w-7xl, vertically centered) */}
+        <div className="relative z-10 mx-auto flex h-full max-w-7xl items-center px-6 lg:px-12 py-12 lg:py-0">
+          {/* 2. LEFT COLUMN: Text block (sits ABOVE decorative layer and image, z-20) */}
+          <div className="relative z-20 w-full lg:w-[48%] flex flex-col justify-center">
+            {/* Eyebrow: — STUDY MATERIAL */}
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <span className="w-5 h-[3px] bg-[#FFB800] rounded-full inline-block" />
+              <span className="text-xs font-bold tracking-wider text-slate-500 uppercase">
                 STUDY MATERIAL
               </span>
             </div>
 
-            {/* Title with 'Class 11 & 12' in amber with thin yellow marker band underneath (gap to subtitle: 14px) */}
+            {/* H1 Heading: Exactly two lines on desktop, ends before 48% width */}
             <h1
-              className="font-extrabold text-[#0B2A4A] tracking-tight mb-3.5"
-              style={{
-                fontSize: "clamp(26px, 2.8vw, 40px)",
-                lineHeight: 1.1,
-              }}
+              className="font-extrabold leading-[1.08] tracking-tight text-[#0B1B3A]"
+              style={{ fontSize: "clamp(2.5rem, 3.4vw, 3.75rem)" }}
             >
-              Premium Notes for<br className="hidden sm:inline" />{" "}
-              <span
-                className="text-[#D97706] whitespace-nowrap"
-                style={{
-                  backgroundImage: "linear-gradient(transparent 62%, #FFC93C 62%, #FFC93C 92%, transparent 92%)",
-                }}
-              >
-                Class 11 &amp; 12
-              </span>{" "}
-              Accountancy.
+              Premium Notes for<br className="hidden lg:block" />{" "}
+              <span className="lg:whitespace-nowrap">
+                <span className="text-[#FFB800]">Class 11 &amp; 12</span> Accountancy.
+              </span>
             </h1>
 
-            {/* Subtitle 15.5px, max-width 560px (gap to chips: 20px) */}
-            <p className="text-[15.5px] text-[#475569] leading-relaxed line-clamp-3 max-w-[560px] mb-5">
-              Chapter-wise notes, formula sheets and practice questions prepared by Ronak Sir.
+            {/* Paragraph: Wraps cleanly into 2 lines, ends at ~43% width */}
+            <p className="mt-4 max-w-[600px] text-base lg:text-lg xl:text-xl leading-relaxed text-slate-500">
+              Chapter-wise notes, formula sheets and practice questions<br className="hidden lg:block" />{" "}
+              prepared by Ronak Sir.
             </p>
 
-            {/* CHIPS ROW (Highlighted pill chips, wrapping onto 2 lines if needed, max-width 560px) */}
-            <div className="flex flex-wrap gap-3 max-w-[560px]">
-              {noteHeroChips.map((chip) => {
+            {/* Chips Grid: 2x2 grid with second column aligned on both rows */}
+            <div className="mt-6 grid grid-cols-[auto_auto] justify-start gap-x-4 gap-y-3">
+              {noteHeroChips.map((chip, idx) => {
                 const Icon = chip.icon;
+                const isCol1 = idx % 2 === 0;
                 return (
                   <div
                     key={chip.label}
-                    className="h-10 px-4 rounded-full bg-white flex items-center shrink-0 border border-[rgba(232,135,14,0.25)] shadow-[0_4px_12px_rgba(20,30,60,0.06)] hover:-translate-y-0.5 transition-transform duration-200 select-none cursor-default"
+                    className={`inline-flex items-center gap-3 rounded-full bg-white px-4 py-2.5 shadow-[0_4px_16px_rgba(11,27,58,0.06)] hover:shadow-[0_8px_24px_rgba(11,27,58,0.12)] hover:-translate-y-0.5 transition-all duration-200 cursor-default select-none justify-self-start ${
+                      isCol1 ? "w-full" : "w-auto"
+                    }`}
                   >
                     <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mr-2.5"
+                      className="h-9 w-9 rounded-full flex items-center justify-center shrink-0"
                       style={{ backgroundColor: chip.holderBg }}
                     >
-                      <Icon className="w-4 h-4 shrink-0" style={{ color: chip.iconColor }} strokeWidth={2} />
+                      <Icon
+                        className="w-4 h-4 shrink-0"
+                        style={{ color: chip.iconColor }}
+                        strokeWidth={2.2}
+                      />
                     </div>
-                    <span className="text-[14px] font-semibold text-[#1B2B4B] whitespace-nowrap">
+                    <span className="text-[15px] font-semibold text-[#0B1B3A] whitespace-nowrap">
                       {chip.label}
                     </span>
                   </div>
                 );
               })}
             </div>
-          </div>
 
-          {/* RIGHT: NotesHeroIllustration inside right grid cell (justify-self: end; align-self: center; width: clamp(380px, 34vw, 520px)) */}
-          <div className="justify-self-end self-center max-[1000px]:justify-self-center w-[clamp(380px,34vw,520px)] max-[1000px]:w-[70%] h-auto hidden min-[560px]:block select-none pointer-events-none">
-            <NotesHeroIllustration className="w-full h-auto block drop-shadow-xs" />
+            {/* 4. MOBILE / TABLET ILLUSTRATION (below lg, normal flow) */}
+            <div className="relative mx-auto mt-8 block w-full max-w-md lg:hidden">
+              {/* Scaled down circle behind it */}
+              <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[260px] w-[260px] rounded-full bg-[#FCEFD3]/70 pointer-events-none z-0"
+                style={{
+                  maskImage: "linear-gradient(to bottom, #000 0%, #000 45%, transparent 80%)",
+                  WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 45%, transparent 80%)",
+                }}
+                aria-hidden="true"
+              />
+              <div className="relative z-10 w-full animate-notes-float select-none">
+                <Image
+                  src="/notes-hero-books.png"
+                  alt="Accountancy, Practice and Results textbooks stack with study notes"
+                  width={1000}
+                  height={666}
+                  priority
+                  className="h-auto w-full object-contain"
+                  sizes="(max-width: 1024px) 100vw, 448px"
+                />
+              </div>
+            </div>
           </div>
         </div>
-      </header>
+      </section>
 
       {/* MAIN CONTAINER: DIRECTORY CLIENT */}
-      <main className="max-w-[1240px] mx-auto px-4 sm:px-6">
+      <main className="max-w-7xl mx-auto px-6 lg:px-12 mt-8">
         <Suspense fallback={<NotesLoadingSkeleton />}>
           <NotesDirectoryClient
             notes={notes}

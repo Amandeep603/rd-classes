@@ -1,4 +1,3 @@
-import { Camera, Sparkles } from "lucide-react";
 import { getCachedGalleryItems } from "@/server/services/galleryService";
 import GalleryClient from "@/components/gallery/GalleryClient";
 
@@ -26,7 +25,7 @@ export const metadata = {
 };
 
 export default async function GalleryPage() {
-  const serialized = await getCachedGalleryItems();
+  const items = await getCachedGalleryItems();
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -48,28 +47,42 @@ export default async function GalleryPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FBF8F1] text-[#0B1B3B] pt-4 sm:pt-6 pb-12 sm:pb-16">
+    <main className="min-h-screen bg-[#FDF8F1] text-[#0B1B3A] pt-6 sm:pt-8 pb-16 lg:pb-24">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
-        {/* Hero Header */}
-        <div className="text-center max-w-3xl mx-auto mb-8 sm:mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#E0F2FE] border border-[#BAE6FD] text-[#0284C7] text-xs font-bold uppercase tracking-wider mb-4 shadow-2xs">
-            <Camera className="w-3.5 h-3.5 text-[#0284C7]" />
-            <span>LIFE AT RD CLASSES</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header Row matching Reference 2 */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 lg:gap-12 mb-10 lg:mb-14">
+          {/* Left Column: Pill + 2-line Heading */}
+          <div className="max-w-2xl text-left">
+            {/* Pill with small orange bar on left */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E0F2FE] text-[#0369A1] text-xs font-bold uppercase tracking-wider mb-4 shadow-2xs select-none">
+              <span className="w-1.5 h-3.5 bg-[#FF7A00] rounded-full inline-block" />
+              <span>Life at RD Classes</span>
+            </div>
+
+            {/* H1 Heading */}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#0B1B3A] tracking-tight leading-[1.08]">
+              Classroom Moments &amp;
+              <br />
+              Celebrations
+            </h1>
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0B1B3B] tracking-tight leading-tight">
-            Classroom Moments &amp; Celebrations
-          </h1>
-          <p className="mt-4 text-base sm:text-lg text-[#5F6A7A] leading-relaxed">
-            A glimpse into our offline batches, high-energy doubt seminars, board felicitation ceremonies, and everyday student focus.
-          </p>
+
+          {/* Right Column (lg): Paragraph with yellow left border */}
+          <div className="max-w-md text-left lg:pb-2">
+            <div className="border-l-4 border-[#FFC107] pl-4 sm:pl-5">
+              <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-normal">
+                A glimpse into our offline batches, high-energy doubt seminars, board felicitation ceremonies, and everyday student focus.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Gallery Grid */}
-        <GalleryClient items={serialized} />
+        {/* Mosaic Grid */}
+        <GalleryClient initialItems={items} />
       </div>
     </main>
   );

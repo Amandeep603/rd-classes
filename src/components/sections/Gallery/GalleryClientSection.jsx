@@ -3,141 +3,68 @@
 import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
-import Reveal from "@/components/ui/Reveal";
-import InViewSection from "@/components/ui/InViewSection";
-import SectionBadge from "@/components/ui/SectionBadge";
-import SectionHeading from "@/components/ui/SectionHeading";
 import GalleryStrip from "./GalleryStrip";
+import Lightbox from "@/components/shared/Lightbox";
 
 export default function GalleryClientSection({ items = [] }) {
   const stripRef = useRef(null);
   const [scrollState, setScrollState] = useState({ atStart: true, atEnd: false });
-
-  if (items.length === 0) return null;
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   const handlePrev = () => {
     const strip = stripRef.current;
     if (!strip) return;
-    const cardW = strip.firstElementChild?.clientWidth || 200;
-    strip.scrollBy({ left: -(cardW * 2), behavior: "smooth" });
+    const cardW = 240;
+    strip.scrollBy({ left: -cardW, behavior: "smooth" });
   };
 
   const handleNext = () => {
     const strip = stripRef.current;
     if (!strip) return;
-    const cardW = strip.firstElementChild?.clientWidth || 200;
-    strip.scrollBy({ left: cardW * 2, behavior: "smooth" });
+    const cardW = 240;
+    strip.scrollBy({ left: cardW, behavior: "smooth" });
   };
 
   return (
-    <InViewSection
+    <section
       id="gallery"
-      aria-label="Classroom and celebrations gallery"
-      className="u-scope relative w-full overflow-hidden text-[#0F172A] scroll-mt-20 [isolation:isolate]"
-      style={{
-        paddingTop: "clamp(48px, 5.5vw, calc(var(--su, 1px) * 64))",
-        paddingBottom: "clamp(52px, 6vw, calc(var(--su, 1px) * 72))",
-      }}
+      aria-label="Inside Our Classroom & Celebrations"
+      className="relative w-full overflow-hidden text-[#0F172A] py-16 lg:py-24 bg-[#FDF8F1]"
     >
-      <div className="relative z-10 w-full max-w-[calc(var(--su,1px)*1600)] mx-auto px-4 lg:px-0">
-        <Reveal>
-          {/* Header Row */}
-          <div className="relative w-full flex items-center justify-between mb-8 lg:mb-[calc(var(--su,1px)*35)]">
-            <div className="hidden lg:block w-[calc(var(--su,1px)*162)] shrink-0" aria-hidden="true" />
-
-            <div className="flex flex-col items-center text-center flex-1 min-w-0">
-              <SectionBadge
-                text="LIFE AT RD CLASSES"
-                icon={null}
-                className="mb-4"
-                style={{
-                  width: "clamp(160px, 18vw, calc(var(--su, 1px) * 184))",
-                  height: "clamp(30px, 3.2vw, calc(var(--su, 1px) * 33))",
-                  backgroundColor: "#EBF5FA",
-                  color: "#0F6A8F",
-                  border: "1px solid #B8DFEE",
-                  fontSize: "clamp(10px, 1.1vw, calc(var(--su, 1px) * 11.5))",
-                }}
-              />
-
-              <SectionHeading
-                text="Inside Our Offline Classroom &amp; Celebrations"
-                highlight="Celebrations"
-                highlightColor="#F59E0B"
-                className="text-[#0B1528] text-center leading-[1.12]"
-                style={{
-                  fontSize: "clamp(28px, 4vw, calc(var(--su, 1px) * 48))",
-                  letterSpacing: "-0.02em",
-                }}
-              />
-
-              <p
-                className="mt-3 text-center text-[#556477] font-normal"
-                style={{
-                  fontSize: "clamp(13px, 1.5vw, calc(var(--su, 1px) * 16))",
-                  maxWidth: "calc(var(--su, 1px) * 620)",
-                  lineHeight: 1.5,
-                }}
-              >
-                Intense problem-solving workshops, festive batch felicitations, and the joyful journey toward academic excellence.
-              </p>
-            </div>
-
-            {/* Desktop Navigation Arrows */}
-            <div
-              className="hidden lg:flex items-center gap-3 shrink-0"
-              style={{
-                paddingRight: "clamp(16px, 2.5vw, calc(var(--su, 1px) * 20))",
-              }}
-            >
-              <button
-                type="button"
-                onClick={handlePrev}
-                aria-label="Previous gallery snapshots"
-                disabled={scrollState.atStart}
-                className={`w-11 h-11 rounded-full flex items-center justify-center bg-[#0F6A8F] text-white shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer ${
-                  scrollState.atStart ? "opacity-40 cursor-not-allowed hover:scale-100" : ""
-                }`}
-              >
-                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNext}
-                aria-label="Next gallery snapshots"
-                disabled={scrollState.atEnd}
-                className={`w-11 h-11 rounded-full flex items-center justify-center bg-[#0F6A8F] text-white shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer ${
-                  scrollState.atEnd ? "opacity-40 cursor-not-allowed hover:scale-100" : ""
-                }`}
-              >
-                <ChevronRight className="w-5 h-5 stroke-[2.5]" />
-              </button>
-            </div>
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header Row: Centered with Prev/Next buttons on top right */}
+        <div className="relative w-full flex flex-col items-center text-center mb-8 lg:mb-12">
+          {/* Top Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FFE6A0] text-[#0B1B3A] text-xs font-extrabold uppercase tracking-wider mb-4 shadow-2xs select-none">
+            <span>LIFE AT RD CLASSES</span>
           </div>
-        </Reveal>
 
-        {/* Gallery Strip with 3D Perspective and smooth scroll */}
-        <Reveal delay={0.15}>
-          <div className="w-full relative">
-            <GalleryStrip
-              items={items}
-              stripRef={stripRef}
-              onScrollStateChange={setScrollState}
-            />
-          </div>
-        </Reveal>
+          {/* Heading with yellow-to-orange highlight bar */}
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0B1B3A] tracking-tight leading-[1.15]">
+            Inside Our{" "}
+            <span className="relative inline-block px-1 whitespace-nowrap">
+              <span
+                className="absolute inset-x-0 bottom-1.5 h-[45%] bg-gradient-to-r from-[#FFB800] to-[#FF6B00] -z-10 rounded-xs opacity-90 -rotate-1"
+                aria-hidden="true"
+              />
+              Classroom &amp; Celebrations
+            </span>
+          </h2>
 
-        {/* Bottom Actions Row */}
-        <div className="mt-8 lg:mt-[calc(var(--su,1px)*45)] flex flex-col items-center justify-center gap-4">
-          {/* Mobile Arrows */}
-          <div className="flex lg:hidden items-center gap-3">
+          {/* Subtitle */}
+          <p className="mt-3.5 text-base sm:text-lg text-slate-600 font-normal max-w-2xl leading-relaxed">
+            Real snapshots from daily lecture discussions, whiteboard problem solving, and annual prize distributions.
+          </p>
+
+          {/* Prev/Next buttons at the top right on desktop */}
+          <div className="hidden lg:flex items-center gap-2.5 absolute right-0 top-1/2 -translate-y-1/2">
             <button
               type="button"
               onClick={handlePrev}
-              aria-label="Previous gallery snapshots"
+              aria-label="Previous gallery photo"
               disabled={scrollState.atStart}
-              className={`w-12 h-12 rounded-full flex items-center justify-center bg-[#0F6A8F] text-white shadow-md active:scale-95 ${
-                scrollState.atStart ? "opacity-40" : ""
+              className={`w-11 h-11 rounded-full flex items-center justify-center bg-[#D6EAF8] text-[#0E7490] transition-transform hover:scale-105 active:scale-95 cursor-pointer shadow-xs ${
+                scrollState.atStart ? "opacity-40 cursor-not-allowed hover:scale-100" : ""
               }`}
             >
               <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
@@ -145,31 +72,67 @@ export default function GalleryClientSection({ items = [] }) {
             <button
               type="button"
               onClick={handleNext}
-              aria-label="Next gallery snapshots"
+              aria-label="Next gallery photo"
               disabled={scrollState.atEnd}
-              className={`w-12 h-12 rounded-full flex items-center justify-center bg-[#0F6A8F] text-white shadow-md active:scale-95 ${
-                scrollState.atEnd ? "opacity-40" : ""
+              className={`w-11 h-11 rounded-full flex items-center justify-center bg-[#0E7490] text-white transition-transform hover:scale-105 active:scale-95 cursor-pointer shadow-md ${
+                scrollState.atEnd ? "opacity-40 cursor-not-allowed hover:scale-100" : ""
               }`}
             >
               <ChevronRight className="w-5 h-5 stroke-[2.5]" />
             </button>
           </div>
+        </div>
 
+        {/* Gallery 3D Slider */}
+        <div className="w-full">
+          <GalleryStrip
+            items={items}
+            stripRef={stripRef}
+            onImageClick={(idx) => setLightboxIndex(idx)}
+            onScrollStateChange={setScrollState}
+          />
+        </div>
+
+        {/* Mobile Prev/Next Arrows */}
+        <div className="flex lg:hidden items-center justify-center gap-3 mt-4">
+          <button
+            type="button"
+            onClick={handlePrev}
+            aria-label="Previous photo"
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-[#D6EAF8] text-[#0E7490] shadow-xs active:scale-95"
+          >
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            aria-label="Next photo"
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-[#0E7490] text-white shadow-xs active:scale-95"
+          >
+            <ChevronRight className="w-5 h-5 stroke-[2.5]" />
+          </button>
+        </div>
+
+        {/* Bottom CTA Row: Teal-blue pill button */}
+        <div className="mt-10 flex justify-center">
           <Link
             href="/gallery"
-            className="group inline-flex items-center justify-center gap-2 rounded-full font-bold text-white transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            style={{
-              padding: "12px 28px",
-              backgroundColor: "#0F6A8F",
-              fontSize: "clamp(13px, 1.4vw, 15px)",
-              boxShadow: "0 10px 24px -8px rgba(15, 106, 143, 0.45)",
-            }}
+            className="group inline-flex items-center gap-2.5 rounded-full font-bold text-white transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] shadow-lg shadow-teal-900/20 px-8 py-3.5 text-sm sm:text-base cursor-pointer bg-[#0E7490] hover:bg-[#095E76]"
           >
             <span>View Full Classroom Gallery</span>
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
       </div>
-    </InViewSection>
+
+      {/* Shared Lightbox */}
+      <Lightbox
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        items={items}
+        currentIndex={lightboxIndex || 0}
+        onIndexChange={setLightboxIndex}
+      />
+    </section>
   );
 }

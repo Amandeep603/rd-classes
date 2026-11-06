@@ -17,6 +17,11 @@ const galleryItemSchema = new Schema(
       default: "",
       trim: true,
     },
+    showOnHome: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     position: {
       type: Number,
       default: 0,

@@ -32,6 +32,11 @@ const resultPdfSchema = new Schema(
       type: Number,
       default: 0,
     },
+    order: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
     // Backwards-compatible fields
     examYear: {
       type: String,

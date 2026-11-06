@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/server/auth/session.js";
 import connectDB from "@/lib/mongodb";
@@ -11,9 +12,14 @@ const updateTopperSchema = z.object({
   school: z.string().min(1).optional(),
   year: z.coerce.string().optional(),
   marks: z.coerce.string().min(1).optional(),
+  score: z.coerce.string().optional(),
+  outOf: z.coerce.number().optional(),
+  classLevel: z.string().optional(),
+  order: z.coerce.number().optional(),
   photoUrl: z.string().optional(),
   publicId: z.string().optional(),
   featured: z.boolean().optional(),
+  featuredOnHome: z.boolean().optional(),
 });
 
 export async function PATCH(request, { params }) {
@@ -47,6 +53,7 @@ export async function PATCH(request, { params }) {
 
     Object.assign(topper, parsed.data);
     await topper.save();
+    revalidateTag("toppers");
 
     await logAuditEvent({
       actorId: admin.user._id,
@@ -85,6 +92,7 @@ export async function DELETE(request, { params }) {
     }
 
     await Topper.findByIdAndDelete(id);
+    revalidateTag("toppers");
 
     await logAuditEvent({
       actorId: admin.user._id,

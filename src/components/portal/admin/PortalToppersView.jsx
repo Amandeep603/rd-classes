@@ -20,30 +20,37 @@ import DataTable from "@/components/admin/ui/DataTable";
 import Modal from "@/components/admin/ui/Modal";
 import ConfirmDialog from "@/components/admin/ui/ConfirmDialog";
 import FormField from "@/components/admin/ui/FormField";
-import StatusBadge from "@/components/admin/ui/StatusBadge";
 import { useToast } from "@/components/admin/ui/Toast";
 
-// Helper: compress image file to square WebP under 200KB on canvas
+// Helper: compress image file without cropping, preserving exact aspect ratio
 async function processTopperImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new window.Image();
       img.onload = () => {
-        const side = Math.min(img.width, img.height);
-        const startX = (img.width - side) / 2;
-        const startY = (img.height - side) / 2;
+        const maxDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
 
-        const targetSize = Math.min(side, 600); // 600x600 square max
         const canvas = document.createElement("canvas");
-        canvas.width = targetSize;
-        canvas.height = targetSize;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext("2d");
 
-        ctx.drawImage(img, startX, startY, side, side, 0, 0, targetSize, targetSize);
+        ctx.drawImage(img, 0, 0, w, h);
 
-        // Compress to WebP under 200KB
-        let quality = 0.85;
+        // Compress to WebP under 350KB
+        const quality = 0.88;
         canvas.toBlob(
           (blob) => {
             if (!blob) {
@@ -79,6 +86,9 @@ export default function PortalToppersView({ initialToppers = [] }) {
   const [school, setSchool] = useState("");
   const [year, setYear] = useState("2025");
   const [marks, setMarks] = useState("");
+  const [outOf, setOutOf] = useState(100);
+  const [classLevel, setClassLevel] = useState("12");
+  const [order, setOrder] = useState(0);
   const [photoUrl, setPhotoUrl] = useState("");
   const [publicId, setPublicId] = useState("");
   const [featured, setFeatured] = useState(true);
@@ -89,6 +99,9 @@ export default function PortalToppersView({ initialToppers = [] }) {
     setSchool("");
     setYear("2025");
     setMarks("");
+    setOutOf(100);
+    setClassLevel("12");
+    setOrder(0);
     setPhotoUrl("");
     setPublicId("");
     setFeatured(true);
@@ -107,9 +120,12 @@ export default function PortalToppersView({ initialToppers = [] }) {
     setSchool(topper.school || "");
     setYear(topper.year || topper.examYear || "2025");
     setMarks(topper.marks || topper.score || "");
+    setOutOf(topper.outOf || 100);
+    setClassLevel(topper.classLevel || "12");
+    setOrder(topper.order ?? 0);
     setPhotoUrl(topper.photoUrl || topper.photo || "");
     setPublicId(topper.publicId || "");
-    setFeatured(Boolean(topper.featured ?? topper.isFeatured));
+    setFeatured(Boolean(topper.featuredOnHome ?? topper.featured ?? topper.isFeatured));
     setFormError("");
     setIsModalOpen(true);
   };
@@ -149,7 +165,7 @@ export default function PortalToppersView({ initialToppers = [] }) {
     e.preventDefault();
     if (!name.trim()) return setFormError("Student name is required.");
     if (!school.trim()) return setFormError("School name is required.");
-    if (!marks.trim()) return setFormError("Marks/Score is required (e.g. 99/100).");
+    if (!marks.toString().trim()) return setFormError("Marks/Score is required (e.g. 100 or 98).");
 
     setLoading(true);
     setFormError("");
@@ -158,11 +174,18 @@ export default function PortalToppersView({ initialToppers = [] }) {
       const payload = {
         name: name.trim(),
         school: school.trim(),
-        year: year.trim(),
-        marks: marks.trim(),
+        year: year.toString().trim(),
+        examYear: year.toString().trim(),
+        marks: marks.toString().trim(),
+        score: marks.toString().trim(),
+        outOf: Number(outOf) || 100,
+        classLevel: classLevel || "12",
+        order: Number(order) || 0,
         photoUrl,
         publicId,
         featured,
+        featuredOnHome: featured,
+        isFeatured: featured,
       };
 
       if (editingTopper) {
@@ -222,20 +245,34 @@ export default function PortalToppersView({ initialToppers = [] }) {
   };
 
   const handleToggleFeatured = async (topper) => {
-    const newFeatured = !topper.featured;
+    const currentFeatured = Boolean(topper.featuredOnHome ?? topper.featured ?? topper.isFeatured);
+    const newFeatured = !currentFeatured;
     try {
       const res = await fetch(`/api/admin/toppers/${topper._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ featured: newFeatured }),
+        body: JSON.stringify({
+          featured: newFeatured,
+          featuredOnHome: newFeatured,
+          isFeatured: newFeatured,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Toggle failed");
 
       setToppers((prev) =>
-        prev.map((t) => (t._id === topper._id ? { ...t, featured: newFeatured } : t))
+        prev.map((t) =>
+          t._id === topper._id
+            ? {
+                ...t,
+                featured: newFeatured,
+                featuredOnHome: newFeatured,
+                isFeatured: newFeatured,
+              }
+            : t
+        )
       );
-      showToast(newFeatured ? "Topper featured on public site" : "Removed from featured");
+      showToast(newFeatured ? "Topper featured on Home carousel" : "Removed from Home carousel");
     } catch (err) {
       showToast(err.message, "error");
     }
@@ -275,33 +312,54 @@ export default function PortalToppersView({ initialToppers = [] }) {
       ),
     },
     {
+      header: "Class",
+      field: "classLevel",
+      render: (row) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+          Class {row.classLevel || "12"}
+        </span>
+      ),
+    },
+    {
       header: "Score / Marks",
       field: "marks",
       sortable: true,
       render: (row) => (
         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-[#FFF8E6] text-[#B47500] border border-[#FFE59E]">
-          {row.marks || row.score}
+          {row.marks || row.score} / {row.outOf || 100}
         </span>
       ),
     },
     { header: "Year", field: "year", sortable: true },
     {
-      header: "Featured",
-      field: "featured",
+      header: "Order",
+      field: "order",
       render: (row) => (
-        <button
-          type="button"
-          onClick={() => handleToggleFeatured(row)}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
-            row.featured
-              ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] hover:bg-[#FDE68A]"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          <Star className={`h-3.5 w-3.5 ${row.featured ? "fill-amber-500 text-amber-500" : ""}`} />
-          <span>{row.featured ? "Featured" : "Standard"}</span>
-        </button>
+        <span className="text-xs font-semibold text-gray-600">
+          {row.order ?? 0}
+        </span>
       ),
+    },
+    {
+      header: "Home Carousel",
+      field: "featuredOnHome",
+      render: (row) => {
+        const isFeat = Boolean(row.featuredOnHome ?? row.featured ?? row.isFeatured);
+        return (
+          <button
+            type="button"
+            onClick={() => handleToggleFeatured(row)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
+              isFeat
+                ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] hover:bg-[#FDE68A]"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <Star className={`h-3.5 w-3.5 ${isFeat ? "fill-amber-500 text-amber-500" : ""}`} />
+            <span>{isFeat ? "Featured" : "Standard"}</span>
+          </button>
+        );
+      },
     },
     {
       header: "Actions",
@@ -373,15 +431,15 @@ export default function PortalToppersView({ initialToppers = [] }) {
             </div>
           )}
 
-          {/* Photo Upload with square crop preview */}
+          {/* Photo Upload: Client compresses to WebP preserving aspect ratio */}
           <div>
             <label className="block text-xs font-bold text-neutral-800 mb-1.5">
-              Student Photo (Square cropped, WebP under 200KB)
+              Student Photo (Portrait, square, or landscape - auto-fitted without cropping)
             </label>
             <div className="flex items-center gap-4">
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
                 {photoUrl ? (
-                  <Image src={photoUrl} alt="Topper preview" fill className="object-cover" />
+                  <Image src={photoUrl} alt="Topper preview" fill className="object-contain" />
                 ) : (
                   <Camera className="h-7 w-7 text-gray-400" />
                 )}
@@ -410,7 +468,7 @@ export default function PortalToppersView({ initialToppers = [] }) {
                   <span>{photoUrl ? "Change Photo" : "Upload Photo"}</span>
                 </button>
                 <p className="mt-1 text-[11px] text-gray-500">
-                  Client auto-crops to square and compresses to WebP under 200KB before Cloudinary upload.
+                  Client compresses to WebP while preserving exact aspect ratio before upload.
                 </p>
               </div>
             </div>
@@ -420,7 +478,7 @@ export default function PortalToppersView({ initialToppers = [] }) {
             label="Student Full Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Priyanshi Sharma"
+            placeholder="e.g. Vardaan Agarwal"
             required
           />
 
@@ -428,10 +486,43 @@ export default function PortalToppersView({ initialToppers = [] }) {
             label="School Name"
             value={school}
             onChange={(e) => setSchool(e.target.value)}
-            placeholder="e.g. Modern Vidya Niketan (MVN), Faridabad"
+            placeholder="e.g. MVN (Modern Vidya Niketan)"
             required
           />
 
+          {/* Class, Score and Out-of row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-neutral-800 mb-1.5">
+                Class Level
+              </label>
+              <select
+                value={classLevel}
+                onChange={(e) => setClassLevel(e.target.value)}
+                className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FFC21A]"
+              >
+                <option value="12">Class 12</option>
+                <option value="11">Class 11</option>
+              </select>
+            </div>
+            <FormField
+              label="Marks / Score"
+              value={marks}
+              onChange={(e) => setMarks(e.target.value)}
+              placeholder="e.g. 98"
+              required
+            />
+            <FormField
+              label="Out Of"
+              type="number"
+              value={outOf}
+              onChange={(e) => setOutOf(e.target.value)}
+              placeholder="100"
+              required
+            />
+          </div>
+
+          {/* Exam Year & Display Order */}
           <div className="grid grid-cols-2 gap-3">
             <FormField
               label="Board Exam Year"
@@ -441,14 +532,15 @@ export default function PortalToppersView({ initialToppers = [] }) {
               required
             />
             <FormField
-              label="Marks / Score"
-              value={marks}
-              onChange={(e) => setMarks(e.target.value)}
-              placeholder="e.g. 100/100 or 98%"
-              required
+              label="Display Order (Sort)"
+              type="number"
+              value={order}
+              onChange={(e) => setOrder(e.target.value)}
+              placeholder="0 (lowest first)"
             />
           </div>
 
+          {/* Featured on Home */}
           <div className="flex items-center gap-2 pt-2">
             <input
               type="checkbox"
@@ -458,7 +550,7 @@ export default function PortalToppersView({ initialToppers = [] }) {
               className="h-4 w-4 rounded text-[#FFC21A] focus:ring-[#FFC21A]"
             />
             <label htmlFor="featured-toggle" className="text-xs font-bold text-gray-800 cursor-pointer">
-              Feature this topper on the public website home section
+              Show in Home Toppers (Board Toppers Carousel)
             </label>
           </div>
 

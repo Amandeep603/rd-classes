@@ -1,228 +1,176 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
 import TopperCard from "./TopperCard";
 
 export default function ToppersCarousel({
-  toppers,
-  activeIndex,
-  onChangeActive,
+  toppers = [],
+  externalPrev,
+  externalNext,
+  onCanScrollChange,
 }) {
-  const containerRef = useRef(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isIntersecting, setIsIntersecting] = useState(false);
-  const pointerStartRef = useRef(null);
+  const count = toppers.length;
+  const isFewerThanFive = count < 5;
+  const shouldLoop = count >= 6;
 
-  const n = toppers.length;
+  // If 6+ entries and too few slides for a smooth loop with 5 visible, duplicate list internally
+  const slides = useMemo(() => {
+    if (shouldLoop && count < 10) {
+      return [...toppers, ...toppers];
+    }
+    return toppers;
+  }, [toppers, shouldLoop, count]);
 
-  // Media query & intersection observer for hydration safe behaviour
+  // Center slide as default start index
+  const defaultStartIndex = isFewerThanFive
+    ? Math.max(0, Math.floor(count / 2))
+    : 2;
+
+  const [selectedIndex, setSelectedIndex] = useState(defaultStartIndex);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  // Configure Embla carousel per specification
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    {
+      startIndex: defaultStartIndex,
+      align: "center",
+      loop: shouldLoop,
+      skipSnaps: false,
+      containScroll: false,
+      duration: 25,
+    },
+    shouldLoop
+      ? [
+          Autoplay({
+            delay: 4000,
+            stopOnInteraction: false,
+            stopOnMouseEnter: true,
+          }),
+        ]
+      : []
+  );
+
+  const scrollPrev = useCallback(() => {
+    if (isFewerThanFive) {
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : count - 1));
+    } else if (emblaApi) {
+      emblaApi.scrollPrev();
+    }
+  }, [isFewerThanFive, emblaApi, count]);
+
+  const scrollNext = useCallback(() => {
+    if (isFewerThanFive) {
+      setSelectedIndex((prev) => (prev < count - 1 ? prev + 1 : 0));
+    } else if (emblaApi) {
+      emblaApi.scrollNext();
+    }
+  }, [isFewerThanFive, emblaApi, count]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi || isFewerThanFive) return;
+    const snap = emblaApi.selectedScrollSnap();
+    setSelectedIndex(snap);
+    const prevOk = emblaApi.canScrollPrev();
+    const nextOk = emblaApi.canScrollNext();
+    setCanScrollPrev(prevOk);
+    setCanScrollNext(nextOk);
+    onCanScrollChange?.({ canScrollPrev: prevOk, canScrollNext: nextOk });
+  }, [emblaApi, isFewerThanFive, onCanScrollChange]);
+
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile, { passive: true });
-
-    const el = containerRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsIntersecting(entry.isIntersecting);
-      },
-      { threshold: 0.2 }
-    );
-    observer.observe(el);
+    if (!emblaApi || isFewerThanFive) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
 
     return () => {
-      window.removeEventListener("resize", checkMobile);
-      observer.disconnect();
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
     };
-  }, []);
+  }, [emblaApi, isFewerThanFive, onSelect]);
+
+  // Hook external controller buttons
+  useEffect(() => {
+    if (externalPrev) externalPrev.current = scrollPrev;
+    if (externalNext) externalNext.current = scrollNext;
+  }, [externalPrev, externalNext, scrollPrev, scrollNext]);
 
   // Keyboard navigation
   const handleKeyDown = useCallback(
     (e) => {
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        onChangeActive((activeIndex - 1 + n) % n);
+        scrollPrev();
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        onChangeActive((activeIndex + 1) % n);
+        scrollNext();
       }
     },
-    [activeIndex, n, onChangeActive]
+    [scrollPrev, scrollNext]
   );
 
-  // Autoplay on desktop pointer:fine when in view, not hovered, reduced-motion: no
-  useEffect(() => {
-    if (isMobile || isHovered || !isIntersecting) return;
-    const mediaFine = window.matchMedia("(pointer: fine)").matches;
-    const prefersReduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!mediaFine || prefersReduce) return;
+  // Layout for fewer than 5 entries: centered without loop or empty bars
+  if (isFewerThanFive) {
+    return (
+      <div
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="w-full relative focus:outline-none"
+        aria-label="Board Toppers"
+        role="region"
+      >
+        <div className="flex flex-wrap items-center justify-center gap-4 py-8 overflow-visible">
+          {toppers.map((topper, index) => {
+            const isFeatured = index === selectedIndex;
+            return (
+              <div
+                key={topper._id || topper.id || index}
+                className="w-[245px] flex justify-center transition-transform duration-500"
+              >
+                <TopperCard
+                  topper={topper}
+                  isFeatured={isFeatured}
+                  onClick={() => setSelectedIndex(index)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
-    const interval = setInterval(() => {
-      onChangeActive((prev) => (prev + 1) % n);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [isMobile, isHovered, isIntersecting, n, onChangeActive]);
-
-  // Pointer swipe handling
-  const handlePointerDown = (e) => {
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const handlePointerUp = (e) => {
-    if (!pointerStartRef.current) return;
-    const dx = e.clientX - pointerStartRef.current.x;
-    const dy = e.clientY - pointerStartRef.current.y;
-    pointerStartRef.current = null;
-
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-      if (dx < 0) {
-        onChangeActive((activeIndex + 1) % n);
-      } else {
-        onChangeActive((activeIndex - 1 + n) % n);
-      }
-    }
-  };
-
-  // Compute transform & styles for each card index
-  const getSlotStyle = (i) => {
-    // Normalised offset around active
-    const half = Math.floor(n / 2);
-    const offset = (((i - activeIndex + half) % n) + n) % n - half;
-
-    if (isMobile) {
-      if (offset === 0) {
-        return {
-          transform: "translate3d(0, 0, 0) scale(1)",
-          zIndex: 30,
-          opacity: 1,
-          pointerEvents: "auto",
-        };
-      } else if (offset === -1) {
-        return {
-          transform: "translate3d(-62%, 18px, 0) scale(0.78)",
-          zIndex: 20,
-          opacity: 0.6,
-          pointerEvents: "auto",
-        };
-      } else if (offset === 1) {
-        return {
-          transform: "translate3d(62%, 18px, 0) scale(0.78)",
-          zIndex: 20,
-          opacity: 0.6,
-          pointerEvents: "auto",
-        };
-      } else {
-        return {
-          transform: `translate3d(${offset < 0 ? -120 : 120}%, 24px, 0) scale(0.7)`,
-          zIndex: 10,
-          opacity: 0,
-          pointerEvents: "none",
-        };
-      }
-    }
-
-    // Desktop slot configs
-    switch (offset) {
-      case 0:
-        return {
-          transform: "translate3d(0, 0, 0) scale(1)",
-          zIndex: 30,
-          opacity: 1,
-          pointerEvents: "auto",
-        };
-      case -1:
-        return {
-          transform:
-            "translate3d(calc(var(--su, 1px) * -313), calc(var(--su, 1px) * 31.5), 0) scale(0.836)",
-          zIndex: 20,
-          opacity: 0.95,
-          pointerEvents: "auto",
-        };
-      case 1:
-        return {
-          transform:
-            "translate3d(calc(var(--su, 1px) * 315), calc(var(--su, 1px) * 31.5), 0) scale(0.84)",
-          zIndex: 20,
-          opacity: 0.95,
-          pointerEvents: "auto",
-        };
-      case -2:
-        return {
-          transform:
-            "translate3d(calc(var(--su, 1px) * -587), calc(var(--su, 1px) * 40), 0) scale(0.767)",
-          zIndex: 10,
-          opacity: 0.88,
-          pointerEvents: "auto",
-        };
-      case 2:
-        return {
-          transform:
-            "translate3d(calc(var(--su, 1px) * 589), calc(var(--su, 1px) * 40), 0) scale(0.77)",
-          zIndex: 10,
-          opacity: 0.88,
-          pointerEvents: "auto",
-        };
-      default:
-        return {
-          transform: `translate3d(${offset < 0 ? "-700px" : "700px"}, 40px, 0) scale(0.7)`,
-          zIndex: 5,
-          opacity: 0,
-          pointerEvents: "none",
-        };
-    }
-  };
-
+  // Layout for 5+ entries: 5 cards visible on desktop, 3 on tablet, 1.3 on mobile
   return (
     <div
-      ref={containerRef}
-      role="region"
-      aria-roledescription="carousel"
-      aria-label="Board Toppers Carousel"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="relative w-full max-w-[1421px] lg:max-w-[calc(var(--su,1px)*1421)] mx-auto flex items-center justify-center touch-pan-y outline-none focus-visible:ring-2 focus-visible:ring-[#FF8A1F] rounded-2xl"
-      style={{
-        height: "clamp(380px, 45vw, calc(var(--su, 1px) * 440))",
-      }}
+      className="w-full relative focus:outline-none"
+      aria-label="Board Toppers Carousel"
+      role="region"
     >
-      {toppers.map((topper, i) => {
-        const slotStyle = getSlotStyle(i);
-        const isFeatured = i === activeIndex;
-
-        return (
-          <div
-            key={topper.id}
-            data-featured={isFeatured ? "true" : undefined}
-            onClick={() => {
-              if (!isFeatured) onChangeActive(i);
-            }}
-            className="absolute top-0 transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] [will-change:transform]"
-            style={{
-              width: "clamp(240px, 72vw, calc(var(--su, 1px) * 318))",
-              height: "clamp(320px, 98vw, calc(var(--su, 1px) * 428))",
-              ...slotStyle,
-            }}
-          >
-            <TopperCard
-              topper={topper}
-              isFeatured={isFeatured}
-              onClick={() => {
-                if (!isFeatured) onChangeActive(i);
-              }}
-            />
-          </div>
-        );
-      })}
+      <div className="overflow-hidden py-10" ref={emblaRef}>
+        <div className="flex touch-pan-y items-center">
+          {slides.map((topper, index) => {
+            const isFeatured = index === selectedIndex;
+            return (
+              <div
+                key={`${topper._id || topper.id || index}-${index}`}
+                className="shrink-0 basis-[78%] md:basis-1/3 lg:basis-1/5 px-2 flex justify-center items-center transition-transform duration-500"
+              >
+                <TopperCard
+                  topper={topper}
+                  isFeatured={isFeatured}
+                  onClick={() => emblaApi && emblaApi.scrollTo(index)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

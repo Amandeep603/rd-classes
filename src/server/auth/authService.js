@@ -29,6 +29,7 @@ import {
   computeDeviceDifferences,
   computeRequestFlags,
   deriveSlot,
+  deriveOsFamily,
   isInAppBrowser,
   getInAppBrowserLabel,
 } from "./deviceIdentity.js";
@@ -91,7 +92,7 @@ export async function studentLogin({ loginId, password }) {
     );
     return {
       success: false,
-      error: `Too many attempts, try again in ${mins} minutes`,
+      error: `Too many failed attempts, try again in ${mins} minutes`,
       reason: "rate_limited",
     };
   }
@@ -167,7 +168,7 @@ export async function studentLogin({ loginId, password }) {
     );
     return {
       success: false,
-      error: "Your account has been deactivated. Please contact RD Classes administration.",
+      error: "Your account has been deactivated (blocked). Please contact RD Classes administration.",
       reason: "blocked",
     };
   }
@@ -200,8 +201,9 @@ export async function studentLogin({ loginId, password }) {
       .digest("hex");
   }
 
-  // Check if incoming cookie belongs to a replaced device of this student
+  // Check if incoming cookie belongs to a replaced or revoked device of this student
   let replacedDevice = null;
+  let revokedDevice = null;
   if (incomingTokenHash) {
     replacedDevice = await Device.findOne({
       $or: [{ studentId: user._id }, { userId: user._id }],
@@ -211,7 +213,21 @@ export async function studentLogin({ loginId, password }) {
         { tokenHashes: incomingTokenHash },
       ],
     });
+    revokedDevice = await Device.findOne({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      status: "revoked",
+      $or: [
+        { browserTokenHashes: incomingTokenHash },
+        { tokenHashes: incomingTokenHash },
+      ],
+    });
   }
+
+  const anyDeviceEver = Boolean(
+    await Device.exists({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+    })
+  );
 
   // Helper to create and set a session without revoking existing sessions
   const createStudentSession = async (deviceId) => {
@@ -578,7 +594,7 @@ export async function studentLogin({ loginId, password }) {
   // STEP 3.2: Student has zero approved devices -> register current device as approved
   // Atomic: only one first device can win a race across slots; loser becomes pending request
   const totalApproved = approvedDevices.length;
-  if (totalApproved === 0) {
+  if (totalApproved === 0 && !anyDeviceEver && !revokedDevice) {
     const wonFirstLoginRace = await User.findOneAndUpdate(
       {
         _id: user._id,
@@ -673,12 +689,44 @@ export async function studentLogin({ loginId, password }) {
     reqTokenHash = issued.hash;
   }
 
-  // Check if a REJECTED request exists for that token
-  const rejectedReq = await DeviceRequest.findOne({
-    studentId: user._id,
-    $or: [{ requestTokenHash: reqTokenHash }, { tokenHash: reqTokenHash }],
-    status: "rejected",
+  // Find occupied device for this slot
+  const occupiedDevice = approvedDevices.find((d) => deriveSlot(d) === signals.slot);
+  const flags = computeRequestFlags({
+    signals,
+    profile,
+    occupiedDevice,
+    isCopiedCookie: matchResult.isCopiedCookie,
+    replacedDevice,
   });
+
+  const dedupeKey = computeDedupeKey(user._id, reqTokenHash, profile, signals.slot);
+
+  // Check if a REJECTED request exists for that token, pending cookie, or dedupe key
+  const rejectCond = [];
+  if (rawPendingCookie) {
+    const pVal = String(rawPendingCookie).trim();
+    if (mongoose.isValidObjectId(pVal)) {
+      rejectCond.push({ _id: pVal });
+    }
+    rejectCond.push({ pendingId: pVal });
+    rejectCond.push({ deviceId: pVal });
+  }
+  if (reqTokenHash) {
+    rejectCond.push({ requestTokenHash: reqTokenHash });
+    rejectCond.push({ tokenHash: reqTokenHash });
+  }
+  if (dedupeKey) {
+    rejectCond.push({ dedupeKey });
+  }
+
+  let rejectedReq = null;
+  if (rejectCond.length > 0) {
+    rejectedReq = await DeviceRequest.findOne({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      status: "rejected",
+      $or: rejectCond,
+    });
+  }
 
   if (rejectedReq) {
     rejectedReq.attemptCount = (rejectedReq.attemptCount || 1) + 1;
@@ -687,7 +735,9 @@ export async function studentLogin({ loginId, password }) {
     if (signals.city) rejectedReq.city = signals.city;
     await rejectedReq.save();
 
-    const declinedMsg = "Your request for this device was declined. Please contact RD Classes.";
+    const declinedMsg = rejectedReq.rejectionReason
+      ? rejectedReq.rejectionReason
+      : "Your request for this device was declined. Please contact RD Classes.";
     console.warn(
       `[STUDENT_LOGIN] timestamp=${now.toISOString()} loginId=${upperId} result=device_declined reqTokenHash=${reqTokenHash} ip=${signals.ip}`
     );
@@ -702,26 +752,27 @@ export async function studentLogin({ loginId, password }) {
     };
   }
 
-  // Find occupied device for this slot
-  const occupiedDevice = approvedDevices.find((d) => deriveSlot(d) === signals.slot);
-  const flags = computeRequestFlags({
-    signals,
-    profile,
-    occupiedDevice,
-    isCopiedCookie: matchResult.isCopiedCookie,
-    replacedDevice,
-  });
-
-  const dedupeKey = computeDedupeKey(user._id, reqTokenHash, profile, signals.slot);
+  const pendingCond = [];
+  if (rawPendingCookie) {
+    const pVal = String(rawPendingCookie).trim();
+    if (mongoose.isValidObjectId(pVal)) {
+      pendingCond.push({ _id: pVal });
+    }
+    pendingCond.push({ pendingId: pVal });
+    pendingCond.push({ deviceId: pVal });
+  }
+  if (reqTokenHash) {
+    pendingCond.push({ requestTokenHash: reqTokenHash });
+    pendingCond.push({ tokenHash: reqTokenHash });
+  }
+  if (dedupeKey) {
+    pendingCond.push({ dedupeKey });
+  }
 
   let pendingReq = await DeviceRequest.findOne({
     $or: [{ studentId: user._id }, { userId: user._id }],
     status: "pending",
-    $or: [
-      { requestTokenHash: reqTokenHash },
-      { tokenHash: reqTokenHash },
-      { dedupeKey },
-    ],
+    $or: pendingCond,
   });
 
   if (pendingReq) {
@@ -739,6 +790,22 @@ export async function studentLogin({ loginId, password }) {
     if (!pendingReq.tokenHash) pendingReq.tokenHash = reqTokenHash;
     await pendingReq.save();
   } else {
+    // Rate limit: at most 5 new requests per user in 24 hours
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const recentRequestsCount = await DeviceRequest.countDocuments({
+      $or: [{ studentId: user._id }, { userId: user._id }],
+      createdAt: { $gte: twentyFourHoursAgo },
+    });
+
+    if (recentRequestsCount >= 5) {
+      return {
+        success: false,
+        pendingApproval: false,
+        error: "Too many pending device requests within 24 hours. Please contact RD Classes support.",
+        reason: "rate_limited",
+      };
+    }
+
     const newReqDeviceId = "req_" + crypto.randomBytes(8).toString("hex");
 
     try {
@@ -780,7 +847,7 @@ export async function studentLogin({ loginId, password }) {
       if (isDup) {
         pendingReq = await DeviceRequest.findOne({
           $or: [{ studentId: user._id }, { userId: user._id }],
-          $or: [{ requestTokenHash: reqTokenHash }, { dedupeKey }],
+          $or: pendingCond,
         });
         if (pendingReq) {
           pendingReq.status = "pending";
@@ -828,6 +895,8 @@ export async function studentLogin({ loginId, password }) {
   return {
     success: false,
     pendingApproval: true,
+    status: "pending",
+    redirectTo: "/student/login/pending",
     error: message,
     message,
     reason: replacedDevice ? "device_replaced" : "device_pending",
